@@ -31,6 +31,7 @@ import {
   Clock
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
+import { AudioPrompt } from '../common/AudioPrompt';
 import { 
   primaryComplaints, 
   clinicalQuestionsData, 
@@ -53,16 +54,55 @@ export const Step4_ClinicalHistory = () => {
     return ['en', 'hi', 'te'].includes(language) ? language : 'en';
   });
 
-  // Resolve complaint ID from Step 2 selection
+  // Resolve complaint ID from Step 2 selection or custom reason for visit text
   const resolveComplaintId = () => {
-    if (kioskForm.selectedComplaintId) return kioskForm.selectedComplaintId;
-    const r = (kioskForm.reasonForVisit || '').toLowerCase();
-    if (r.includes('fever')) return 'fever';
-    if (r.includes('headache') || r.includes('migraine')) return 'headache';
-    if (r.includes('abdominal') || r.includes('stomach')) return 'abdominal_pain';
-    if (r.includes('cough') || r.includes('breath')) return 'cough';
-    if (r.includes('back') || r.includes('other') || r.includes('joint')) return 'other';
-    return 'chest_pain';
+    if (kioskForm.selectedComplaintId && clinicalQuestionsData[kioskForm.selectedComplaintId]) {
+      return kioskForm.selectedComplaintId;
+    }
+    const r = (kioskForm.reasonForVisit || kioskForm.customComplaint || '').toLowerCase();
+    
+    // Chest / Heart
+    if (r.includes('chest') || r.includes('heart') || r.includes('cardiac') || r.includes('angina') || r.includes('palpitation') || r.includes('सीने') || r.includes('छाती') || r.includes('గుండె') || r.includes('ఛాతీ')) {
+      return 'chest_pain';
+    }
+    // Fever / Infection
+    if (r.includes('fever') || r.includes('temperature') || r.includes('chills') || r.includes('dengue') || r.includes('malaria') || r.includes('typhoid') || r.includes('बुखार') || r.includes('ताप') || r.includes('జ్వరం')) {
+      return 'fever';
+    }
+    // Headache / Migraine / Neurological
+    if (r.includes('headache') || r.includes('head') || r.includes('migraine') || r.includes('vertigo') || r.includes('सिरदर्द') || r.includes('తలనొప్పి')) {
+      return 'headache';
+    }
+    // Abdominal / Stomach / GI
+    if (r.includes('abdom') || r.includes('stomach') || r.includes('belly') || r.includes('vomit') || r.includes('nausea') || r.includes('acidity') || r.includes('gastric') || r.includes('diarrhea') || r.includes('loose motion') || r.includes('पेट') || r.includes('కడుపు')) {
+      return 'abdominal_pain';
+    }
+    // Cough / Respiratory / Cold
+    if (r.includes('cough') || r.includes('breath') || r.includes('asthma') || r.includes('wheez') || r.includes('sputum') || r.includes('phlegm') || r.includes('cold') || r.includes('खांसी') || r.includes('దగ్గు')) {
+      return 'cough';
+    }
+    // Back / Spine / Sciatica
+    if (r.includes('back') || r.includes('spine') || r.includes('lumbar') || r.includes('sciatica') || r.includes('disc') || r.includes('waist') || r.includes('कमर') || r.includes('पीठ') || r.includes('నడుము')) {
+      return 'back_pain';
+    }
+    // Joint / Knee / Ortho
+    if (r.includes('joint') || r.includes('knee') || r.includes('arthritis') || r.includes('gout') || r.includes('uric') || r.includes('shoulder') || r.includes('ankle') || r.includes('जोड़') || r.includes('घुटने') || r.includes('కీళ్ల') || r.includes('మోకాళ్ల')) {
+      return 'joint_pain';
+    }
+    // Skin / Rash / Allergy / Dermatology
+    if (r.includes('skin') || r.includes('rash') || r.includes('itch') || r.includes('allergy') || r.includes('blister') || r.includes('hives') || r.includes('त्वचा') || r.includes('खुजली') || r.includes('दाने') || r.includes('చర్మం') || r.includes('దురద')) {
+      return 'skin_rash';
+    }
+    // Urinary / Kidney / Stones
+    if (r.includes('urin') || r.includes('burning') || r.includes('kidney') || r.includes('stone') || r.includes('bladder') || r.includes('prostate') || r.includes('पेशाब') || r.includes('पथरी') || r.includes('మూత్రం') || r.includes('కిడ్నీ')) {
+      return 'urinary_trouble';
+    }
+    // Weakness / Fatigue / Dizziness
+    if (r.includes('weak') || r.includes('tired') || r.includes('fatigue') || r.includes('dizz') || r.includes('anemia') || r.includes('sugar') || r.includes('कमजोरी') || r.includes('थकान') || r.includes('चक्कर') || r.includes('నీరసం') || r.includes('అలసట')) {
+      return 'general_weakness';
+    }
+
+    return 'other';
   };
 
   const [selectedComplaintId, setSelectedComplaintId] = useState(resolveComplaintId);
@@ -107,8 +147,8 @@ export const Step4_ClinicalHistory = () => {
     setSelectedComplaintId(resolved);
   }, [kioskForm.selectedComplaintId, kioskForm.reasonForVisit]);
 
-  const questionsList = clinicalQuestionsData[selectedComplaintId] || clinicalQuestionsData.chest_pain;
-  const currentQuestion = questionsList[currentQIndex];
+  const questionsList = clinicalQuestionsData[selectedComplaintId] || clinicalQuestionsData.other || clinicalQuestionsData.chest_pain;
+  const currentQuestion = questionsList[currentQIndex] || questionsList[0];
 
   // Auto-evaluate red flags whenever answers change
   useEffect(() => {
@@ -134,11 +174,6 @@ export const Step4_ClinicalHistory = () => {
     setAnswers({});
     setCurrentQIndex(0);
     setStage('answering_questions');
-
-    const nextQ = (clinicalQuestionsData[complaint.id] || clinicalQuestionsData.chest_pain)[0];
-    setTimeout(() => {
-      speakCurrentQuestion(nextQ);
-    }, 400);
   };
 
   // Select answer option for current question
@@ -237,8 +272,6 @@ export const Step4_ClinicalHistory = () => {
     if (currentQIndex < questionsList.length - 1) {
       const nextIdx = currentQIndex + 1;
       setCurrentQIndex(nextIdx);
-      const nextQ = questionsList[nextIdx];
-      speakCurrentQuestion(nextQ);
     } else {
       // Reached end of questions -> Go to review screen
       saveAndCommitHistory();
@@ -250,8 +283,6 @@ export const Step4_ClinicalHistory = () => {
     if (currentQIndex > 0) {
       const prevIdx = currentQIndex - 1;
       setCurrentQIndex(prevIdx);
-      const prevQ = questionsList[prevIdx];
-      speakCurrentQuestion(prevQ);
     } else {
       setStage('select_complaint');
     }
@@ -346,85 +377,18 @@ export const Step4_ClinicalHistory = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header with Language Selector (EN, HI, TE) & Voice/Touch Switcher */}
-      <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-md flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-cyan-600 rounded-2xl text-white shadow">
-            <MessageSquare size={24} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold font-heading text-white">
-                {historyLang === 'hi' 
-                  ? 'चिकित्सीय केस हिस्ट्री व लक्षण विवरण' 
-                  : historyLang === 'te' 
-                  ? 'వైద్య చరిత్ర & లక్షణాల వివరాలు' 
-                  : 'Comprehensive Medical History & Clinical Details'}
-              </h2>
-              <span className="bg-cyan-900/80 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                Step 3 of 8
-              </span>
-            </div>
-            <p className="text-xs text-cyan-200 mt-0.5">
-              {historyLang === 'hi'
-                ? 'बीमारी की शुरुआत, गंभीरता, पुरानी बीमारियां (BP/शुगर) व दवाओं का विवरण'
-                : historyLang === 'te'
-                ? 'లక్షణాల తీవ్రత, గత వ్యాధులు (BP/షుగర్), మందుల అలర్జీల వివరాలు'
-                : 'Investigating present illness (HPI), chronic conditions, active medications & allergies'}
-            </p>
-          </div>
+      {/* Clean Consistent Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-900 font-heading flex items-center gap-2">
+            <Heart className="text-cyan-700" />
+            <span>Medical History & Symptom Details</span>
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">
+            Please answer a few questions regarding your symptom duration, severity, and past medical history.
+          </p>
         </div>
-
-        {/* Controls: Language Buttons (EN / HI / TE) + Input Mode Toggle */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center bg-slate-800 p-1 rounded-2xl border border-slate-700">
-            {supportedHistoryLanguages.map((l) => (
-              <button
-                key={l.code}
-                type="button"
-                onClick={() => {
-                  setHistoryLang(l.code);
-                  setLanguage(l.code);
-                }}
-                style={{
-                  backgroundColor: historyLang === l.code ? '#088395' : 'transparent',
-                  color: historyLang === l.code ? '#ffffff' : '#cbd5e1'
-                }}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>{l.native}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center bg-slate-800 p-1 rounded-2xl border border-slate-700">
-            <button
-              type="button"
-              onClick={() => setInputMode('touch')}
-              style={{
-                backgroundColor: inputMode === 'touch' ? '#088395' : 'transparent',
-                color: inputMode === 'touch' ? '#ffffff' : '#cbd5e1'
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Sliders size={14} />
-              <span>Touch</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setInputMode('voice')}
-              style={{
-                backgroundColor: inputMode === 'voice' ? '#088395' : 'transparent',
-                color: inputMode === 'voice' ? '#ffffff' : '#cbd5e1'
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Mic size={14} />
-              <span>Voice</span>
-            </button>
-          </div>
-        </div>
+        <AudioPrompt promptText="Please answer the following questions regarding your symptom duration, severity, and medical history." />
       </div>
 
       {/* Patient Context Summary Bar */}

@@ -9,6 +9,7 @@ import { HospitalDashboard } from './components/hospital/HospitalDashboard';
 import { ShieldCheck, HeartHandshake, Building2, Lock, ArrowLeft } from 'lucide-react';
 import { MediMitraLogo } from './components/common/MediMitraLogo';
 import { ApiService } from './services/api';
+import { getRouteUrl, parseRouteFromHash } from './utils/navigation';
 
 const AppContent = () => {
   const { 
@@ -17,30 +18,117 @@ const AppContent = () => {
     authenticatedUser, 
     handleUserLogout, 
     hospitals, 
-    activeHospitalId 
+    activeHospitalId,
+    kioskStep,
+    setKioskStep
   } = usePatient();
 
-  // Screen routing state: 'welcome' | 'patient' | 'doctor_login' | 'doctor_dashboard' | 'hospital_admin'
-  const [currentScreen, setCurrentScreen] = useState('welcome');
+  // Initialize initial screen & step directly from browser URL hash
+  const initialRoute = parseRouteFromHash(window.location.hash);
+  const [currentScreen, setCurrentScreen] = useState(initialRoute.screen);
 
   useEffect(() => {
     document.title = 'MediMitra | Your Health, Ready for Care';
+    
+    // Sync initial route with context & URL bar
+    if (initialRoute.screen === 'patient') {
+      setRole('kiosk');
+      setKioskStep(initialRoute.step);
+    }
+    window.history.replaceState(
+      { screen: initialRoute.screen, step: initialRoute.step }, 
+      '', 
+      getRouteUrl(initialRoute.screen, initialRoute.step)
+    );
   }, []);
+
+  // Handle Browser History & URL Navigation (Back/Forward buttons & hash changes)
+  useEffect(() => {
+    const handleNavigationEvent = (event) => {
+      const state = event.state;
+      if (state && state.screen) {
+        setCurrentScreen(state.screen);
+        if (state.screen === 'patient' && state.step) {
+          setKioskStep(state.step);
+        }
+      } else {
+        const parsed = parseRouteFromHash(window.location.hash);
+        setCurrentScreen(parsed.screen);
+        if (parsed.screen === 'patient') {
+          setKioskStep(parsed.step);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handleNavigationEvent);
+    window.addEventListener('hashchange', handleNavigationEvent);
+    return () => {
+      window.removeEventListener('popstate', handleNavigationEvent);
+      window.removeEventListener('hashchange', handleNavigationEvent);
+    };
+  }, [setKioskStep]);
+
+  // Handle Keyboard Backspace Key Navigation with Real-Time URL Updates
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Backspace') {
+        const target = e.target;
+        const isEditable = 
+          target.tagName === 'INPUT' || 
+          target.tagName === 'TEXTAREA' || 
+          target.isContentEditable || 
+          (target.tagName === 'SELECT' && target.multiple);
+
+        // If user is actively typing in a form input, let native Backspace work (deleting characters)
+        if (isEditable) {
+          return;
+        }
+
+        // If user is NOT typing in an input, prevent browser from exiting page and navigate back in-app
+        e.preventDefault();
+
+        if (currentScreen === 'patient') {
+          if (kioskStep > 1) {
+            const prevStep = kioskStep - 1;
+            setKioskStep(prevStep);
+            window.history.pushState({ screen: 'patient', step: prevStep }, '', getRouteUrl('patient', prevStep));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            setCurrentScreen('welcome');
+            window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else if (currentScreen === 'doctor_login') {
+          setCurrentScreen('welcome');
+          window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentScreen, kioskStep, setKioskStep]);
 
   const handleSelectPatient = () => {
     setRole('kiosk');
     setCurrentScreen('patient');
+    const step = kioskStep || 1;
+    window.history.pushState({ screen: 'patient', step }, '', getRouteUrl('patient', step));
   };
 
   const handleSelectDoctor = () => {
     if (authenticatedUser?.role === 'DOCTOR' && ApiService.getAuthToken()) {
       setRole('doctor');
       setCurrentScreen('doctor_dashboard');
+      window.history.pushState({ screen: 'doctor_dashboard', step: 1 }, '', getRouteUrl('doctor_dashboard', 1));
     } else if (authenticatedUser?.role === 'HOSPITAL_ADMIN' && ApiService.getAuthToken()) {
       setRole('hospital_admin');
       setCurrentScreen('hospital_admin');
+      window.history.pushState({ screen: 'hospital_admin', step: 1 }, '', getRouteUrl('hospital_admin', 1));
     } else {
       setCurrentScreen('doctor_login');
+      window.history.pushState({ screen: 'doctor_login', step: 1 }, '', getRouteUrl('doctor_login', 1));
     }
   };
 
@@ -48,15 +136,18 @@ const AppContent = () => {
     if (user.role === 'HOSPITAL_ADMIN') {
       setRole('hospital_admin');
       setCurrentScreen('hospital_admin');
+      window.history.pushState({ screen: 'hospital_admin', step: 1 }, '', getRouteUrl('hospital_admin', 1));
     } else {
       setRole('doctor');
       setCurrentScreen('doctor_dashboard');
+      window.history.pushState({ screen: 'doctor_dashboard', step: 1 }, '', getRouteUrl('doctor_dashboard', 1));
     }
   };
 
   const handleLogout = () => {
     handleUserLogout();
     setCurrentScreen('welcome');
+    window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
   };
 
   const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
@@ -67,24 +158,6 @@ const AppContent = () => {
         {/* Top Header - Shown on Dashboard & Intake */}
         {currentScreen !== 'welcome' && (
           <header className="no-print sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-            {/* Top Official National Health Ribbon */}
-            <div style={{ backgroundColor: '#051923', color: '#ecfeff' }} className="px-4 py-1.5 text-xs font-medium flex flex-wrap items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={14} className="text-cyan-400" />
-                <span>Ayushman Bharat Digital Mission (ABDM) • National Health Authority (NHA)</span>
-                <span className="hidden md:inline text-slate-400">|</span>
-                <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.2 rounded-full">
-                  ABDM Gateway Ready
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 text-slate-300 text-[11px]">
-                  <Lock size={11} className="text-emerald-400" />
-                  <span>256-Bit TLS Healthcare Architecture</span>
-                </div>
-              </div>
-            </div>
-
             {/* Main Header Bar */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -175,35 +248,30 @@ const AppContent = () => {
         </main>
       </div>
 
-      {/* Official Clean Hospital Information System Footer */}
-      <footer className="no-print bg-white border-t border-slate-200 py-6 px-4 text-xs text-slate-500">
+      {/* Clean Professional Healthcare Footer */}
+      <footer className="no-print bg-white border-t border-slate-200 py-5 px-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <MediMitraLogo size="sm" showText={true} showTagline={true} />
-            <div className="hidden md:block border-l border-slate-200 pl-3">
-              <p className="text-[11px] text-slate-500 font-medium">
-                Clinical Case Intake & Medical Verification Software System
-              </p>
-            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-slate-600 font-medium">
-            <div className="flex items-center gap-1">
-              <ShieldCheck size={15} className="text-cyan-700" />
-              <span>FHIR R4 Standard</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <HeartHandshake size={15} className="text-emerald-700" />
-              <span>DPDP Act 2023 Compliant</span>
-            </div>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-slate-500 font-medium">
+            <span>Privacy</span>
+            <span className="text-slate-300">•</span>
+            <span>Security</span>
+            <span className="text-slate-300">•</span>
+            <span>Terms</span>
             {currentScreen !== 'welcome' && (
-              <button
-                type="button"
-                onClick={() => setCurrentScreen('welcome')}
-                className="text-cyan-700 hover:underline font-bold"
-              >
-                Change Role
-              </button>
+              <>
+                <span className="text-slate-300">•</span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('welcome')}
+                  className="text-cyan-700 hover:underline font-bold cursor-pointer"
+                >
+                  Change Role
+                </button>
+              </>
             )}
           </div>
         </div>

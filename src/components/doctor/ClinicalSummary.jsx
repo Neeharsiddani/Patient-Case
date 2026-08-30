@@ -72,7 +72,6 @@ export const ClinicalSummary = ({ patient }) => {
     updatePatientClinicalRecord(patient.id, formData);
     confirmPatientSummary(patient.id);
     setIsEditing(false);
-    speakText(`Clinical history for patient ${patient.name} confirmed and verified by doctor.`);
   };
 
   const handleRejectSubmit = () => {

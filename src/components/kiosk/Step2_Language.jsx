@@ -18,15 +18,6 @@ export const Step2_Language = () => {
 
   const handleLanguageSelect = (langCode) => {
     setLanguage(langCode);
-    const audioPrompts = {
-      en: 'You have selected English. MediMitra will assist you in English.',
-      hi: 'आपने हिन्दी भाषा का चयन किया है। मेडीमित्र आपका स्वागत करता है।',
-      te: 'మీరు తెలుగు భాషను ఎంచుకున్నారు. మెడిమిత్ర మీకు సహాయం చేస్తుంది.',
-      ta: 'நீங்கள் தமிழ் மொழியைத் தேர்ந்தெடுத்துள்ளீர்கள். மெடிமித்ரா உங்களை வரவேற்கிறது.',
-      mr: 'तुम्ही मराठी भाषा निवडली आहे. मेडीमित्र तुमचे स्वागत करते.',
-      bn: 'আপনি বাংলা ভাষা নির্বাচন করেছেন। মেডিমিত্রে আপনাকে স্বাগতম।'
-    };
-    speakText(audioPrompts[langCode] || 'Language selected', langCode);
   };
 
   return (

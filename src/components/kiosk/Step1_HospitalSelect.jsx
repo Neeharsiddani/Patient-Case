@@ -26,6 +26,7 @@ import {
 import { usePatient } from '../../context/PatientContext';
 import { ApiService } from '../../services/api';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { getRouteUrl } from '../../utils/navigation';
 import { 
   POPULAR_LOCALITIES, 
   identifyNearestLocality, 
@@ -149,6 +150,7 @@ export const Step1_HospitalSelect = () => {
     // Automatically direct to next page (Step 2: Reason for Visit)
     setTimeout(() => {
       setKioskStep(2);
+      window.history.pushState({ screen: 'patient', step: 2 }, '', getRouteUrl('patient', 2));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 120);
   };

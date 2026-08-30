@@ -26,6 +26,8 @@ import { Step8_SecureSubmit } from './Step8_SecureSubmit';
 import { KioskInactivityModal } from '../common/KioskInactivityModal';
 import { MediMitraLogo } from '../common/MediMitraLogo';
 
+import { getRouteUrl } from '../../utils/navigation';
+
 export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const { kioskStep, setKioskStep, kioskForm, submitKioskCase } = usePatient();
 
@@ -44,6 +46,14 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
     if (kioskStep === 1) {
       return Boolean(kioskForm.selectedHospitalId);
     }
+    if (kioskStep === 2) {
+      const hasName = Boolean(kioskForm.name && kioskForm.name.trim().length >= 2);
+      const hasAge = Boolean(kioskForm.age && Number(kioskForm.age) >= 1 && Number(kioskForm.age) <= 125);
+      const hasGender = Boolean(kioskForm.gender);
+      const hasPhone = Boolean(kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10);
+      const hasReason = Boolean(kioskForm.reasonForVisit && kioskForm.reasonForVisit.trim());
+      return hasName && hasAge && hasGender && hasPhone && hasReason;
+    }
     return true;
   };
 
@@ -53,19 +63,27 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
     if (kioskStep === 7) {
       await submitKioskCase();
       setKioskStep(8);
+      window.history.pushState({ screen: 'patient', step: 8 }, '', getRouteUrl('patient', 8));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (kioskStep < 8) {
-      setKioskStep(kioskStep + 1);
+      const nextStep = kioskStep + 1;
+      setKioskStep(nextStep);
+      window.history.pushState({ screen: 'patient', step: nextStep }, '', getRouteUrl('patient', nextStep));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handleBack = () => {
     if (kioskStep > 1) {
-      setKioskStep(kioskStep - 1);
+      const prevStep = kioskStep - 1;
+      setKioskStep(prevStep);
+      window.history.pushState({ screen: 'patient', step: prevStep }, '', getRouteUrl('patient', prevStep));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      if (onBackToWelcome) onBackToWelcome();
+      if (onBackToWelcome) {
+        onBackToWelcome();
+        window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
+      }
     }
   };
 
@@ -109,7 +127,12 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 <React.Fragment key={s.num}>
                   <button
                     type="button"
-                    onClick={() => isDone && setKioskStep(s.num)}
+                    onClick={() => {
+                      if (isDone) {
+                        setKioskStep(s.num);
+                        window.history.pushState({ screen: 'patient', step: s.num }, '', getRouteUrl('patient', s.num));
+                      }
+                    }}
                     disabled={!isDone && !isCurrent}
                     className={`flex flex-col items-center gap-1.5 transition-all ${
                       isDone ? 'cursor-pointer' : isCurrent ? 'cursor-default' : 'opacity-40 cursor-not-allowed'
@@ -159,7 +182,10 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
         {kioskStep === 4 && <Step4_RedFlagAlert />}
         {kioskStep === 5 && <Step5_DocUpload />}
         {kioskStep === 6 && <Step6_MedicalTimeline />}
-        {kioskStep === 7 && <Step7_ReviewInformation onJumpToStep={(s) => setKioskStep(s)} />}
+        {kioskStep === 7 && <Step7_ReviewInformation onJumpToStep={(s) => {
+          setKioskStep(s);
+          window.history.pushState({ screen: 'patient', step: s }, '', getRouteUrl('patient', s));
+        }} />}
         {kioskStep === 8 && <Step8_SecureSubmit onFinish={onBackToWelcome} />}
 
         {/* Wizard Bottom Navigation Buttons */}

@@ -66,7 +66,6 @@ export const Step3_Consent = () => {
       signature: ''
     }));
     setDeclinedNotice(true);
-    speakText("Consent declined. Clinical history collection is paused. Please visit the manual registration counter if you need assistance.");
   };
 
   const startDrawing = (e) => {

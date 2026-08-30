@@ -83,51 +83,7 @@ export const Header = () => {
 
   return (
     <header className="no-print sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-      {/* Top ABDM / Hospital Header Ribbon */}
-      <div style={{ backgroundColor: '#051923', color: '#ecfeff' }} className="px-4 py-1.5 text-xs font-medium flex flex-wrap items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={14} className="text-cyan-400" />
-          <span>Ayushman Bharat Digital Mission (ABDM) • National Health Authority (NHA)</span>
-          <span className="hidden md:inline text-slate-400">|</span>
-          <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.2 rounded-full">
-            ABDM Gateway Connected
-          </span>
-          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${serverOnline ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-amber-950 text-amber-300 border border-amber-700'}`}>
-            {serverOnline ? '● Live Backend Connected' : '○ Standalone / Local Resilient'}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {authenticatedUser && (
-            <div className="flex items-center gap-2 text-cyan-200 text-xs">
-              <span className="font-bold">{authenticatedUser.fullName}</span>
-              <span className="text-slate-400">({authenticatedUser.hospitalName})</span>
-              <button
-                type="button"
-                onClick={handleUserLogout}
-                className="text-red-400 hover:text-red-300 ml-1 flex items-center gap-0.5 text-[11px]"
-                title="Sign out of staff session"
-              >
-                <LogOut size={12} />
-                <span>Logout</span>
-              </button>
-            </div>
-          )}
-          <div className="flex items-center gap-1 text-slate-300 text-[11px]">
-            <Lock size={11} className="text-emerald-400" />
-            <span>256-Bit TLS</span>
-          </div>
-          <button
-            onClick={handleResetSession}
-            title="Refresh patient records"
-            className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
-          >
-            <RotateCcw size={12} />
-            <span>Refresh Queue</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Navigation Bar */}
+      {/* Main Header Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
         {/* MediMitra Brand Logo & Hospital Name */}
         <div className="flex items-center gap-3">

@@ -53,10 +53,60 @@ export const primaryComplaints = [
     icon: 'Wind',
     en: 'Cough',
     hi: 'खांसी (Cough)',
-    te: 'దగ్గు (Cough)',
+    te: 'దग्గు (Cough)',
     descEn: 'Persistent dry or wet cough, breathlessness',
     descHi: 'लगातार खांसी, बलगम, सांस फूलना',
     descTe: 'ఎడతెగని దగ్గు, కఫం, ఆయాసం'
+  },
+  {
+    id: 'back_pain',
+    icon: 'Activity',
+    en: 'Back pain',
+    hi: 'कमर / पीठ दर्द (Back pain)',
+    te: 'నడుము నొప్పి (Back pain)',
+    descEn: 'Lower back stiffness, shooting sciatica, spine strain',
+    descHi: 'कमर में तेज दर्द, सायटिका, झुकने में तकलीफ',
+    descTe: 'నడుము నొప్పి, సయాటికా, కాలు లాగడం'
+  },
+  {
+    id: 'joint_pain',
+    icon: 'Activity',
+    en: 'Joint pain & Arthritis',
+    hi: 'जोड़ों का दर्द व गठिया (Joint pain)',
+    te: 'కీళ్ల నొప్పులు (Joint pain)',
+    descEn: 'Knee swelling, morning stiffness, uric acid / gout',
+    descHi: 'घुटनों में दर्द, सुबह की जकड़न, यूरिक एसिड',
+    descTe: 'మోకాళ్ల నొప్పులు, వాపు, ఉదయం బిగుతు'
+  },
+  {
+    id: 'skin_rash',
+    icon: 'AlertTriangle',
+    en: 'Skin rash & Allergy',
+    hi: 'त्वचा पर दाने / खुजली (Skin rash)',
+    te: 'చర్మంపై దద్దుర్లు (Skin rash)',
+    descEn: 'Itchy hives, blisters, peeling, allergic reactions',
+    descHi: 'लाल चकत्ते, खुजली, छाले, दवा से एलर्जी',
+    descTe: 'దురద దద్దుర్లు, బొబ్బలు, అలర్జీలు'
+  },
+  {
+    id: 'urinary_trouble',
+    icon: 'Activity',
+    en: 'Urinary trouble & Kidney pain',
+    hi: 'पेशाब में जलन / पथरी (Urinary trouble)',
+    te: 'మూత్రంలో మంట / కిడ్నీ సమస్య (Urinary trouble)',
+    descEn: 'Burning urination, blood in urine, kidney stone pain',
+    descHi: 'पेशाब में तेज जलन, खून आना, पथरी का दर्द',
+    descTe: 'మూత్రంలో మంట, రక్తం, కిడ్నీ రాయి నొప్పి'
+  },
+  {
+    id: 'general_weakness',
+    icon: 'Heart',
+    en: 'Fatigue & Dizziness',
+    hi: 'कमजोरी व चक्कर (Fatigue & Dizziness)',
+    te: 'నీరసం & తలతిరగడం (Fatigue)',
+    descEn: 'Extreme exhaustion, pale skin, anemia, sugar drop',
+    descHi: 'बहुत थकान, पीलापन, कमजोरी, शुगर लो होना',
+    descTe: 'విపరీతమైన అలసట, రక్తహీనత, నీరసం'
   },
   {
     id: 'other',
@@ -64,9 +114,9 @@ export const primaryComplaints = [
     en: 'Other complaint',
     hi: 'अन्य समस्या (Other complaint)',
     te: 'ఇతర సమస్య (Other complaint)',
-    descEn: 'Joint pain, skin rash, weakness, urinary trouble',
-    descHi: 'जोड़ों का दर्द, त्वचा की समस्या, कमजोरी',
-    descTe: 'కీళ్ల నొప్పులు, బలహీనత, ఇతర సమస్యలు'
+    descEn: 'Eye, ENT, general consultation or routine refill',
+    descHi: 'आंख, कान-नाक-गला या सामान्य डॉक्टर परामर्श',
+    descTe: 'కంటి, చెవి లేదా ఇతర సాధారణ వైద్య తనిఖీ'
   }
 ];
 
@@ -480,10 +530,10 @@ export const clinicalQuestionsData = {
       te: 'దయచేసి మీ ప్రధాన ఆరోగ్య సమస్యను వివరించండి:',
       type: 'text_or_choice',
       options: [
-        { id: 'ot_opt_1', en: 'Joint pain & swelling / Back pain', hi: 'जोड़ों में दर्द व सूजन / कमर दर्द', te: 'కీళ్ల నొప్పులు & వాపు / నడుము నొప్పి' },
-        { id: 'ot_opt_2', en: 'Skin rash / Itching / Skin infection', hi: 'त्वचा पर खुजली / दाने / इन्फेक्शन', te: 'చర్మంపై దురద / దద్దుర్లు' },
-        { id: 'ot_opt_3', en: 'Extreme weakness / Dizziness / Pale skin', hi: 'बहुत कमजोरी / चक्कर आना / खून की कमी', te: 'తీవ్ర బలహీనత / కళ్లు తిరగడం' },
-        { id: 'ot_opt_4', en: 'Burning or frequent urination / Kidney stone pain', hi: 'पेशाब में जलन या पथरी का दर्द', te: 'మూత్రంలో మంట / కిడ్నీ రాయి నొప్పి' }
+        { id: 'ot_opt_1', en: 'General body weakness & exhaustion', hi: 'शरीर में बहुत कमजोरी व थकान', te: 'శరీరంలో తీవ్ర బలహీనత & అలసట' },
+        { id: 'ot_opt_2', en: 'Eye, ear or throat problem', hi: 'आंख, कान या गले की समस्या', te: 'కంటి, చెవి లేదా గొంతు సమస్య' },
+        { id: 'ot_opt_3', en: 'Dizziness, nausea or uneasiness', hi: 'चक्कर आना, जी मिचलाना या बेचैनी', te: 'తలతిరగడం, వికారం లేదా కంగారు' },
+        { id: 'ot_opt_4', en: 'Routine follow-up / Medication refill', hi: 'पुरानी बीमारी की नियमित जांच / दवा लिखवाना', te: 'సాధారణ తనిఖీ / మందుల కొరకు' }
       ]
     },
     {
@@ -512,6 +562,198 @@ export const clinicalQuestionsData = {
         { id: 'ot_sev_2', en: '4-6 (Moderate)', hi: '4-6 (मध्यम)', te: '4-6 (మధ్యస్థం)' },
         { id: 'ot_sev_3', en: '7-8 (Severe)', hi: '7-8 (गंभीर)', te: '7-8 (తీవ్రం)', redFlagScore: 2 },
         { id: 'ot_sev_4', en: '9-10 (Unbearable)', hi: '9-10 (असहनीय)', te: '9-10 (భరించలేనిది)', redFlagScore: 3 }
+      ]
+    }
+  ],
+
+  back_pain: [
+    {
+      id: 'bk_duration',
+      key: 'Onset & Duration',
+      en: 'When did your back pain start?',
+      hi: 'कमर या पीठ में दर्द कब शुरू हुआ?',
+      te: 'నడుము లేదా వీపు నొప్పి ఎప్పుడు ప్రారంభమైంది?',
+      type: 'single',
+      options: [
+        { id: 'bk_dur_1', en: 'Started suddenly today after heavy lifting or bending', hi: 'आज भारी वजन उठाने या झुकने के बाद अचानक शुरू हुआ', te: 'ఈ రోజు బరువులు ఎత్తిన తర్వాత లేదా వంగినప్పుడు అకస్మాత్తుగా మొదలైంది' },
+        { id: 'bk_dur_2', en: '2 to 5 days ago', hi: '2 से 5 दिन पहले', te: '2 నుండి 5 రోజుల క్రితం' },
+        { id: 'bk_dur_3', en: '1 to 2 weeks ago', hi: '1 से 2 सप्ताह पहले', te: '1 నుండి 2 వారాల క్రితం' },
+        { id: 'bk_dur_4', en: 'More than a month (Chronic backache)', hi: '1 महीने से अधिक समय से (पुरानी कमर दर्द)', te: 'నెల రోజుల కంటే ఎక్కువ కాలంగా (దీర్ఘకాలిక నొప్పి)' }
+      ]
+    },
+    {
+      id: 'bk_radiation',
+      key: 'Radiation & Sciatica',
+      en: 'Does the pain shoot down below your knee into your calf, foot, or toes (Sciatica)?',
+      hi: 'क्या दर्द कूल्हे से होते हुए पैर, पिण्डली या पंजे तक नीचे जा रहा है (सायटिका)?',
+      te: 'నొప్పి నడుము నుండి కాలు, పిక్క లేదా పాదం వరకు పాకుతుందా (సయాటికా)?',
+      type: 'single',
+      options: [
+        { id: 'bk_rad_1', en: 'Yes, sharp shooting pain & tingling/numbness down the leg', hi: 'हाँ, पैर में तेज करंट जैसा दर्द व सुन्नपन (Tingling/Numbness)', te: 'అవును, కాలులో తీవ్రమైన లాగడం, తిమ్మిరి మరియు సూదులు గుచ్చినట్లు ఉండటం', redFlagScore: 2 },
+        { id: 'bk_rad_2', en: 'Pain stays strictly in lower back without going to legs', hi: 'दर्द केवल कमर में रहता है, पैर में नीचे नहीं जाता', te: 'నొప్పి కేవలం నడుము వరకే పరిమితం' },
+        { id: 'bk_rad_3', en: 'Upper back / Neck & shoulder blade pain', hi: 'पीठ के ऊपरी हिस्से / गर्दन और कंधे में दर्द', te: 'వీపు పైభాగం / మెడ మరియు భుజం నొప్పి' }
+      ]
+    },
+    {
+      id: 'bk_red_flags',
+      key: 'Spinal Red Flags (Cauda Equina)',
+      en: 'Do you have any loss of bowel/bladder control, sudden weakness in legs, or high fever with back pain?',
+      hi: 'क्या आपको पेशाब/मल पर नियंत्रण खोने, पैरों में अचानक कमजोरी, या बुखार के साथ कमर दर्द है?',
+      te: 'మూత్రం/మలం ఆపుకోలేకపోవడం, కాళ్లు చచ్చుబడటం లేదా జ్వరంతో కూడిన నడుము నొప్పి ఉందా?',
+      type: 'single',
+      options: [
+        { id: 'bk_rf_1', en: 'Yes, loss of urine/stool control or numbness around groin (Cauda Equina Alert)', hi: 'हाँ, पेशाब/मल रोकने में असमर्थता या जांघों के बीच सुन्नपन', te: 'అవును, మూత్రం/మలం నియంత్రణ కోల్పోవడం (అత్యవసర హెచ్చరిక)', redFlagScore: 5 },
+        { id: 'bk_rf_2', en: 'Yes, sudden foot drop / unable to lift foot while walking', hi: 'हाँ, पैर का पंजा उठाने में असमर्थता / चलने में लड़खड़ाहट', te: 'అవును, నడుస్తున్నప్పుడు పాదం లేపలేకపోవడం', redFlagScore: 3 },
+        { id: 'bk_rf_3', en: 'None of these warning signs', hi: 'इनमें से कोई गंभीर लक्षण नहीं है', te: 'ఈ తీవ్రమైన లక్షణాలు ఏవీ లేవు' }
+      ]
+    },
+    {
+      id: 'bk_history_meds',
+      key: 'Past Spine History & Medicines',
+      en: 'Do you have a history of Slip Disc, Osteoporosis (Weak bones), or take painkillers regularly?',
+      hi: 'क्या आपको पहले स्लिप डिस्क, कमजोर हड्डियों की समस्या है या दर्द निवारक दवा लेते हैं?',
+      te: 'గతంలో స్లిప్ డిస్క్, ఎముకల బలహీనత ఉందా లేదా పెయిన్ కిల్లర్స్ వాడుతున్నారా?',
+      type: 'multi',
+      options: [
+        { id: 'bk_hm_1', en: 'History of Slip Disc / Lumbar Spondylosis', hi: 'स्लिप डिस्क या स्पोंडिलाइटिस की पुरानी बीमारी', te: 'స్లిప్ డిస్క్ / స్పాండిలైటిస్ సమస్య' },
+        { id: 'bk_hm_2', en: 'Taking Painkillers / Muscle relaxants (Diclofenac/Paracetamol)', hi: 'दर्द निवारक या मांसपेशियों को आराम देने वाली दवा ले रहे हैं', te: 'పెయిన్ కిల్లర్ మందులు వాడుతున్నాను' },
+        { id: 'bk_hm_3', en: 'Osteoporosis / Calcium / Vitamin D3 deficiency', hi: 'कमजोर हड्डियां / कैल्शियम व विटामिन डी की कमी', te: 'ఎముకల బలహీనత / విటమిన్ డి లోపం' },
+        { id: 'bk_hm_4', en: 'No prior spine history / No medications', hi: 'पहले कोई रीढ़ की समस्या नहीं / कोई दवा नहीं', te: 'గతంలో ఎటువంటి సమస్యలు లేవు' }
+      ]
+    }
+  ],
+
+  joint_pain: [
+    {
+      id: 'jt_location',
+      key: 'Affected Joints',
+      en: 'Which joints are experiencing severe pain or swelling?',
+      hi: 'किन जोड़ों में तेज दर्द या सूजन है?',
+      te: 'ఏ కీళ్లలో తీవ్రమైన నొప్పి లేదా వాపు ఉంది?',
+      type: 'multi',
+      options: [
+        { id: 'jt_loc_1', en: 'Knee joints (Difficulty standing or climbing stairs)', hi: 'घुटने के जोड़ (खड़े होने या सीढ़ी चढ़ने में परेशानी)', te: 'మోకాళ్ల కీళ్లు (నడవడానికి, మెట్లు ఎక్కడానికి కష్టం)' },
+        { id: 'jt_loc_2', en: 'Big toe / Foot / Ankle (Sudden severe throbbing - Gout suspect)', hi: 'पैर का अंगूठा / टखना (अचानक तेज दर्द - यूरिक एसिड/गाउट)', te: 'కాలి బొటనవేలు / మడమ (తీవ్రమైన పోటు - గౌట్ అనుమానం)', redFlagScore: 2 },
+        { id: 'jt_loc_3', en: 'Hands / Fingers / Wrists on both sides (Symmetric)', hi: 'दोनों हाथों की उंगलियां और कलाई (गठिया/संधिवाता)', te: 'రెండు చేతుల వేళ్లు మరియు మణికట్లు' },
+        { id: 'jt_loc_4', en: 'Shoulder / Hip / Multiple joints across body', hi: 'कंधा / कूल्हा / शरीर के कई जोड़ों में एक साथ', te: 'భుజం / తుంటి / బహుళ కీళ్లలో నొప్పి' }
+      ]
+    },
+    {
+      id: 'jt_stiffness',
+      key: 'Morning Stiffness & Warmth',
+      en: 'Do you have morning joint stiffness lasting more than 30-45 minutes, or hot red swelling?',
+      hi: 'क्या सुबह उठने पर जोड़ों में 30 मिनट से अधिक जकड़न रहती है या गर्म लाल सूजन है?',
+      te: 'ఉదయం లేవగానే కీళ్లు 30 నిమిషాలకు పైగా బిగుసుకుపోవడం లేదా ఎర్రటి వేడి వాపు ఉందా?',
+      type: 'single',
+      options: [
+        { id: 'jt_stf_1', en: 'Yes, marked morning stiffness lasting over 1 hour (Rheumatoid suspect)', hi: 'हाँ, सुबह 1 घंटे से ज्यादा जोड़ों में अकड़न रहती है', te: 'అవును, ఉదయం 1 గంటకు పైగా కీళ్లు బిగుసుకుపోతాయి', redFlagScore: 2 },
+        { id: 'jt_stf_2', en: 'Yes, sudden hot, red, extremely swollen joint (Acute Gout / Infection)', hi: 'हाँ, जोड़ बहुत लाल, गर्म और अत्यधिक सूजा हुआ है', te: 'అవును, కీలు బాగా ఎర్రబడి, వేడిగా మరియు విపరీతంగా వాచింది', redFlagScore: 3 },
+        { id: 'jt_stf_3', en: 'Pain increases with walking/activity and improves with rest', hi: 'चलने-फिरने पर दर्द बढ़ता है, आराम करने पर घटता है (Osteoarthritis)', te: 'నడిచినప్పుడు నొప్పి పెరుగుతుంది, విశ్రాంతితో తగ్గుతుంది' }
+      ]
+    },
+    {
+      id: 'jt_history',
+      key: 'Uric Acid & Past Arthritis History',
+      en: 'Do you have High Uric Acid, Rheumatoid Arthritis, or Kidney problems?',
+      hi: 'क्या आपको यूरिक एसिड, गठिया (Arthritis) या किडनी की बीमारी है?',
+      te: 'యూరిక్ యాసిడ్, ఆర్థరైటిస్ లేదా కిడ్నీ సమస్యలు ఏమైనా ఉన్నాయా?',
+      type: 'multi',
+      options: [
+        { id: 'jt_hx_1', en: 'High Uric Acid / Diagnosed Gout', hi: 'यूरिक एसिड बढ़ा हुआ है / गाउट की बीमारी', te: 'యూరిక్ యాసిడ్ పెరిగింది / గౌట్ సమస్య' },
+        { id: 'jt_hx_2', en: 'Rheumatoid Arthritis / Chikungunya joint pain', hi: 'रुमेटॉयड गठिया / चिकनगुनिया के बाद का जोड़ों का दर्द', te: 'రుమటాయిడ్ ఆర్థరైటిస్ / చికెన్ గున్యా తర్వాత కీళ్ల నొప్పులు' },
+        { id: 'jt_hx_3', en: 'Taking Painkiller tablets regularly (Diclofenac/Aceclofenac)', hi: 'नियमित रूप से दर्द निवारक दवाइयां ले रहे हैं', te: 'రోజూ పెయిన్ కిల్లర్ మాత్రలు వాడుతున్నాను' },
+        { id: 'jt_hx_4', en: 'No past joint disease history', hi: 'पहले कोई जोड़ों की बीमारी नहीं रही', te: 'గతంలో కీళ్ల జబ్బులు లేవు' }
+      ]
+    }
+  ],
+
+  skin_rash: [
+    {
+      id: 'sk_type',
+      key: 'Rash Appearance & Itching',
+      en: 'What does the skin rash look like?',
+      hi: 'त्वचा पर किस प्रकार के दाने या चकत्ते हैं?',
+      te: 'చర్మంపై దద్దుర్లు లేదా మచ్చలు ఎలా ఉన్నాయి?',
+      type: 'single',
+      options: [
+        { id: 'sk_tp_1', en: 'Red swollen raised itchy welts (Hives / Urticaria allergy)', hi: 'उभरे हुए लाल दाने व तेज खुजली (पित्ती / एलर्जी)', te: 'దురదతో కూడిన ఎర్రటి దద్దుర్లు (అలర్జీ)' },
+        { id: 'sk_tp_2', en: 'Fluid-filled blisters / Peeling skin / Raw sores', hi: 'पानी भरे छाले / त्वचा की चमड़ी उतरना', te: 'నీటి బొబ్బలు / చర్మం పొట్టు రాలడం', redFlagScore: 3 },
+        { id: 'sk_tp_3', en: 'Dry scaly patches with silvery scales / Ringworm', hi: 'सूखी पपड़ीदार त्वचा / दाद-खाज (Ringworm/Fungal)', te: 'పొడి పొలుసులు / తామర (ఫంగల్ ఇన్ఫెక్షన్)' },
+        { id: 'sk_tp_4', en: 'Painful boils / Pus-filled pimples / Red swelling', hi: 'दर्दनाक फुंसी / मवाद वाले दाने / लाल सूजन', te: 'చీము గడ్డలు / నొప్పి కలిగించే మొటిమలు' }
+      ]
+    },
+    {
+      id: 'sk_red_flags',
+      key: 'Anaphylaxis & Severe Drug Reaction Alert',
+      en: 'Are you experiencing lip/facial swelling, tongue swelling, difficulty swallowing or shortness of breath?',
+      hi: 'क्या होंठ/चेहरे पर सूजन, जीभ में भारीपन, सांस लेने में तकलीफ या निगलने में दर्द है?',
+      te: 'పెదవులు/ముఖం వాపు, నాలుక వాపు, శ్వాస తీసుకోవడంలో లేదా మింగడంలో ఇబ్బంది ఉందా?',
+      type: 'single',
+      options: [
+        { id: 'sk_rf_1', en: 'Yes, lip/face swelling & throat tightness / breathlessness (Emergency Anaphylaxis)', hi: 'हाँ, होंठ/चेहरे पर सूजन और सांस फूलना (आपातकालीन एलर्जी)', te: 'అవును, ముఖం/పెదవుల వాపు & ఆయాసం (అత్యవసర అలర్జీ హెచ్చరిక)', redFlagScore: 5 },
+        { id: 'sk_rf_2', en: 'Rash appeared immediately after taking a new medicine/injection', hi: 'नई दवा या इंजेक्शन लेने के तुरंत बाद दाने निकले', te: 'కొత్త మందు లేదా ఇంజెక్షన్ తీసుకున్న వెంటనే దద్దుర్లు వచ్చాయి', redFlagScore: 3 },
+        { id: 'sk_rf_3', en: 'Only itching on skin without any facial swelling or breathing issues', hi: 'केवल त्वचा पर खुजली है, चेहरे पर सूजन या सांस की तकलीफ नहीं', te: 'కేవలం చర్మంపై దురద మాత్రమే ఉంది' }
+      ]
+    }
+  ],
+
+  urinary_trouble: [
+    {
+      id: 'ur_symptoms',
+      key: 'Urinary Symptoms',
+      en: 'What urinary problem are you experiencing?',
+      hi: 'पेशाब में क्या मुख्य तकलीफ हो रही है?',
+      te: 'మూత్ర విసర్జనలో ప్రధాన సమస్య ఏమిటి?',
+      type: 'multi',
+      options: [
+        { id: 'ur_sym_1', en: 'Severe burning sensation and pain while urinating (UTI)', hi: 'पेशाब करते समय तेज जलन और दर्द', te: 'మూత్ర విసర్జన సమయంలో తీవ్రమైన మంట మరియు నొప్పి' },
+        { id: 'ur_sym_2', en: 'Passing red / cola-colored blood in urine (Hematuria)', hi: 'पेशाब में लाल खून आना (रक्तस्राव)', te: 'మూత్రంలో రక్తం పడటం', redFlagScore: 4 },
+        { id: 'ur_sym_3', en: 'Very frequent urge to urinate every few minutes with poor flow', hi: 'बार-बार पेशाब आने का अहसास और कम धार निकलना', te: 'తరచుగా మూత్రం రావడం & ధార తక్కువగా ఉండటం' },
+        { id: 'ur_sym_4', en: 'Completely unable to pass urine despite severe bladder pressure', hi: 'पेशाब का बिल्कुल न उतरना और मूत्राशय में तेज दर्द (रुकावट)', te: 'మూత్రం పూర్తిగా బంధింపబడటం', redFlagScore: 4 }
+      ]
+    },
+    {
+      id: 'ur_stone_fever',
+      key: 'Kidney Stone Pain & Fever',
+      en: 'Do you have sudden excruciating pain in the side/flank shooting to the groin, or high fever with chills?',
+      hi: 'क्या कमर के बगल (Flank) में अचानक असहनीय पथरी जैसा दर्द है या ठंड लगकर तेज बुखार है?',
+      te: 'నడుము పక్క భాగంలో తీవ్రమైన కిడ్నీ రాయి నొప్పి లేదా చలితో కూడిన జ్వరం ఉందా?',
+      type: 'single',
+      options: [
+        { id: 'ur_st_1', en: 'Yes, sudden severe flank pain radiating to groin (Kidney stone attack)', hi: 'हाँ, कमर के एक तरफ असहनीय तेज दर्द (गुर्दे की पथरी का दर्द)', te: 'అవును, పక్కటెముకల కింద తీవ్రమైన నొప్పి (కిడ్నీ రాయి నొప్పి)', redFlagScore: 3 },
+        { id: 'ur_st_2', en: 'High fever with shivering and burning urination (Kidney infection / Sepsis)', hi: 'तेज बुखार, कंपकंपी और पेशाब में जलन (किडनी इन्फेक्शन)', te: 'తీవ్ర జ్వరం, వణుకు మరియు మూత్రంలో మంట (కిడ్నీ ఇన్ఫెక్షన్)', redFlagScore: 4 },
+        { id: 'ur_st_3', en: 'Mild burning without flank pain or high fever', hi: 'हल्की जलन है, कोई तेज दर्द या बुखार नहीं', te: 'స్వల్ప మంట మాత్రమే ఉంది' }
+      ]
+    }
+  ],
+
+  general_weakness: [
+    {
+      id: 'gw_symptoms',
+      key: 'Fatigue & Dizziness',
+      en: 'What are your primary symptoms of weakness?',
+      hi: 'कमजोरी के मुख्य लक्षण क्या हैं?',
+      te: 'బలహీనత యొక్క ప్రధాన లక్షణాలు ఏమిటి?',
+      type: 'multi',
+      options: [
+        { id: 'gw_sym_1', en: 'Extreme fatigue and exhaustion even with minimal work', hi: 'जरा सा काम करने पर भी बहुत ज्यादा थकान व कमजोरी', te: 'కొద్దిపాటి పనికే తీవ్రమైన నీరసం మరియు అలసట' },
+        { id: 'gw_sym_2', en: 'Dizziness, blackout, or feeling faint when standing up', hi: 'खड़े होने पर चक्कर आना, अंधेरा छाना या बेहोशी जैसा लगना', te: 'నిలబడినప్పుడు కళ్లు తిరగడం లేదా స్పృహ తప్పినట్లు అనిపించడం', redFlagScore: 2 },
+        { id: 'gw_sym_3', en: 'Pale skin, yellow eyes, breathlessness on walking (Anemia suspect)', hi: 'पीला चेहरा, खून की कमी और थोड़ा चलने पर सांस फूलना', te: 'రక్తహీనత / కొద్దిగా నడిచినా ఆయాసం' },
+        { id: 'gw_sym_4', en: 'Trembling hands, excessive hunger, and sudden cold sweats (Sugar drop)', hi: 'हाथ कांपना, घबराहट और अचानक पसीना (शुगर लो होना)', te: 'చేతులు వణకడం మరియు విపరీతమైన చెమటలు (షుగర్ తగ్గడం)', redFlagScore: 3 }
+      ]
+    },
+    {
+      id: 'gw_chronic',
+      key: 'Chronic Conditions & Daily Medicines',
+      en: 'Do you have Diabetes, High BP, Thyroid disorder, or Low Hemoglobin (Anemia)?',
+      hi: 'क्या आपको डायबिटीज, हाई बीपी, थायरॉइड या खून की कमी (एनीमिया) है?',
+      te: 'మీకు డయాబెటిస్, హై బీపీ, థైరాయిడ్ లేదా రక్తహీనత ఉందా?',
+      type: 'multi',
+      options: [
+        { id: 'gw_ch_1', en: 'Diabetes (Taking Metformin/Glimepiride or Insulin)', hi: 'डायबिटीज की बीमारी (दवा या इंसुलिन ले रहे हैं)', te: 'డయాబెటిస్ (మందులు లేదా ఇన్సులిన్ వాడుతున్నారు)' },
+        { id: 'gw_ch_2', en: 'High Blood Pressure (Hypertension)', hi: 'हाई ब्लड प्रेशर की समस्या', te: 'హై బ్లడ్ ప్రెషర్' },
+        { id: 'gw_ch_3', en: 'Thyroid disorder (Hypothyroidism / Tab. Thyronorm)', hi: 'थायरॉइड की बीमारी (Thyronorm गोली ले रहे हैं)', te: 'థైరాయిడ్ సమస్య' },
+        { id: 'gw_ch_4', en: 'History of Low Hemoglobin / Blood transfusion', hi: 'खून की भारी कमी / पहले खून चढ़ाया गया था', te: 'తీవ్ర రక్తహీనత' }
       ]
     }
   ]
@@ -640,7 +882,6 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
   if (complaintId === 'cough') {
     const hasHemoptysis = answers['cg_blood_tb']?.some(a => a.includes('blood') || a.includes('Hemoptysis'));
     const hasTbComplex = answers['cg_blood_tb']?.some(a => a.includes('TB Suspect')) || answers['cg_duration']?.some(a => a.includes('> 2 weeks'));
-    const hasSevereWheeze = answers['cg_breathlessness']?.some(a => a.includes('acute wheezing'));
 
     if (hasHemoptysis) {
       redFlags.push({
@@ -658,6 +899,74 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
         titleHi: '⚠️ स्वास्थ्य प्रोटोकॉल: 2 सप्ताह से अधिक की पुरानी खांसी। बलगम और छाती की जांच आवश्यक है।',
         titleTe: '⚠️ ఆరోగ్య ప్రోటోకాల్: 2 వారాలకు పైగా దగ్గు. క్షయ పరీక్షల కొరకు ప్రాధాన్యత.',
         details: 'Presumptive pulmonary tuberculosis screening criteria met.'
+      });
+      maxScore += 3;
+    }
+  }
+
+  // 6. BACK PAIN RULES
+  if (complaintId === 'back_pain') {
+    const hasCaudaEquina = answers['bk_red_flags']?.some(a => a.includes('loss of urine') || a.includes('Cauda Equina'));
+    const hasFootDrop = answers['bk_red_flags']?.some(a => a.includes('foot drop'));
+
+    if (hasCaudaEquina) {
+      redFlags.push({
+        level: 'CRITICAL',
+        titleEn: 'EMERGENCY: Suspected Cauda Equina Syndrome (Loss of bowel/bladder control). Immediate neurosurgical referral needed.',
+        titleHi: '⚠️ अत्यंत गंभीर: काउडा इक्विना सिंड्रोम का संदेह (पेशाब/मल नियंत्रण खोना)। तुरंत आपातकालीन सर्जरी जांच आवश्यक है।',
+        titleTe: '⚠️ అత్యవసరం: నాడీ ఒత్తిడి హెచ్చరిక (మూత్రం/మలం నియంత్రణ కోల్పోవడం). వెంటనే న్యూరో సర్జన్‌ను సంప్రదించండి.',
+        details: 'Bladder/bowel dysfunction associated with severe acute spinal compression.'
+      });
+      maxScore += 5;
+    } else if (hasFootDrop) {
+      redFlags.push({
+        level: 'URGENT',
+        titleEn: 'URGENT: Acute motor deficit (Foot drop) detected. Urgent spinal evaluation needed.',
+        titleHi: '⚠️ आवश्यक: पैर में लकवा/कमजोरी (Foot drop)। रीढ़ की हड्डी की तुरंत जांच कराएं।',
+        titleTe: '⚠️ ముఖ్య గమనిక: కాలు ఎత్తలేకపోవడం / తిమ్మిరి. తక్షణ వెన్నెముక పరీక్ష అవసరం.',
+        details: 'L4/L5 nerve root motor compromise.'
+      });
+      maxScore += 3;
+    }
+  }
+
+  // 7. SKIN RASH RULES
+  if (complaintId === 'skin_rash') {
+    const hasAnaphylaxis = answers['sk_red_flags']?.some(a => a.includes('Anaphylaxis') || a.includes('throat tightness'));
+    if (hasAnaphylaxis) {
+      redFlags.push({
+        level: 'CRITICAL',
+        titleEn: 'EMERGENCY: Acute Anaphylaxis / Severe Allergic Airway compromise detected. Immediate resuscitation needed.',
+        titleHi: '⚠️ अत्यंत गंभीर: एनाफिलेक्सिस (तीव्र जानलेवा एलर्जी)। तुरंत आपातकालीन इंजेक्शन व उपचार आवश्यक है।',
+        titleTe: '⚠️ ప్రాణాంతక అలర్జీ: ముఖం/శ్వాసనాళాల తీవ్ర వాపు. తక్షణ చికిత్స అవసరం.',
+        details: 'Rapid onset cutaneous signs with respiratory/airway involvement.'
+      });
+      maxScore += 5;
+    }
+  }
+
+  // 8. URINARY RULES
+  if (complaintId === 'urinary_trouble') {
+    const hasGrossHematuria = answers['ur_symptoms']?.some(a => a.includes('blood in urine'));
+    const hasRetention = answers['ur_symptoms']?.some(a => a.includes('unable to pass urine'));
+    const hasUrosepsis = answers['ur_stone_fever']?.some(a => a.includes('High fever with shivering'));
+
+    if (hasUrosepsis || hasRetention) {
+      redFlags.push({
+        level: 'CRITICAL',
+        titleEn: 'URGENT: Acute urinary retention or suspected Urosepsis/Pyelonephritis. Priority catheterization/evaluation needed.',
+        titleHi: '⚠️ अति आवश्यक: पेशाब का पूर्ण रुकाव या गंभीर किडनी संक्रमण। तुरंत आपातकालीन जांच कराएं।',
+        titleTe: '⚠️ అత్యవసరం: మూత్రం నిలిచిపోవడం లేదా తీవ్ర కిడ్నీ ఇన్ఫెక్షన్.',
+        details: 'Complete urinary retention or ascending pyelonephritis criteria.'
+      });
+      maxScore += 5;
+    } else if (hasGrossHematuria) {
+      redFlags.push({
+        level: 'URGENT',
+        titleEn: 'URGENT: Gross Hematuria (Active blood in urine). Priority urology evaluation needed.',
+        titleHi: '⚠️ आवश्यक: पेशाब में खून (Hematuria)। यूरोलॉजी जांच आवश्यक है।',
+        titleTe: '⚠️ ముఖ్య గమనిక: మూత్రంలో రక్తం. యూరాలజీ పరీక్షలు అవసరం.',
+        details: 'Active visible urinary bleeding indicator.'
       });
       maxScore += 3;
     }
