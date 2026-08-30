@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { MediMitraLogo } from '../common/MediMitraLogo';
 
 export const Step1_Identification = () => {
   const { kioskForm, setKioskForm, t, language } = usePatient();
@@ -87,21 +88,15 @@ export const Step1_Identification = () => {
     <div className="space-y-6">
       {/* Header & Audio Guidance */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <CreditCard className="text-cyan-600" />
-              <span>{t.identTitle}</span>
-            </h2>
-            <span className="bg-cyan-100 text-cyan-800 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border border-cyan-300">
-              Integration-ready / Prototype
-            </span>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Identify patient via 14-Digit ABHA ID, QR Code, or new Walk-in UHID registration.
-          </p>
+        <div className="flex items-center gap-3">
+          <MediMitraLogo size="md" showText={true} showTagline={true} />
         </div>
-        <AudioPrompt promptText="Welcome to MediKiosk. Please enter your ABHA number or select new patient walk-in registration." />
+        <div className="flex items-center gap-2">
+          <span className="bg-cyan-100 text-cyan-800 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border border-cyan-300">
+            Integration-ready / Prototype
+          </span>
+          <AudioPrompt promptText="Welcome to MediMitra. Please enter your ABHA number or select new patient walk-in registration." />
+        </div>
       </div>
 
       {/* Integration Notice */}

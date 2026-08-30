@@ -4,7 +4,7 @@ import { translations } from '../data/translations';
 
 const PatientContext = createContext(null);
 
-const STORAGE_KEY = 'medikiosk_patients_v2';
+const STORAGE_KEY = 'medimitra_patients_v2';
 
 export const PatientProvider = ({ children }) => {
   const [role, setRole] = useState('kiosk'); // 'kiosk' | 'doctor'
@@ -12,7 +12,7 @@ export const PatientProvider = ({ children }) => {
   
   // Persistent Patients Queue
   const [patients, setPatients] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('medikiosk_patients_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);

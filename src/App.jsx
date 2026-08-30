@@ -4,6 +4,7 @@ import { Header } from './components/common/Header';
 import { KioskWizard } from './components/kiosk/KioskWizard';
 import { DoctorDashboard } from './components/doctor/DoctorDashboard';
 import { ShieldCheck, HeartHandshake, Building2, HelpCircle } from 'lucide-react';
+import { MediMitraLogo } from './components/common/MediMitraLogo';
 
 const AppContent = () => {
   const { role, setRole, t } = usePatient();
@@ -17,17 +18,12 @@ const AppContent = () => {
         </main>
       </div>
 
-      {/* Modern Healthcare Footer */}
+      {/* Modern Healthcare Footer with MediMitra Branding */}
       <footer className="no-print bg-white border-t border-slate-200 py-6 px-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-cyan-700 text-white flex items-center justify-center font-bold">
-              MK
-            </div>
-            <div>
-              <p className="font-bold text-slate-800">
-                MediKiosk • Smart Patient Case-Taking System
-              </p>
+            <MediMitraLogo size="sm" showText={true} showTagline={true} />
+            <div className="hidden md:block border-l border-slate-200 pl-3">
               <p className="text-[11px] text-slate-400">
                 Smart India Hackathon (SIH 2026) Problem Statement: Patient Case-Taking Software
               </p>

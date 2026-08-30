@@ -10,7 +10,7 @@ export const languages = [
 export const translations = {
   en: {
     hospitalName: 'AIIMS / District Civil Hospital OPD',
-    portalTitle: 'MediKiosk - Smart Patient Intake',
+    portalTitle: 'MediMitra - Smart Patient Intake',
     abdmCompliant: 'Ayushman Bharat Digital Mission (ABDM) Compliant',
     patientKiosk: 'Patient Kiosk',
     doctorWorkstation: 'Doctor Workstation',
@@ -116,7 +116,7 @@ export const translations = {
   },
   hi: {
     hospitalName: 'एम्स / जिला नागरिक अस्पताल ओपीडी',
-    portalTitle: 'मेडीकियोस्क - स्मार्ट मरीज केस-टेकिंग सिस्टम',
+    portalTitle: 'मेडीमित्र - स्मार्ट मरीज केस-टेकिंग सिस्टम',
     abdmCompliant: 'आयुष्मान भारत डिजिटल मिशन (ABDM) अनुरूप',
     patientKiosk: 'मरीज कियोस्क (Patient Kiosk)',
     doctorWorkstation: 'डॉक्टर वर्कस्टेशन (Doctor Workstation)',
@@ -222,7 +222,7 @@ export const translations = {
   },
   te: {
     hospitalName: 'ఎయిమ్స్ / జిల్లా ఆసుపత్రి ఓపీడీ',
-    portalTitle: 'మెడికియోస్క్ - రోగి కేస్-టేకింగ్ వ్యవస్థ',
+    portalTitle: 'మెడిమిత్ర - రోగి కేస్-టేకింగ్ వ్యవస్థ',
     abdmCompliant: 'ఆయుష్మాన్ భారత్ డిజిటల్ మిషన్ (ABDM) గుర్తింపు పొందినది',
     patientKiosk: 'పేషెంట్ కియోస్క్',
     doctorWorkstation: 'డాక్టర్ వర్క్‌స్టేషన్',
@@ -316,7 +316,7 @@ export const translations = {
   },
   ta: {
     hospitalName: 'எய்ம்ஸ் / மாவட்ட தலைமை மருத்துவமனை OPD',
-    portalTitle: 'மெடிகியோஸ்க் - நோயாளி பரிசோதனை அமைப்பு',
+    portalTitle: 'மெடிமித்ரா - நோயாளி பரிசோதனை அமைப்பு',
     abdmCompliant: 'ஆயுஷ்மான் பாரத் டிஜிட்டல் மிஷன் (ABDM) அங்கீகரிக்கப்பட்டது',
     patientKiosk: 'நோயாளி கியோஸ்க்',
     doctorWorkstation: 'மருத்துவர் பணிநிலையம்',
@@ -410,7 +410,7 @@ export const translations = {
   },
   mr: {
     hospitalName: 'एम्स / जिल्हा रुग्णालय ओपीडी',
-    portalTitle: 'मेडीकिओस्क - रुग्ण केस-टेकिंग प्रणाली',
+    portalTitle: 'मेडीमित्र - रुग्ण केस-टेकिंग प्रणाली',
     abdmCompliant: 'आयुष्मान भारत डिजिटल मिशन (ABDM) अनुरूप',
     patientKiosk: 'रुग्ण किओस्क',
     doctorWorkstation: 'डॉक्टर वर्कस्टेशन',
@@ -504,7 +504,7 @@ export const translations = {
   },
   bn: {
     hospitalName: 'এইমস / জেলা হাসপাতাল ওপিডি',
-    portalTitle: 'মেডিকিয়স্ক - রোগী কেস গ্রহণ ব্যবস্থা',
+    portalTitle: 'মেডিমিত্র - রোগী কেস গ্রহণ ব্যবস্থা',
     abdmCompliant: 'আয়ুষ্মান ভারত ডিজিটাল মিশন (ABDM) অনুমোদিত',
     patientKiosk: 'রোগী কিয়স্ক',
     doctorWorkstation: 'ডাক্তার ওয়ার্কস্টেশন',

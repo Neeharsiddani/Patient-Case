@@ -1,5 +1,5 @@
 /**
- * MediKiosk Medical Document Digitization & OCR Service
+ * MediMitra Medical Document Digitization & OCR Service
  * 
  * Modular extraction layer for clinical prescriptions, lab reports, discharge summaries,
  * and diagnostic investigations. Structured for seamless integration with real OCR backends
@@ -186,7 +186,7 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
       title: fileOrPreset?.name || 'Uploaded Clinical Document',
       category: 'Investigation',
       badgeColor: 'cyan',
-      summary: 'Patient uploaded physical medical report digitized via MediKiosk OCR Engine.'
+      summary: 'Patient uploaded physical medical report digitized via MediMitra OCR Engine.'
     }
   };
 };

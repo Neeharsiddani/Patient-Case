@@ -16,6 +16,7 @@ import { usePatient } from '../../context/PatientContext';
 import { languages } from '../../data/translations';
 import { initialPatients } from '../../data/initialPatients';
 import { AbhaProfileModal } from './AbhaProfileModal';
+import { MediMitraLogo } from './MediMitraLogo';
 
 export const Header = () => {
   const { 
@@ -35,6 +36,7 @@ export const Header = () => {
   const handleResetData = () => {
     if (window.confirm('Reset patient queue to default sample OPD data?')) {
       setPatients(initialPatients);
+      localStorage.removeItem('medimitra_patients_v2');
       localStorage.removeItem('medikiosk_patients_v2');
       resetKiosk();
     }
@@ -73,27 +75,14 @@ export const Header = () => {
 
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
-        {/* Brand Logo & Hospital Name */}
+        {/* MediMitra Brand Logo & Hospital Name */}
         <div className="flex items-center gap-3">
-          <div 
-            style={{ 
-              background: 'linear-gradient(135deg, #088395 0%, #0A4D68 100%)',
-              color: 'white'
-            }} 
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shadow-cyan-900/20"
-          >
-            <Building2 size={26} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold tracking-tight text-slate-900 font-heading">
-                Medi<span style={{ color: '#088395' }}>Kiosk</span>
-              </span>
-              <span className="bg-cyan-100 text-cyan-800 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-cyan-300">
-                Integration-ready
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium">
+          <MediMitraLogo size="md" showText={true} />
+          <div className="hidden sm:block border-l border-slate-200 pl-3">
+            <span className="bg-cyan-100 text-cyan-800 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-cyan-300">
+              ABDM Smart Intake
+            </span>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
               {t.hospitalName}
             </p>
           </div>

@@ -486,7 +486,7 @@ export const Step6_OcrExtraction = () => {
         <div className="flex items-center gap-2">
           <Info size={16} className="text-cyan-700 flex-shrink-0" />
           <span>
-            <strong>Digitization Architecture Note:</strong> Structured via MediKiosk Clinical NLP Extraction Engine (API hook ready for Tesseract.js / AWS Textract / Google Cloud Healthcare API / ABDM Scanner).
+            <strong>Digitization Architecture Note:</strong> Structured via MediMitra Clinical NLP Extraction Engine (API hook ready for Tesseract.js / AWS Textract / Google Cloud Healthcare API / ABDM Scanner).
           </span>
         </div>
         <span className="text-emerald-700 font-bold whitespace-nowrap">
