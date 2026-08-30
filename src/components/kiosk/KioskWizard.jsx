@@ -24,6 +24,7 @@ import { Step6_OcrExtraction } from './Step6_OcrExtraction';
 import { Step7_Review } from './Step7_Review';
 import { Step8_SummaryGen } from './Step8_SummaryGen';
 import { Step9_TokenReceipt } from './Step9_TokenReceipt';
+import { KioskInactivityModal } from '../common/KioskInactivityModal';
 
 export const KioskWizard = () => {
   const { kioskStep, setKioskStep, kioskForm, t } = usePatient();
@@ -78,6 +79,9 @@ export const KioskWizard = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 kiosk-mode">
+      {/* Session Inactivity & Privacy Timeout Protection */}
+      <KioskInactivityModal idleTimeoutSec={90} countdownSec={15} />
+
       {/* 9-Step Progress Stepper (Touch-Optimized) */}
       <div className="no-print bg-white p-4 rounded-3xl border border-slate-200 shadow-sm overflow-x-auto">
         <div className="flex items-center justify-between min-w-[720px] gap-2">

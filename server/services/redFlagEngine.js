@@ -105,11 +105,32 @@ export const evaluateClinicalTriage = ({
     }
   }
 
-  // 8. Documented Severe Drug Allergies
+  // 8. Documented Severe Drug Allergies & Brand Cross-Matching
+  const allergyMap = {
+    'augmentin': 'Penicillin / Amoxicillin-Clavulanate class',
+    'amoxicillin': 'Penicillin beta-lactam class',
+    'penicillin': 'Penicillin beta-lactam class',
+    'combiflam': 'NSAIDs (Ibuprofen / Paracetamol)',
+    'voveran': 'NSAIDs (Diclofenac)',
+    'dynapar': 'NSAIDs (Diclofenac)',
+    'aspirin': 'Salicylates / NSAIDs (Antiplatelet cross-reaction)',
+    'ecosprin': 'Aspirin / Salicylates',
+    'ciplox': 'Fluoroquinolones (Ciprofloxacin)',
+    'sulfa': 'Sulfonamides / Co-trimoxazole'
+  };
+
   if (Array.isArray(drugAllergies) && drugAllergies.length > 0) {
     for (const allergy of drugAllergies) {
-      if (typeof allergy === 'string' && allergy.trim().length > 0) {
-        redFlags.push(`Known Drug Allergy: ${allergy}. Verify before prescribing any medication.`);
+      if (typeof allergy === 'string' && allergy.trim().length > 0 && !allergy.includes('No Known Drug Allergies')) {
+        const lowerAllergy = allergy.toLowerCase();
+        let classNote = '';
+        for (const [brand, genericClass] of Object.entries(allergyMap)) {
+          if (lowerAllergy.includes(brand)) {
+            classNote = ` (Cross-reactive with ${genericClass})`;
+            break;
+          }
+        }
+        redFlags.push(`Known Drug Allergy: ${allergy}${classNote}. Verify before prescribing any medication.`);
       }
     }
   }
