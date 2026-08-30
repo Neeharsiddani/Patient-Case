@@ -101,10 +101,26 @@ export class ApiService {
   }
 
   // Hospital & Facility Management (ABDM HFR Architecture)
-  static async getHospitals(search = '', city = '') {
+  static async getHospitals(filters = {}) {
     const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (city) params.append('city', city);
+    
+    // Support legacy (search, city) or new { search, state, city, district, facility_type, page, limit }
+    if (typeof filters === 'string') {
+      if (filters) params.append('search', filters);
+    } else if (filters && typeof filters === 'object') {
+      if (filters.search) params.append('search', filters.search);
+      if (filters.state && filters.state !== 'All States' && filters.state !== 'ALL') params.append('state', filters.state);
+      if (filters.city && filters.city !== 'ALL') params.append('city', filters.city);
+      if (filters.district) params.append('district', filters.district);
+      if (filters.facility_type && filters.facility_type !== 'All Types' && filters.facility_type !== 'ALL') params.append('facility_type', filters.facility_type);
+      if (filters.lat != null) params.append('lat', filters.lat);
+      if (filters.lng != null) params.append('lng', filters.lng);
+      if (filters.radius != null) params.append('radius', filters.radius);
+      if (filters.sortBy) params.append('sortBy', filters.sortBy);
+      if (filters.page) params.append('page', filters.page);
+      if (filters.limit) params.append('limit', filters.limit);
+    }
+
     const qs = params.toString() ? `?${params.toString()}` : '';
     return await this.request(`/hospitals${qs}`);
   }

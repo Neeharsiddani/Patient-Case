@@ -9,31 +9,169 @@ const router = express.Router();
 
 /**
  * GET /api/hospitals
- * Public endpoint: Search & retrieve active healthcare facilities (ABDM HFR ready)
+ * Public & Centralized Endpoint: India-wide healthcare facility directory search & pagination
+ * Supports: Search (name, city, district, state, pin, facility_type), state filter, type filter, and pagination
+ */
+// Haversine formula helper for real-world distance computation in kilometers
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 6371; // Earth's mean radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+/**
+ * GET /api/hospitals
+ * Public & Centralized Endpoint: India-wide healthcare facility directory search & pagination
+ * Supports: Proximity distance calculation (lat/lng), search, state filter, type filter, and pagination
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { search, city } = req.query;
-    let sql = `SELECT id, name, code, location, city, state, facility_type, hfr_id, phone, email FROM hospitals WHERE status = 'ACTIVE'`;
+    const { 
+      search, 
+      state, 
+      city, 
+      district, 
+      facility_type,
+      lat,
+      lng,
+      radius, // optional distance filter in km (e.g. 5, 10, 25, 50)
+      sortBy = 'proximity', // 'proximity' | 'name'
+      page = 1, 
+      limit = 12 
+    } = req.query;
+
+    const patientLat = lat ? parseFloat(lat) : null;
+    const patientLng = lng ? parseFloat(lng) : null;
+    const radiusKm = radius ? parseFloat(radius) : null;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = limit === 'all' ? 200 : Math.min(200, Math.max(1, parseInt(limit, 10) || 12));
+    const offset = (pageNum - 1) * limitNum;
+
+    let baseWhere = `WHERE status = 'ACTIVE'`;
     const params = [];
 
-    if (search) {
-      sql += ` AND (name LIKE ? OR location LIKE ? OR city LIKE ?)`;
-      const term = `%${search}%`;
-      params.push(term, term, term);
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      baseWhere += ` AND (
+        name LIKE ? OR 
+        city LIKE ? OR 
+        district LIKE ? OR 
+        state LIKE ? OR 
+        pincode LIKE ? OR 
+        facility_type LIKE ? OR 
+        code LIKE ?
+      )`;
+      params.push(term, term, term, term, term, term, term);
     }
-    if (city) {
-      sql += ` AND city = ?`;
+
+    if (state && state !== 'ALL' && state !== 'All States') {
+      baseWhere += ` AND state = ?`;
+      params.push(state);
+    }
+
+    if (city && city !== 'ALL') {
+      baseWhere += ` AND city = ?`;
       params.push(city);
     }
 
-    sql += ` ORDER BY name ASC`;
-    const hospitals = await query(sql, params);
+    if (district && district !== 'ALL') {
+      baseWhere += ` AND district = ?`;
+      params.push(district);
+    }
+
+    if (facility_type && facility_type !== 'ALL' && facility_type !== 'All Types') {
+      baseWhere += ` AND facility_type = ?`;
+      params.push(facility_type);
+    }
+
+    // 1. Query All Matching Hospitals to calculate accurate geographic distances
+    const dataSql = `
+      SELECT id, name, code, location, district, city, state, pincode, latitude, longitude, facility_type, hfr_id, external_facility_id, data_source, phone, email 
+      FROM hospitals 
+      ${baseWhere}
+    `;
+    const allMatching = await query(dataSql, params);
+
+    // 2. Attach calculated distance in km if patient coordinates are available
+    let processedHospitals = allMatching.map((hosp) => {
+      let distanceKm = null;
+      if (patientLat != null && patientLng != null && hosp.latitude != null && hosp.longitude != null) {
+        distanceKm = calculateDistanceKm(patientLat, patientLng, hosp.latitude, hosp.longitude);
+      }
+      return {
+        ...hosp,
+        distance_km: distanceKm
+      };
+    });
+
+    // 3. Optional Radius Filter (e.g. within 10 km, within 25 km, within 50 km)
+    if (radiusKm != null && radiusKm > 0 && patientLat != null && patientLng != null) {
+      processedHospitals = processedHospitals.filter(h => h.distance_km != null && h.distance_km <= radiusKm);
+    }
+
+    // 4. Sort results (by proximity if coordinates present, else regional priority then name)
+    if (patientLat != null && patientLng != null) {
+      processedHospitals.sort((a, b) => {
+        if (a.distance_km != null && b.distance_km != null) {
+          return a.distance_km - b.distance_km;
+        }
+        return (a.distance_km == null ? 1 : -1);
+      });
+    } else {
+      processedHospitals.sort((a, b) => {
+        const stateWeightA = a.state === 'Telangana' ? 0 : a.state === 'Delhi' ? 1 : 2;
+        const stateWeightB = b.state === 'Telangana' ? 0 : b.state === 'Delhi' ? 1 : 2;
+        if (stateWeightA !== stateWeightB) return stateWeightA - stateWeightB;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    const total = processedHospitals.length;
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
+    // Apply pagination slice
+    const paginatedSlice = processedHospitals.slice(offset, offset + limitNum);
+
+    // 5. Attach available departments preview for each hospital
+    const hospitalsWithDepts = await Promise.all(
+      paginatedSlice.map(async (hosp) => {
+        const depts = await query(
+          `SELECT id, name, code, room_number, description FROM departments WHERE hospital_id = ? AND status = 'ACTIVE' ORDER BY name ASC`,
+          [hosp.id]
+        );
+        return {
+          ...hosp,
+          departments: depts
+        };
+      })
+    );
+
+    // 6. Retrieve available filter facets (Distinct States & Facility Types across database)
+    const distinctStatesRes = await query(`SELECT DISTINCT state FROM hospitals WHERE status = 'ACTIVE' AND state IS NOT NULL ORDER BY state ASC`);
+    const distinctTypesRes = await query(`SELECT DISTINCT facility_type FROM hospitals WHERE status = 'ACTIVE' AND facility_type IS NOT NULL ORDER BY facility_type ASC`);
 
     res.json({
       success: true,
-      count: hospitals.length,
-      hospitals
+      count: hospitalsWithDepts.length,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+      patientLocation: patientLat && patientLng ? { lat: patientLat, lng: patientLng } : null,
+      filters: {
+        states: ['All States', ...distinctStatesRes.map(r => r.state)],
+        facilityTypes: ['All Types', ...distinctTypesRes.map(r => r.facility_type)]
+      },
+      dataSource: 'CENTRALIZED_HEALTHCARE_DIRECTORY',
+      hospitals: hospitalsWithDepts
     });
   } catch (err) {
     next(err);
@@ -361,6 +499,30 @@ router.post('/:id/doctors', optionalAuth, async (req, res, next) => {
       message: `Doctor '${fullName}' registered successfully`,
       doctor: { id: doctorId, username, fullName, hospital_id: hospitalId }
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/hospitals/import
+ * Data import endpoint for syncing large-scale hospital datasets (JSON / ABDM HFR sync)
+ */
+router.post('/import', optionalAuth, async (req, res, next) => {
+  try {
+    const { HospitalImportService } = await import('../services/hospitalImportService.js');
+    const { hospitals, overwrite = false, source = 'AUTHORIZED_IMPORT' } = req.body;
+
+    if (!Array.isArray(hospitals) || hospitals.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Payload',
+        message: 'A non-empty array of hospital records is required in the "hospitals" field.'
+      });
+    }
+
+    const result = await HospitalImportService.importHospitals(hospitals, { overwrite, source });
+    res.json(result);
   } catch (err) {
     next(err);
   }

@@ -103,7 +103,7 @@ export const PatientProvider = ({ children }) => {
   
   // Hospital Facility Management
   const [hospitals, setHospitals] = useState(fallbackHospitals);
-  const [activeHospitalId, setActiveHospitalId] = useState('hosp-ggh-hyd');
+  const [activeHospitalId, setActiveHospitalId] = useState(null);
   
   // Authenticated Staff User Profile (Doctor or Hospital Admin)
   const [authenticatedUser, setAuthenticatedUser] = useState(() => {
@@ -148,11 +148,11 @@ export const PatientProvider = ({ children }) => {
     phone: '',
     address: '',
     
-    // Hospital & Department Selection
-    selectedHospitalId: 'hosp-ggh-hyd',
-    selectedHospitalName: 'Government General Hospital',
-    selectedDepartmentId: 'dept-ggh-hyd-genmed',
-    selectedDepartmentName: 'General Medicine',
+    // Hospital & Department Selection (Explicit choice by patient required)
+    selectedHospitalId: null,
+    selectedHospitalName: '',
+    selectedDepartmentId: '',
+    selectedDepartmentName: '',
     
     // Primary Reason for Visit
     reasonForVisit: '',
@@ -210,8 +210,8 @@ export const PatientProvider = ({ children }) => {
       if (health && health.status === 'HEALTHY') {
         setServerOnline(true);
         
-        // Fetch active hospitals
-        const hospRes = await ApiService.getHospitals();
+        // Fetch active hospitals from centralized directory
+        const hospRes = await ApiService.getHospitals({ limit: 100 });
         if (hospRes?.success && Array.isArray(hospRes.hospitals) && hospRes.hospitals.length > 0) {
           setHospitals(hospRes.hospitals);
         }
@@ -539,10 +539,10 @@ export const PatientProvider = ({ children }) => {
       gender: 'Male',
       phone: '',
       address: '',
-      selectedHospitalId: 'hosp-ggh-hyd',
-      selectedHospitalName: 'Government General Hospital',
-      selectedDepartmentId: 'dept-ggh-hyd-genmed',
-      selectedDepartmentName: 'General Medicine',
+      selectedHospitalId: null,
+      selectedHospitalName: '',
+      selectedDepartmentId: '',
+      selectedDepartmentName: '',
       reasonForVisit: '',
       consentAgreed: false,
       signature: '',

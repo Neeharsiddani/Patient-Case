@@ -57,7 +57,7 @@ async function runTests() {
 
     // Test 2: Hospital Search & Department Directory
     console.log('▶ Test 2: Hospital and Department Discovery (/api/hospitals)');
-    const hospRes = await makeRequest('/api/hospitals');
+    const hospRes = await makeRequest('/api/hospitals?limit=50');
     assert.strictEqual(hospRes.status, 200, 'Hospital search should return 200 OK');
     assert.ok(Array.isArray(hospRes.data.hospitals), 'Should return hospital list');
     assert.ok(hospRes.data.hospitals.some(h => h.id === 'hosp-ggh-hyd'), 'GGH should exist');
@@ -236,7 +236,72 @@ async function runTests() {
     assert.strictEqual(patientResource.resource.name[0].text, 'Vikramaditya Rao', 'Patient name should match');
     console.log('  ✓ PASSED: ABDM FHIR R4 document bundle verified.\n');
 
-    console.log('🎉 ALL MULTI-HOSPITAL & RBAC AUTOMATED TESTS PASSED (8/8)!\n');
+    // Test 9: India-Wide Hospital Directory Search, State Filter & Pagination
+    console.log('▶ Test 9: India-Wide Directory Search, State Filter & Pagination (/api/hospitals)');
+    
+    // 9a. Test paginated listing with limits
+    const pagedRes = await makeRequest('/api/hospitals?page=1&limit=5');
+    assert.strictEqual(pagedRes.status, 200);
+    assert.strictEqual(pagedRes.data.limit, 5);
+    assert.strictEqual(pagedRes.data.page, 1);
+    assert.ok(pagedRes.data.total >= 10, 'Total hospitals in national directory should be >= 10');
+    assert.ok(pagedRes.data.totalPages >= 2, 'Total pages should be >= 2');
+    assert.ok(pagedRes.data.filters.states.includes('Delhi'), 'Filter should include Delhi');
+    assert.ok(pagedRes.data.filters.states.includes('Maharashtra'), 'Filter should include Maharashtra');
+    assert.ok(pagedRes.data.filters.states.includes('Telangana'), 'Filter should include Telangana');
+
+    // 9b. Test state filter
+    const delhiRes = await makeRequest('/api/hospitals?state=Delhi');
+    assert.strictEqual(delhiRes.status, 200);
+    assert.ok(delhiRes.data.hospitals.every(h => h.state === 'Delhi'), 'All results must be in Delhi');
+    assert.ok(delhiRes.data.hospitals.some(h => h.id === 'hosp-aiims-delhi'), 'AIIMS Delhi must be present');
+
+    // 9c. Test multi-field search (by city, PIN, or name)
+    const searchRes = await makeRequest('/api/hospitals?search=400012'); // Mumbai Pincode (Tata Memorial / KEM)
+    assert.strictEqual(searchRes.status, 200);
+    assert.ok(searchRes.data.hospitals.length > 0, 'Should find hospitals by PIN code');
+    assert.ok(searchRes.data.hospitals.some(h => h.city === 'Mumbai'), 'Matching hospital should be in Mumbai');
+
+    console.log('  ✓ PASSED: Multi-field search, state filtering, and pagination verified.\n');
+
+    // Test 10: Healthcare Facility Import API Endpoint
+    console.log('▶ Test 10: Hospital Directory Data Import & Ingestion (/api/hospitals/import)');
+    const importPayload = {
+      overwrite: true,
+      source: 'ABDM_HFR_TEST_IMPORT',
+      hospitals: [
+        {
+          id: 'hosp-aiims-rishikesh',
+          name: 'AIIMS Rishikesh',
+          code: 'AIIMS-RSH',
+          facility_type: 'Apex National Institute of Medical Sciences',
+          state: 'Uttarakhand',
+          district: 'Dehradun',
+          city: 'Rishikesh',
+          address: 'Virbhadra Road, Rishikesh',
+          pincode: '249203',
+          hfr_id: 'IN-UK-DEH-AIIMS-001',
+          phone: '+91 135 246 2929',
+          email: 'director@aiimsrishikesh.edu.in',
+          departments: [
+            { name: 'General Medicine', code: 'GENMED', room_number: 'OPD 101', description: 'Internal Medicine' },
+            { name: 'Cardiology', code: 'CARDIO', room_number: 'OPD 105', description: 'Cardiac Care' }
+          ]
+        }
+      ]
+    };
+    const importRes = await makeRequest('/api/hospitals/import', { method: 'POST' }, importPayload);
+    assert.strictEqual(importRes.status, 200);
+    assert.strictEqual(importRes.data.success, true);
+    assert.ok(importRes.data.imported >= 1 || importRes.data.updated >= 1);
+
+    // Verify imported hospital is immediately searchable
+    const verifyImport = await makeRequest('/api/hospitals?search=Rishikesh');
+    assert.strictEqual(verifyImport.status, 200);
+    assert.ok(verifyImport.data.hospitals.some(h => h.code === 'AIIMS-RSH'), 'Imported hospital must be searchable');
+    console.log('  ✓ PASSED: Hospital directory bulk import API verified.\n');
+
+    console.log('🎉 ALL MULTI-HOSPITAL, DIRECTORY & RBAC AUTOMATED TESTS PASSED (10/10)!\n');
   } catch (err) {
     console.error('❌ Test Failure:', err);
     process.exitCode = 1;

@@ -1,100 +1,15 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { run, get, query, initDb } from './database.js';
+import { HospitalImportService } from '../services/hospitalImportService.js';
 
 export const seedDatabase = async () => {
   await initDb();
   await run('PRAGMA foreign_keys = OFF;');
 
   try {
-    // 1. Seed Healthcare Facilities / Hospitals
-    const existingHospitals = await query('SELECT id FROM hospitals');
-    if (existingHospitals.length === 0) {
-    const hospitals = [
-      {
-        id: 'hosp-ggh-hyd',
-        name: 'Government General Hospital',
-        code: 'GGH-HYD',
-        location: 'Afzal Gunj, Osmania Hospital Road',
-        city: 'Hyderabad',
-        state: 'Telangana',
-        facility_type: 'Government Teaching Tertiary Hospital',
-        hfr_id: 'IN-TG-HYD-GGH-001',
-        phone: '+91 40 2460 0121',
-        email: 'info@ggh-hyderabad.gov.in'
-      },
-      {
-        id: 'hosp-apollo-hyd',
-        name: 'Apollo Hospitals',
-        code: 'APOLLO-HYD',
-        location: 'Road No. 72, Opposite Bharatiya Vidya Bhavan, Jubilee Hills',
-        city: 'Hyderabad',
-        state: 'Telangana',
-        facility_type: 'Multi-Specialty Super Specialty Hospital',
-        hfr_id: 'IN-TG-HYD-APL-002',
-        phone: '+91 40 2360 7777',
-        email: 'jubileehills@apollohospitals.com'
-      },
-      {
-        id: 'hosp-yashoda-hyd',
-        name: 'Yashoda Hospitals',
-        code: 'YASHODA-HYD',
-        location: 'Alexander Road, Raj Bhavan Rd, Somajiguda',
-        city: 'Hyderabad',
-        state: 'Telangana',
-        facility_type: 'Tertiary Care Super Specialty Hospital',
-        hfr_id: 'IN-TG-HYD-YSH-003',
-        phone: '+91 40 4567 4567',
-        email: 'somajiguda@yashodamail.com'
-      },
-      {
-        id: 'hosp-aiims-delhi',
-        name: 'All India Institute of Medical Sciences (AIIMS)',
-        code: 'AIIMS-DEL',
-        location: 'Sri Aurobindo Marg, Ansari Nagar East',
-        city: 'New Delhi',
-        state: 'Delhi',
-        facility_type: 'Apex National Institute of Medical Sciences',
-        hfr_id: 'IN-DL-DEL-AIIMS-001',
-        phone: '+91 11 2658 8500',
-        email: 'director@aiims.edu'
-      }
-    ];
-
-    for (const h of hospitals) {
-      await run(`
-        INSERT INTO hospitals (id, name, code, location, city, state, facility_type, hfr_id, phone, email)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [h.id, h.name, h.code, h.location, h.city, h.state, h.facility_type, h.hfr_id, h.phone, h.email]);
-    }
-  }
-
-  // 2. Seed Departments per Hospital
-  const existingDepts = await query('SELECT id FROM departments');
-  if (existingDepts.length === 0) {
-    const standardDepts = [
-      { name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Internal Medicine, Chronic Diseases & Acute Fevers' },
-      { name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Cardiac Care, Angina, HTN & ECG Evaluation' },
-      { name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Bone, Joint & Musculoskeletal Disorders' },
-      { name: 'Dermatology', code: 'DERM', room_number: 'Room 112', description: 'Skin, Hair & Allergy Clinic' },
-      { name: 'Pediatrics', code: 'PED', room_number: 'Room 115', description: 'Child Health, Neonatology & Immunization' },
-      { name: 'Gynecology & Obstetrics', code: 'GYN', room_number: 'Room 120', description: 'Maternal Health & Women Wellness' },
-      { name: 'ENT', code: 'ENT', room_number: 'Room 124', description: 'Ear, Nose & Throat Disorders' },
-      { name: 'General Surgery', code: 'SURG', room_number: 'Room 130', description: 'Outpatient Surgical Consultation & Wound Care' },
-      { name: 'AYUSH / Ayurveda', code: 'AYUSH', room_number: 'Room 135', description: 'Holistic Traditional Medicine & Lifestyle Wellness' }
-    ];
-
-    const hospitalsList = await query('SELECT id, code FROM hospitals');
-    for (const hosp of hospitalsList) {
-      for (const dept of standardDepts) {
-        const deptId = `dept-${hosp.code.toLowerCase()}-${dept.code.toLowerCase()}`;
-        await run(`
-          INSERT INTO departments (id, hospital_id, name, code, room_number, description)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, [deptId, hosp.id, dept.name, dept.code, dept.room_number, dept.description]);
-      }
-    }
-  }
+    // 1. Seed & Sync Centralized India-Wide Healthcare Facilities / Hospitals
+    await HospitalImportService.loadBundledNationalDirectory();
 
   // 3. Seed Users (Doctors & Hospital Administrators with Multi-Hospital Scope)
   const salt = await bcrypt.genSalt(10);

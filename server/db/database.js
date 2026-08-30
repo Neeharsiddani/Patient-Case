@@ -59,15 +59,26 @@ export const initDb = async () => {
       name TEXT NOT NULL,
       code TEXT UNIQUE NOT NULL,
       location TEXT NOT NULL,
+      district TEXT,
       city TEXT NOT NULL,
       state TEXT NOT NULL,
+      pincode TEXT,
+      latitude REAL,
+      longitude REAL,
       facility_type TEXT NOT NULL,
       hfr_id TEXT,
+      external_facility_id TEXT,
+      data_source TEXT DEFAULT 'CENTRALIZED_HEALTHCARE_DIRECTORY',
       phone TEXT,
       email TEXT,
       status TEXT DEFAULT 'ACTIVE',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE INDEX IF NOT EXISTS idx_hospitals_state ON hospitals(state);
+    CREATE INDEX IF NOT EXISTS idx_hospitals_city ON hospitals(city);
+    CREATE INDEX IF NOT EXISTS idx_hospitals_type ON hospitals(facility_type);
+    CREATE INDEX IF NOT EXISTS idx_hospitals_code ON hospitals(code);
 
     -- 2. Clinical Departments / OPDs per Hospital
     CREATE TABLE IF NOT EXISTS departments (
@@ -296,6 +307,21 @@ export const initDb = async () => {
       }
 
       try {
+        // Auto-migration for hospitals table
+        const hospCols = await query("PRAGMA table_info(hospitals)");
+        if (hospCols) {
+          if (!hospCols.some(c => c.name === 'district')) {
+            try { await run("ALTER TABLE hospitals ADD COLUMN district TEXT"); } catch {}
+            try { await run("ALTER TABLE hospitals ADD COLUMN pincode TEXT"); } catch {}
+            try { await run("ALTER TABLE hospitals ADD COLUMN external_facility_id TEXT"); } catch {}
+            try { await run("ALTER TABLE hospitals ADD COLUMN data_source TEXT DEFAULT 'CENTRALIZED_HEALTHCARE_DIRECTORY'"); } catch {}
+          }
+          if (!hospCols.some(c => c.name === 'latitude')) {
+            try { await run("ALTER TABLE hospitals ADD COLUMN latitude REAL"); } catch {}
+            try { await run("ALTER TABLE hospitals ADD COLUMN longitude REAL"); } catch {}
+          }
+        }
+
         // Auto-migration for users table
         const userCols = await query("PRAGMA table_info(users)");
         if (userCols && !userCols.some(c => c.name === 'hospital_id')) {
