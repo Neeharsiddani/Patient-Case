@@ -1,29 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileSearch, 
-  Sparkles, 
-  CheckCircle2, 
-  Edit3, 
-  Check, 
-  AlertTriangle, 
   FileText, 
-  TrendingUp,
-  Cpu,
-  Calendar,
-  Building2,
-  Stethoscope,
-  Pill,
-  FlaskConical,
-  Activity,
-  History,
+  CheckCircle2, 
+  AlertTriangle, 
+  Edit3, 
+  Save, 
+  Plus, 
+  Trash2, 
+  FileSearch, 
+  History, 
+  Sparkles, 
+  Building2, 
+  Calendar, 
+  Pill, 
+  FlaskConical, 
+  Activity, 
   ShieldCheck,
+  Cpu,
+  ArrowRight,
   Eye,
   ChevronRight,
   Info
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { 
-  comprehensiveSampleDocuments, 
+  standardClinicalDocuments, 
   generateMedicalTimeline 
 } from '../../services/documentDigitizationService';
 import { AudioPrompt } from '../common/AudioPrompt';
@@ -37,8 +38,7 @@ export const Step6_OcrExtraction = () => {
   // Initialize uploaded docs if none attached yet
   useEffect(() => {
     if (!kioskForm.uploadedDocs || kioskForm.uploadedDocs.length === 0) {
-      // Auto-load 2 realistic documents (AIIMS Lab 2026 + District Hospital Rx 2025) for complete demonstration
-      const defaultDocs = [comprehensiveSampleDocuments[0], comprehensiveSampleDocuments[1]];
+      const defaultDocs = [standardClinicalDocuments[0], standardClinicalDocuments[1]];
       setKioskForm((prev) => ({
         ...prev,
         uploadedDocs: defaultDocs
@@ -95,7 +95,7 @@ export const Step6_OcrExtraction = () => {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Cpu className="text-cyan-600" />
-            <span>AI Medical Document Digitization & Clinical Extraction</span>
+            <span>Medical Document Digitization & Clinical Extraction</span>
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             Review structured diagnostic entities, prescription medicines, and chronological health timeline.
@@ -184,7 +184,7 @@ export const Step6_OcrExtraction = () => {
               </span>
             </div>
 
-            {/* Simulated Scanned Paper Layout with Bounding Boxes */}
+            {/* Scanned Paper Layout */}
             <div className="bg-slate-800/90 rounded-2xl p-4 my-3 font-mono text-[11px] space-y-2.5 border border-slate-700 select-none">
               <div className="text-slate-400 text-[10px] border-b border-slate-700 pb-1.5 flex justify-between">
                 <span>[DOCUMENT TYPE]: {currentDoc.typeName || currentDoc.type}</span>
@@ -259,7 +259,7 @@ export const Step6_OcrExtraction = () => {
               </div>
             </div>
 
-            {/* Abnormal Values High-Priority Banner (If any abnormal lab tests found) */}
+            {/* Abnormal Values High-Priority Banner */}
             {abnormalLabsCount > 0 && (
               <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-2xl flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ export const documentTypes = [
   { id: 'investigation', name: 'Diagnostic / Radiology', icon: 'Activity', desc: 'ECG, X-Ray, Ultrasound, CT/MRI impression' }
 ];
 
-export const comprehensiveSampleDocuments = [
+export const standardClinicalDocuments = [
   {
     id: 'doc-lab-2026',
     title: 'AIIMS New Delhi - Pathology & Renal Function Panel',
@@ -144,7 +144,6 @@ export const comprehensiveSampleDocuments = [
   }
 ];
 
-export const standardClinicalDocuments = comprehensiveSampleDocuments;
 
 /**
  * Multi-stage OCR & Entity Extraction Pipeline
@@ -170,7 +169,7 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
     return fileOrPreset;
   }
 
-  const defaultDoc = comprehensiveSampleDocuments[0];
+  const defaultDoc = standardClinicalDocuments[0];
   const customId = `doc-${Date.now().toString().slice(-4)}`;
   return {
     ...defaultDoc,

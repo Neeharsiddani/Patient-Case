@@ -78,7 +78,7 @@ async function runTests() {
       abhaId: '91-9988-7766-5544',
       language: 'Telugu',
       consentAgreed: true,
-      signatureData: 'data:image/png;base64,mockSignature',
+      signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
       chiefComplaints: ['Chest Pain / Angina', 'Cold Sweating'],
       duration: '45 mins',
       painScore: 9,

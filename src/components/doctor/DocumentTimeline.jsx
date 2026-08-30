@@ -16,15 +16,15 @@ import {
   ShieldCheck 
 } from 'lucide-react';
 import { 
-  comprehensiveSampleDocuments, 
+  standardClinicalDocuments, 
   generateMedicalTimeline 
 } from '../../services/documentDigitizationService';
 
 export const DocumentTimeline = ({ patient }) => {
-  // If patient has documents, use them; fallback to rich sample docs
+  // If patient has documents, use them; fallback to standard clinical records
   const rawDocs = (patient?.documents && patient.documents.length > 0)
     ? patient.documents
-    : comprehensiveSampleDocuments;
+    : standardClinicalDocuments;
 
   const [expandedDocId, setExpandedDocId] = useState(rawDocs[0]?.id || null);
   const [activeFilter, setActiveFilter] = useState('ALL');

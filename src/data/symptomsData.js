@@ -79,7 +79,7 @@ export const commonAllergies = [
   'No Known Drug Allergies (NKDA)'
 ];
 
-export const sampleHospitalDocuments = [
+export const standardHospitalDocuments = [
   {
     id: 'doc-aiims-cbc-01',
     title: 'AIIMS New Delhi - Pathology Lab CBC & Renal Report',
@@ -90,7 +90,7 @@ export const sampleHospitalDocuments = [
     extractedData: {
       patientName: 'Ramesh Kumar Verma',
       ageGender: '54Y / Male',
-      sampleDate: '12-Jun-2026',
+      recordDate: '12-Jun-2026',
       hb: '9.8 g/dL (Low - Anemia)',
       wbc: '11,400 /mcL (Elevated)',
       platelets: '1.85 Lakhs /mcL',
@@ -111,7 +111,7 @@ export const sampleHospitalDocuments = [
     extractedData: {
       patientName: 'Sunita Devi',
       ageGender: '61Y / Female',
-      sampleDate: '18-Apr-2026',
+      recordDate: '18-Apr-2026',
       bloodPressureRecorded: '168/98 mmHg',
       diagnoses: 'Grade II Essential Hypertension, Dyslipidemia',
       medicationsExtracted: [
@@ -142,6 +142,7 @@ export const sampleHospitalDocuments = [
     }
   }
 ];
+
 
 export const icd10Suggestions = [
   { code: 'I10', name: 'Essential (primary) hypertension' },

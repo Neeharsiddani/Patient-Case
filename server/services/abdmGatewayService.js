@@ -19,7 +19,7 @@ export class AbdmGatewayService {
    * M1: Initialize ABHA authentication with Mobile / Aadhaar OTP
    */
   static async initAbhaAuth(authMethod = 'AADHAAR_OTP', identifier) {
-    if (!ABDM_CLIENT_ID || ABDM_CLIENT_ID.includes('demo') || ABDM_CLIENT_ID.includes('mock')) {
+    if (!ABDM_CLIENT_ID || ABDM_CLIENT_ID === 'SANDBOX' || ABDM_CLIENT_ID.startsWith('SBX_')) {
       return {
         status: 'SUCCESS',
         mode: 'SANDBOX_GATEWAY',
@@ -35,7 +35,7 @@ export class AbdmGatewayService {
    * M2: Register & Link Patient Care Context with ABDM HIP
    */
   static async linkCareContext({ patientId, abhaAddress, tokenNumber }) {
-    if (!ABDM_CLIENT_ID || ABDM_CLIENT_ID.includes('demo') || ABDM_CLIENT_ID.includes('mock')) {
+    if (!ABDM_CLIENT_ID || ABDM_CLIENT_ID === 'SANDBOX' || ABDM_CLIENT_ID.startsWith('SBX_')) {
       return {
         status: 'SUCCESS',
         mode: 'SANDBOX_GATEWAY',

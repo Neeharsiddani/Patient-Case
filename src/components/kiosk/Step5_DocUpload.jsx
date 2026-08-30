@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
 import { 
-  FileText, 
   UploadCloud, 
+  FileText, 
   Camera, 
   Trash2, 
-  CheckCircle, 
   Sparkles, 
-  FileCheck,
-  Eye,
-  Activity,
-  Pill,
-  FlaskConical,
-  Clock,
+  FileCheck, 
+  AlertTriangle,
   CheckCircle2,
   Cpu,
   ArrowRight,
@@ -20,7 +15,7 @@ import {
 import { usePatient } from '../../context/PatientContext';
 import { 
   documentTypes, 
-  comprehensiveSampleDocuments, 
+  standardClinicalDocuments, 
   processDocumentWithOcr 
 } from '../../services/documentDigitizationService';
 import { AudioPrompt } from '../common/AudioPrompt';
@@ -70,7 +65,7 @@ export const Step5_DocUpload = () => {
     setIsCameraActive(true);
     setTimeout(() => {
       setIsCameraActive(false);
-      handleProcessAndAttach(comprehensiveSampleDocuments[0]);
+      handleProcessAndAttach(standardClinicalDocuments[0]);
     }, 1200);
   };
 
@@ -82,7 +77,7 @@ export const Step5_DocUpload = () => {
     }
   };
 
-  const filteredPresets = comprehensiveSampleDocuments.filter((doc) => {
+  const filteredPresets = standardClinicalDocuments.filter((doc) => {
     return activeTypeFilter === 'ALL' || doc.type === activeTypeFilter;
   });
 
@@ -102,7 +97,7 @@ export const Step5_DocUpload = () => {
         <AudioPrompt promptText="Please upload or scan your past medical records, prescriptions, or lab reports." />
       </div>
 
-      {/* Real-time OCR Processing Status Modal / Banner */}
+      {/* Real-time OCR Processing Status Banner */}
       {isProcessing && (
         <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-xl space-y-4 animate-pulse border border-cyan-500/50">
           <div className="flex items-center justify-between">
@@ -110,10 +105,10 @@ export const Step5_DocUpload = () => {
               <Cpu size={26} className="text-cyan-400 animate-spin" />
               <div>
                 <h4 className="text-base font-bold text-cyan-300">
-                  AI Optical Character Recognition & Clinical Entity Extraction
+                  Optical Character Recognition & Clinical Entity Extraction
                 </h4>
                 <p className="text-xs text-slate-400">
-                  Digitizing medical document into structured ABDM FHIR resources...
+                  Digitizing medical document into structured FHIR resources...
                 </p>
               </div>
             </div>
@@ -174,7 +169,7 @@ export const Step5_DocUpload = () => {
           </div>
         </div>
 
-        {/* 4 Rich Sample Cards */}
+        {/* 4 Clinical Record Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {filteredPresets.map((doc) => {
             const isAttached = kioskForm.uploadedDocs.some((d) => d.id === doc.id);
@@ -245,7 +240,7 @@ export const Step5_DocUpload = () => {
           </span>
         </label>
 
-        {/* Physical Camera Scan Simulation */}
+        {/* Physical Camera Scan Surface */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 flex flex-col items-center justify-center text-center space-y-3 shadow-sm">
           <div className="w-16 h-16 bg-cyan-100 text-cyan-700 rounded-2xl flex items-center justify-center">
             <Camera size={34} className={isCameraActive ? 'animate-pulse' : ''} />
@@ -285,7 +280,7 @@ export const Step5_DocUpload = () => {
               onClick={() => setKioskStep(6)}
               className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
             >
-              <span>View OCR Extractions & Timeline</span>
+              <span>View Extractions & Timeline</span>
               <ArrowRight size={14} />
             </button>
           </div>
