@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { PatientProvider, usePatient } from './context/PatientContext';
 import { Header } from './components/common/Header';
 import { KioskWizard } from './components/kiosk/KioskWizard';
@@ -8,6 +8,10 @@ import { MediMitraLogo } from './components/common/MediMitraLogo';
 
 const AppContent = () => {
   const { role, setRole, t } = usePatient();
+
+  useEffect(() => {
+    document.title = 'MediMitra | Your Health, Ready for Care';
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
