@@ -23,7 +23,12 @@ import {
   MessageSquare, 
   Sliders, 
   Globe, 
-  Radio
+  Radio,
+  FileText,
+  Pill,
+  AlertOctagon,
+  User,
+  Clock
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { 
@@ -43,26 +48,39 @@ export const Step4_ClinicalHistory = () => {
     t
   } = usePatient();
 
-  // Active sub-language for history taking (defaults to patient's chosen lang if in en/hi/te, else 'en')
+  // Active sub-language for history taking
   const [historyLang, setHistoryLang] = useState(() => {
     return ['en', 'hi', 'te'].includes(language) ? language : 'en';
   });
 
+  // Resolve complaint ID from Step 2 selection
+  const resolveComplaintId = () => {
+    if (kioskForm.selectedComplaintId) return kioskForm.selectedComplaintId;
+    const r = (kioskForm.reasonForVisit || '').toLowerCase();
+    if (r.includes('fever')) return 'fever';
+    if (r.includes('headache') || r.includes('migraine')) return 'headache';
+    if (r.includes('abdominal') || r.includes('stomach')) return 'abdominal_pain';
+    if (r.includes('cough') || r.includes('breath')) return 'cough';
+    if (r.includes('back') || r.includes('other') || r.includes('joint')) return 'other';
+    return 'chest_pain';
+  };
+
+  const [selectedComplaintId, setSelectedComplaintId] = useState(resolveComplaintId);
+  const [customComplaintText, setCustomComplaintText] = useState(kioskForm.customComplaint || kioskForm.reasonForVisit || '');
+
   // Input method mode: 'touch' | 'voice'
-  const [inputMode, setInputMode] = useState('touch'); // 'touch' | 'voice'
+  const [inputMode, setInputMode] = useState('touch');
   const [isListening, setIsListening] = useState(false);
   const [voiceWaveform, setVoiceWaveform] = useState(false);
 
   // Conversation stage:
-  // 'select_complaint' -> 'answering_questions' -> 'review_summary'
+  // Since Step 2 already selected the Reason for Visit, Step 3 defaults directly to 'answering_questions' (detailed history)
   const [stage, setStage] = useState(() => {
     return kioskForm.structuredHistory && kioskForm.structuredHistory.length > 0
       ? 'review_summary'
-      : 'select_complaint';
+      : 'answering_questions';
   });
 
-  const [selectedComplaintId, setSelectedComplaintId] = useState(kioskForm.selectedComplaintId || 'chest_pain');
-  const [customComplaintText, setCustomComplaintText] = useState(kioskForm.customComplaint || '');
   const [currentQIndex, setCurrentQIndex] = useState(0);
 
   // Store patient's answers: { questionId: [selectedAnswersArray] }
@@ -75,11 +93,6 @@ export const Step4_ClinicalHistory = () => {
   
   // Real-time red flag alerts
   const [activeRedFlags, setActiveRedFlags] = useState([]);
-  
-  // Editing state when reviewing
-  const [editingQuestionId, setEditingQuestionId] = useState(null);
-
-  const chatEndRef = useRef(null);
 
   // Synchronize language if global language changes to en, hi, or te
   useEffect(() => {
@@ -87,6 +100,12 @@ export const Step4_ClinicalHistory = () => {
       setHistoryLang(language);
     }
   }, [language]);
+
+  // Keep selected complaint synced if changed in context
+  useEffect(() => {
+    const resolved = resolveComplaintId();
+    setSelectedComplaintId(resolved);
+  }, [kioskForm.selectedComplaintId, kioskForm.reasonForVisit]);
 
   const questionsList = clinicalQuestionsData[selectedComplaintId] || clinicalQuestionsData.chest_pain;
   const currentQuestion = questionsList[currentQIndex];
@@ -104,12 +123,14 @@ export const Step4_ClinicalHistory = () => {
     speakText(prompt, historyLang === 'hi' ? 'hi-IN' : historyLang === 'te' ? 'te-IN' : 'en-IN');
   };
 
-  // 1. Complaint selection
+  // Switch primary complaint if needed
   const handleSelectPrimaryComplaint = (complaint) => {
     setSelectedComplaintId(complaint.id);
-    const complaintName = complaint[historyLang] || complaint.en;
-    
-    // Initialize or reset answers for new flow
+    setKioskForm(prev => ({
+      ...prev,
+      selectedComplaintId: complaint.id,
+      reasonForVisit: complaint[historyLang] || complaint.en
+    }));
     setAnswers({});
     setCurrentQIndex(0);
     setStage('answering_questions');
@@ -120,7 +141,7 @@ export const Step4_ClinicalHistory = () => {
     }, 400);
   };
 
-  // 2. Select answer option for current question
+  // Select answer option for current question
   const handleSelectOption = (option) => {
     if (!currentQuestion) return;
     const optionText = option[historyLang] || option.en;
@@ -158,7 +179,7 @@ export const Step4_ClinicalHistory = () => {
     }, 300);
   };
 
-  // Voice Input Simulation / Speech Recognition
+  // Voice Input Speech Recognition
   const handleToggleVoiceInput = () => {
     if (isListening) {
       setIsListening(false);
@@ -170,9 +191,8 @@ export const Step4_ClinicalHistory = () => {
     setVoiceWaveform(true);
 
     const voiceLangCode = historyLang === 'hi' ? 'hi-IN' : historyLang === 'te' ? 'te-IN' : 'en-IN';
-    
-    // Check if browser has SpeechRecognition API
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
@@ -254,13 +274,13 @@ export const Step4_ClinicalHistory = () => {
     });
 
     // Extract past history, duration, severity, allergies
-    let extractedDuration = '2-3 Days';
+    let extractedDuration = kioskForm.duration || '2-3 Days';
     let extractedPainScore = 5;
     const extractedPastConds = [];
     const extractedAllergies = [];
     const extractedMeds = [];
 
-    // Search answers for duration
+    // Search answers for duration & conditions
     Object.keys(answers).forEach((k) => {
       const ansArr = answers[k] || [];
       const text = ansArr.join(' ');
@@ -290,7 +310,7 @@ export const Step4_ClinicalHistory = () => {
       if (text.includes('Blood thinners')) extractedMeds.push('Tab. Ecosprin 75mg (0-1-0)');
     });
 
-    const complaintSummary = `${compTitle}${customComplaintText ? `: ${customComplaintText}` : ''}`;
+    const complaintSummary = kioskForm.reasonForVisit || compTitle;
 
     // Extract red flag titles
     const { redFlags } = evaluateClinicalRedFlags(selectedComplaintId, answers);
@@ -318,10 +338,11 @@ export const Step4_ClinicalHistory = () => {
   const handleEditQuestion = (qIndex) => {
     setCurrentQIndex(qIndex);
     setStage('answering_questions');
-    setEditingQuestionId(null);
   };
 
   const currentAnswerList = currentQuestion ? (answers[currentQuestion.id] || []) : [];
+  const selectedCompObj = primaryComplaints.find(c => c.id === selectedComplaintId) || primaryComplaints[0];
+  const complaintDisplayTitle = kioskForm.reasonForVisit || selectedCompObj[historyLang] || selectedCompObj.en;
 
   return (
     <div className="space-y-6">
@@ -335,28 +356,27 @@ export const Step4_ClinicalHistory = () => {
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold font-heading text-white">
                 {historyLang === 'hi' 
-                  ? 'इंटरएक्टिव मरीज केस-टेकिंग' 
+                  ? 'चिकित्सीय केस हिस्ट्री व लक्षण विवरण' 
                   : historyLang === 'te' 
-                  ? 'ఇంటరాక్టివ్ రోగి కేస్-టేకింగ్' 
-                  : 'Interactive Clinical Case-Taking'}
+                  ? 'వైద్య చరిత్ర & లక్షణాల వివరాలు' 
+                  : 'Comprehensive Medical History & Clinical Details'}
               </h2>
               <span className="bg-cyan-900/80 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                AI Intake v2.5
+                Step 3 of 8
               </span>
             </div>
             <p className="text-xs text-cyan-200 mt-0.5">
               {historyLang === 'hi'
-                ? 'बोली या टच स्क्रीन द्वारा अपनी बीमारी का विवरण दें'
+                ? 'बीमारी की शुरुआत, गंभीरता, पुरानी बीमारियां (BP/शुगर) व दवाओं का विवरण'
                 : historyLang === 'te'
-                ? 'వాయిస్ లేదా టచ్ ద్వారా మీ అనారోగ్య వివరాలను నమోదు చేయండి'
-                : 'Adaptive clinical history taking via touch or voice conversation'}
+                ? 'లక్షణాల తీవ్రత, గత వ్యాధులు (BP/షుగర్), మందుల అలర్జీల వివరాలు'
+                : 'Investigating present illness (HPI), chronic conditions, active medications & allergies'}
             </p>
           </div>
         </div>
 
         {/* Controls: Language Buttons (EN / HI / TE) + Input Mode Toggle */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* 3 Supported Language Selector Chips */}
           <div className="flex items-center bg-slate-800 p-1 rounded-2xl border border-slate-700">
             {supportedHistoryLanguages.map((l) => (
               <button
@@ -370,14 +390,13 @@ export const Step4_ClinicalHistory = () => {
                   backgroundColor: historyLang === l.code ? '#088395' : 'transparent',
                   color: historyLang === l.code ? '#ffffff' : '#cbd5e1'
                 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <span>{l.native}</span>
               </button>
             ))}
           </div>
 
-          {/* Touch / Voice Mode Toggle */}
           <div className="flex items-center bg-slate-800 p-1 rounded-2xl border border-slate-700">
             <button
               type="button"
@@ -386,10 +405,10 @@ export const Step4_ClinicalHistory = () => {
                 backgroundColor: inputMode === 'touch' ? '#088395' : 'transparent',
                 color: inputMode === 'touch' ? '#ffffff' : '#cbd5e1'
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Sliders size={14} />
-              <span>Touch Buttons</span>
+              <span>Touch</span>
             </button>
 
             <button
@@ -399,16 +418,46 @@ export const Step4_ClinicalHistory = () => {
                 backgroundColor: inputMode === 'voice' ? '#088395' : 'transparent',
                 color: inputMode === 'voice' ? '#ffffff' : '#cbd5e1'
               }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Mic size={14} />
-              <span>Voice / Speak</span>
+              <span>Voice</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Red-Flag Urgent Notification Banner (Shows automatically if critical trigger detected) */}
+      {/* Patient Context Summary Bar */}
+      <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="font-bold text-cyan-950 flex items-center gap-1.5">
+            <Activity size={15} className="text-cyan-700" />
+            <span>Chief Complaint:</span>
+            <strong className="text-cyan-900 bg-white px-2 py-0.5 rounded-lg border border-cyan-200 shadow-2xs">
+              {complaintDisplayTitle}
+            </strong>
+          </span>
+
+          {kioskForm.name && (
+            <span className="text-slate-600 font-semibold flex items-center gap-1">
+              <User size={13} className="text-slate-400" />
+              <span>{kioskForm.name} ({kioskForm.age ? `${kioskForm.age}y` : ''} {kioskForm.gender})</span>
+            </span>
+          )}
+        </div>
+
+        {stage === 'answering_questions' && (
+          <button
+            type="button"
+            onClick={() => setStage('select_complaint')}
+            className="text-[11px] font-bold text-cyan-800 hover:text-cyan-950 underline cursor-pointer"
+          >
+            Change Chief Complaint
+          </button>
+        )}
+      </div>
+
+      {/* Red-Flag Urgent Notification Banner */}
       {activeRedFlags.length > 0 && (
         <div className="bg-red-50 border-2 border-red-400 p-4 sm:p-5 rounded-3xl shadow-md space-y-2 pulse-emergency">
           <div className="flex items-start gap-3">
@@ -429,56 +478,34 @@ export const Step4_ClinicalHistory = () => {
                   ? 'कृपया तुरंत अस्पताल के ट्रायज स्टाफ या नर्स को सूचित करें। यह कोई अंतिम निदान नहीं है, बल्कि प्राथमिकता सुरक्षा चेतावनी है।'
                   : historyLang === 'te'
                   ? 'దయచేసి వెంటనే ఆసుపత్రి సిబ్బందికి తెలియజేయండి. ఇది కేవలం అత్యవసర హెచ్చరిక మాత్రమే.'
-                  : 'Please alert hospital staff immediately. This is not a diagnosis, but an automated clinical priority safety alert.'}
+                  : 'Please alert hospital staff immediately. Automated clinical safety flags will be highlighted to the treating doctor.'}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* STAGE 1: PRIMARY COMPLAINT SELECTION */}
+      {/* STAGE 1: SWITCH COMPLAINT VIEW (Only shown if patient explicitly clicks "Change Chief Complaint") */}
       {stage === 'select_complaint' && (
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-          {/* Main Question Heading */}
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-800 text-xs font-bold">
-              <Sparkles size={14} />
-              <span>Step 1: Chief Complaint / मुख्य समस्या</span>
-            </div>
-
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-heading">
-              {historyLang === 'hi' 
-                ? 'आज आप किस समस्या के लिए अस्पताल आए हैं?' 
-                : historyLang === 'te' 
-                ? 'ఈ రోజు మీరు ఏ సమస్య కొరకు ఆసుపత్రికి వచ్చారు?' 
-                : 'What brings you to the hospital today?'}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="text-lg font-extrabold text-slate-900 font-heading">
+              Select Primary Health Concern to Investigate:
             </h3>
-
-            <p className="text-xs sm:text-sm text-slate-500">
-              {historyLang === 'hi' 
-                ? 'नीचे दिए गए मुख्य लक्षणों में से एक चुनें या बोलकर बताएं:' 
-                : historyLang === 'te' 
-                ? 'కింది ప్రధాన లక్షణాలలో ఒకదాన్ని ఎంచుకోండి లేదా మాట్లాడి చెప్పండి:' 
-                : 'Select your primary reason for consultation to start the adaptive clinical interview:'}
-            </p>
+            <button
+              type="button"
+              onClick={() => setStage('answering_questions')}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800"
+            >
+              Cancel & Return
+            </button>
           </div>
 
-          {/* 6 Big Touch-Friendly Complaint Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {primaryComplaints.map((comp) => {
               const title = comp[historyLang] || comp.en;
               const desc = comp[historyLang === 'hi' ? 'descHi' : historyLang === 'te' ? 'descTe' : 'descEn'] || comp.descEn;
               const isSelected = selectedComplaintId === comp.id;
-
-              const iconMap = {
-                Heart: Heart,
-                Thermometer: Thermometer,
-                Brain: Brain,
-                Activity: Activity,
-                Wind: Wind,
-                HelpCircle: HelpCircle
-              };
-              const IconComp = iconMap[comp.icon] || Activity;
 
               return (
                 <button
@@ -489,16 +516,9 @@ export const Step4_ClinicalHistory = () => {
                     borderColor: isSelected ? '#088395' : '#e2e8f0',
                     backgroundColor: isSelected ? '#ecfeff' : '#ffffff'
                   }}
-                  className="p-5 rounded-3xl border-2 text-left transition-all hover:border-cyan-500 flex flex-col justify-between min-h-[140px] group shadow-sm card-hover relative overflow-hidden"
+                  className="p-5 rounded-3xl border-2 text-left transition-all hover:border-cyan-500 flex flex-col justify-between min-h-[140px] group shadow-sm cursor-pointer"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className={`p-3 rounded-2xl ${isSelected ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-cyan-50 group-hover:text-cyan-700'}`}>
-                      <IconComp size={26} />
-                    </div>
-                    <ChevronRight size={20} className="text-slate-300 group-hover:text-cyan-600 transition-colors" />
-                  </div>
-
-                  <div className="mt-4">
+                  <div>
                     <h4 className="text-base font-extrabold text-slate-900 group-hover:text-cyan-800">
                       {title}
                     </h4>
@@ -506,46 +526,13 @@ export const Step4_ClinicalHistory = () => {
                       {desc}
                     </p>
                   </div>
+                  <span className="text-xs font-bold text-cyan-700 mt-3 flex items-center gap-1">
+                    <span>Investigate Symptoms</span>
+                    <ChevronRight size={14} />
+                  </span>
                 </button>
               );
             })}
-          </div>
-
-          {/* Voice Prompt Action */}
-          <div className="bg-cyan-50/60 border border-cyan-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => speakText(
-                  historyLang === 'hi' 
-                    ? 'आज आप किस समस्या के लिए अस्पताल आए हैं? छाती में दर्द, बुखार, सिरदर्द, पेट दर्द या खांसी में से एक चुनें।' 
-                    : historyLang === 'te' 
-                    ? 'ఈ రోజు మీరు ఏ సమస్య కొరకు ఆసుపత్రికి వచ్చారు?' 
-                    : 'What brings you to the hospital today? Please select your chief complaint.'
-                )}
-                className="p-2.5 bg-white text-cyan-700 rounded-xl border border-cyan-300 shadow-sm hover:bg-cyan-100"
-                title="Hear audio question"
-              >
-                <Volume2 size={20} />
-              </button>
-              <span className="text-xs font-semibold text-cyan-900">
-                {historyLang === 'hi' 
-                  ? 'आवाज से सुनना चाहते हैं? स्पीकर बटन दबाएं।' 
-                  : historyLang === 'te' 
-                  ? 'ప్రశ్న వినడానికి స్పీకర్ బటన్ నొక్కండి.' 
-                  : 'Tap speaker to hear audio guidance or tap any card above to proceed.'}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleVoiceInput}
-              style={{ backgroundColor: isListening ? '#dc2626' : '#088395' }}
-              className="px-4 py-2 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-sm whitespace-nowrap"
-            >
-              <Mic size={16} className={isListening ? 'animate-pulse' : ''} />
-              <span>{isListening ? 'Listening...' : 'Speak Your Complaint'}</span>
-            </button>
           </div>
         </div>
       )}
@@ -556,14 +543,16 @@ export const Step4_ClinicalHistory = () => {
           {/* Progress Bar & Counter */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handlePrevQuestion}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
-              >
-                <ArrowLeft size={16} />
-                <span className="hidden sm:inline">Back</span>
-              </button>
+              {currentQIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePrevQuestion}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft size={16} />
+                  <span className="hidden sm:inline">Previous Question</span>
+                </button>
+              )}
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   {currentQuestion.key}
@@ -593,7 +582,7 @@ export const Step4_ClinicalHistory = () => {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <span className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700 bg-cyan-100/80 px-2.5 py-0.5 rounded-full">
-                  Clinical Intake Question
+                  Clinical Intake Detail
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
                   {currentQuestion[historyLang] || currentQuestion.en}
@@ -603,7 +592,7 @@ export const Step4_ClinicalHistory = () => {
               <button
                 type="button"
                 onClick={() => speakCurrentQuestion(currentQuestion)}
-                className="p-3 bg-white hover:bg-cyan-50 text-cyan-700 rounded-2xl border border-cyan-200 shadow-sm flex-shrink-0 transition-colors"
+                className="p-3 bg-white hover:bg-cyan-50 text-cyan-700 rounded-2xl border border-cyan-200 shadow-sm flex-shrink-0 transition-colors cursor-pointer"
                 title="Hear question read out"
               >
                 <Volume2 size={22} />
@@ -636,7 +625,7 @@ export const Step4_ClinicalHistory = () => {
             </div>
           )}
 
-          {/* Interactive Touch Answer Chips (Large Tap Targets) */}
+          {/* Interactive Touch Answer Chips */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             {currentQuestion.options?.map((option) => {
               const optText = option[historyLang] || option.en;
@@ -651,7 +640,7 @@ export const Step4_ClinicalHistory = () => {
                     borderColor: isSelected ? '#088395' : '#e2e8f0',
                     backgroundColor: isSelected ? '#ecfeff' : '#ffffff'
                   }}
-                  className="p-4 rounded-2xl border-2 text-left transition-all hover:border-cyan-400 flex items-start gap-3 shadow-sm card-hover"
+                  className="p-4 rounded-2xl border-2 text-left transition-all hover:border-cyan-400 flex items-start gap-3 shadow-sm card-hover cursor-pointer"
                 >
                   <div
                     style={{
@@ -690,12 +679,12 @@ export const Step4_ClinicalHistory = () => {
                 value={textAnswerInput}
                 onChange={(e) => setTextAnswerInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCustomTextAnswer()}
-                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-xs sm:text-sm font-medium focus:bg-white focus:border-cyan-600 outline-none"
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-xs sm:text-sm font-medium focus:bg-white focus:border-cyan-600 outline-none shadow-xs"
               />
               <button
                 type="button"
                 onClick={handleToggleVoiceInput}
-                className="px-3.5 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Voice input"
               >
                 <Mic size={18} className={isListening ? 'text-red-600 animate-pulse' : ''} />
@@ -704,7 +693,7 @@ export const Step4_ClinicalHistory = () => {
                 type="button"
                 onClick={handleAddCustomTextAnswer}
                 style={{ backgroundColor: '#088395' }}
-                className="px-5 py-3 text-white rounded-2xl text-xs font-bold flex items-center gap-1 shadow hover:opacity-90"
+                className="px-5 py-3 text-white rounded-2xl text-xs font-bold flex items-center gap-1 shadow hover:opacity-90 cursor-pointer"
               >
                 <span>Save</span>
                 <Send size={14} />
@@ -717,7 +706,8 @@ export const Step4_ClinicalHistory = () => {
             <button
               type="button"
               onClick={handlePrevQuestion}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+              disabled={currentQIndex === 0}
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ArrowLeft size={16} />
               <span>Previous Question</span>
@@ -727,7 +717,7 @@ export const Step4_ClinicalHistory = () => {
               type="button"
               onClick={handleNextQuestion}
               style={{ backgroundColor: '#088395' }}
-              className="px-6 py-2.5 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md hover:opacity-95 transition-all"
+              className="px-6 py-2.5 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md hover:opacity-95 transition-all cursor-pointer"
             >
               <span>{currentQIndex === questionsList.length - 1 ? 'Review History & Finish' : 'Next Question'}</span>
               <ChevronRight size={16} />
@@ -743,7 +733,7 @@ export const Step4_ClinicalHistory = () => {
             <div>
               <div className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full border border-emerald-300 mb-1">
                 <CheckCircle2 size={14} />
-                <span>Clinical History Taking Complete</span>
+                <span>Medical History Recorded</span>
               </div>
               <h3 className="text-2xl font-extrabold text-slate-900 font-heading">
                 {historyLang === 'hi' 
@@ -753,7 +743,7 @@ export const Step4_ClinicalHistory = () => {
                   : 'Review Clinical Case History'}
               </h3>
               <p className="text-xs text-slate-500">
-                Please verify all recorded answers. You can tap on any section to make edits before submitting to the doctor.
+                Please verify all recorded answers. You can tap on any section to make edits before submitting.
               </p>
             </div>
 
@@ -766,21 +756,22 @@ export const Step4_ClinicalHistory = () => {
                     .join('. ');
                   speakText(speechSummary);
                 }}
-                className="px-4 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                className="px-4 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Volume2 size={16} />
-                <span>🔊 Listen to Summary</span>
+                <span>🔊 Listen</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setStage('select_complaint');
+                  setCurrentQIndex(0);
+                  setStage('answering_questions');
                 }}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw size={14} />
-                <span>Restart</span>
+                <span>Retake Questions</span>
               </button>
             </div>
           </div>
@@ -813,7 +804,7 @@ export const Step4_ClinicalHistory = () => {
                     <button
                       type="button"
                       onClick={() => handleEditQuestion(idx)}
-                      className="text-cyan-700 hover:text-cyan-900 p-1 rounded hover:bg-cyan-50 transition-colors flex items-center gap-1 text-[11px] font-bold"
+                      className="text-cyan-700 hover:text-cyan-900 p-1 rounded hover:bg-cyan-50 transition-colors flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                     >
                       <Edit3 size={13} />
                       <span>Edit</span>
@@ -837,26 +828,6 @@ export const Step4_ClinicalHistory = () => {
                 </div>
               );
             })}
-          </div>
-
-          {/* Bottom Confirmation Action Banner */}
-          <div className="bg-gradient-to-r from-slate-900 to-cyan-950 p-6 rounded-3xl text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-            <div>
-              <h4 className="text-base font-bold">Save and Continue to Medical Document Upload</h4>
-              <p className="text-xs text-cyan-200 mt-0.5">
-                All clinical history responses will be formatted into structured FHIR records for Doctor Workstation review.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={saveAndCommitHistory}
-              style={{ backgroundColor: '#088395' }}
-              className="w-full sm:w-auto px-8 py-3.5 text-white font-bold text-sm rounded-2xl hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              <Check size={18} strokeWidth={3} />
-              <span>History Verified & Saved ✓</span>
-            </button>
           </div>
         </div>
       )}

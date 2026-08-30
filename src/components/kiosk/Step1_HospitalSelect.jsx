@@ -50,7 +50,7 @@ const FEATURED_LOCALITIES = [
 ];
 
 export const Step1_HospitalSelect = () => {
-  const { kioskForm, setKioskForm, t } = usePatient();
+  const { kioskForm, setKioskForm, setKioskStep, t } = usePatient();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedState, setSelectedState] = useState('All States');
@@ -145,6 +145,12 @@ export const Step1_HospitalSelect = () => {
       assignedDepartment: hosp.departments?.[0]?.name || 'General Medicine',
       department_id: hosp.departments?.[0]?.id || `dept-${hosp.id}-genmed`
     }));
+
+    // Automatically direct to next page (Step 2: Reason for Visit)
+    setTimeout(() => {
+      setKioskStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 120);
   };
 
   // Switch locality / neighborhood directly
@@ -484,11 +490,12 @@ export const Step1_HospitalSelect = () => {
             return (
               <div
                 key={hosp.id}
+                onClick={() => handleSelectHospital(hosp)}
                 style={{
                   borderColor: isSelected ? '#088395' : '#e2e8f0',
                   backgroundColor: isSelected ? '#f0fdfa' : '#ffffff'
                 }}
-                className={`p-5 rounded-3xl border-2 transition-all flex flex-col justify-between gap-4 group hover:border-cyan-400 hover:shadow-md ${
+                className={`p-5 rounded-3xl border-2 transition-all flex flex-col justify-between gap-4 group hover:border-cyan-400 hover:shadow-md cursor-pointer ${
                   isSelected ? 'shadow-md ring-2 ring-cyan-500/20' : ''
                 }`}
               >

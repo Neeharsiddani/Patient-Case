@@ -35,6 +35,10 @@ export const Step4_HospitalSelect = () => {
       selectedHospitalId: hosp.id,
       selectedHospitalName: hosp.name
     }));
+    setTimeout(() => {
+      setKioskStep(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 120);
   };
 
   const currentHospital = hospitals.find(h => h.id === kioskForm.selectedHospitalId) || hospitals[0];
