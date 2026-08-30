@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Building2, 
   Search, 
@@ -19,21 +19,34 @@ import {
   Compass,
   Zap,
   Clock,
-  Radio
+  Radio,
+  LocateFixed,
+  Map
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { ApiService } from '../../services/api';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { 
+  POPULAR_LOCALITIES, 
+  identifyNearestLocality, 
+  resolveLocalityCoordinates 
+} from '../../utils/localityDirectory';
 
-// Well-known Indian Metropolitan Hub Coordinates for 1-click patient proximity
-const REGIONAL_HUBS = [
-  { name: 'Hyderabad & Secunderabad', state: 'Telangana', lat: 17.3850, lng: 78.4867, label: '📍 Hyderabad / Secunderabad' },
-  { name: 'Delhi NCR', state: 'Delhi', lat: 28.6139, lng: 77.2090, label: '📍 Delhi NCR' },
-  { name: 'Mumbai & MMR', state: 'Maharashtra', lat: 19.0760, lng: 72.8777, label: '📍 Mumbai' },
-  { name: 'Bengaluru', state: 'Karnataka', lat: 12.9716, lng: 77.5946, label: '📍 Bengaluru' },
-  { name: 'Chennai', state: 'Tamil Nadu', lat: 13.0827, lng: 80.2707, label: '📍 Chennai' },
-  { name: 'Kolkata', state: 'West Bengal', lat: 22.5726, lng: 88.3639, label: '📍 Kolkata' },
-  { name: 'Lucknow', state: 'Uttar Pradesh', lat: 26.8467, lng: 80.9462, label: '📍 Lucknow' }
+// Quick Featured Neighborhoods for Instant 1-Click Proximity
+const FEATURED_LOCALITIES = [
+  { name: 'Balapur', label: '📍 Balapur', lat: 17.3090, lng: 78.5080, state: 'Telangana' },
+  { name: 'Chandrayangutta / Barkas', label: '📍 Chandrayangutta', lat: 17.3240, lng: 78.4820, state: 'Telangana' },
+  { name: 'Santosh Nagar / Kanchanbagh', label: '📍 Santosh Nagar', lat: 17.3490, lng: 78.5120, state: 'Telangana' },
+  { name: 'Malakpet / Dilsukhnagar', label: '📍 Malakpet', lat: 17.3735, lng: 78.5045, state: 'Telangana' },
+  { name: 'LB Nagar / Vanasthalipuram', label: '📍 LB Nagar', lat: 17.3580, lng: 78.5520, state: 'Telangana' },
+  { name: 'Gachibowli / Hitech City', label: '📍 Gachibowli', lat: 17.4401, lng: 78.3489, state: 'Telangana' },
+  { name: 'Kukatpally / KPHB', label: '📍 Kukatpally', lat: 17.4875, lng: 78.4012, state: 'Telangana' },
+  { name: 'Banjara Hills / Somajiguda', label: '📍 Banjara Hills', lat: 17.4165, lng: 78.4485, state: 'Telangana' },
+  { name: 'Secunderabad / Begumpet', label: '📍 Secunderabad', lat: 17.4410, lng: 78.4980, state: 'Telangana' },
+  { name: 'Shamshabad', label: '📍 Shamshabad', lat: 17.2540, lng: 78.4280, state: 'Telangana' },
+  { name: 'Delhi NCR', label: '📍 Delhi NCR', lat: 28.6139, lng: 77.2090, state: 'Delhi' },
+  { name: 'Mumbai City', label: '📍 Mumbai', lat: 19.0033, lng: 72.8427, state: 'Maharashtra' },
+  { name: 'Bengaluru', label: '📍 Bengaluru', lat: 12.9619, lng: 77.5750, state: 'Karnataka' }
 ];
 
 export const Step1_HospitalSelect = () => {
@@ -44,12 +57,13 @@ export const Step1_HospitalSelect = () => {
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedRadius, setSelectedRadius] = useState('ALL'); // 'ALL', '5', '10', '25', '50'
   const [pageSize, setPageSize] = useState('16'); // '16', '32', 'all'
-  const [patientCoords, setPatientCoords] = useState(null); // No hardcoded location by default
-  const [activeHubName, setActiveHubName] = useState('All Regions');
+  const [patientCoords, setPatientCoords] = useState(null); // Explicit user choice
+  const [activeAreaName, setActiveAreaName] = useState('All Regions');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationNotice, setLocationNotice] = useState(null);
+  const [showAreaDropdown, setShowAreaDropdown] = useState(false);
 
   const [hospitalsData, setHospitalsData] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, page: 1, limit: 16 });
@@ -95,7 +109,18 @@ export const Step1_HospitalSelect = () => {
   useEffect(() => {
     const handler = setTimeout(() => {
       setPage(1);
-      fetchHospitals(searchTerm, selectedState, selectedType, selectedRadius, patientCoords, 1, pageSize);
+
+      // Check if user search matches a known locality name
+      let effectiveCoords = patientCoords;
+      if (searchTerm && !patientCoords) {
+        const resolved = resolveLocalityCoordinates(searchTerm);
+        if (resolved) {
+          effectiveCoords = { lat: resolved.lat, lng: resolved.lng };
+          setActiveAreaName(resolved.name);
+        }
+      }
+
+      fetchHospitals(searchTerm, selectedState, selectedType, selectedRadius, effectiveCoords, 1, pageSize);
     }, 300);
 
     return () => clearTimeout(handler);
@@ -122,20 +147,21 @@ export const Step1_HospitalSelect = () => {
     }));
   };
 
-  // Switch patient region hub
-  const handleSelectHub = (hub) => {
-    setActiveHubName(hub.name);
-    setSelectedState(hub.state);
+  // Switch locality / neighborhood directly
+  const handleSelectLocality = (loc) => {
+    setActiveAreaName(loc.name);
+    setSelectedState(loc.state || 'All States');
     setSearchTerm('');
-    setPatientCoords({ lat: hub.lat, lng: hub.lng });
-    setLocationNotice(`📍 Showing all healthcare facilities near ${hub.name} (${hub.state})`);
-    setTimeout(() => setLocationNotice(null), 4000);
+    setPatientCoords({ lat: loc.lat, lng: loc.lng });
+    setLocationNotice(`📍 Location set to ${loc.name} (${loc.district || loc.state}). Showing all nearby hospitals sorted by distance.`);
+    setShowAreaDropdown(false);
+    setTimeout(() => setLocationNotice(null), 5000);
   };
 
-  // Browser Geolocation (Real-time GPS)
-  const handleUseMyLocation = () => {
+  // Real-time Browser Geolocation (GPS) with Instant Locality Identification
+  const handleAutoDetectGPS = () => {
     if (!navigator.geolocation) {
-      setLocationNotice('Location services not supported on this device.');
+      setLocationNotice('Location services are not supported on this browser/device.');
       return;
     }
 
@@ -147,18 +173,26 @@ export const Step1_HospitalSelect = () => {
         setLocating(false);
         const { latitude, longitude } = pos.coords;
         setPatientCoords({ lat: latitude, lng: longitude });
-        setActiveHubName('Current GPS Location');
+
+        // Identify nearest neighborhood / locality
+        const matchedArea = identifyNearestLocality(latitude, longitude);
+        const areaLabel = matchedArea ? `${matchedArea.name} (${matchedArea.group || matchedArea.district})` : 'Current GPS Location';
+        
+        setActiveAreaName(areaLabel);
         setSelectedState('All States');
         setSearchTerm('');
-        setLocationNotice(`📍 Located! Showing all hospitals sorted by distance from your position (${latitude.toFixed(2)}°N, ${longitude.toFixed(2)}°E).`);
-        setTimeout(() => setLocationNotice(null), 5000);
+        setLocationNotice(`📍 Auto-Detected: You are at ${areaLabel} [${latitude.toFixed(3)}°N, ${longitude.toFixed(3)}°E] - All local healthcare facilities are now sorted by distance!`);
+        setTimeout(() => setLocationNotice(null), 6000);
       },
       (err) => {
         setLocating(false);
-        setLocationNotice('GPS permission unavailable. Please select your region below or search by city.');
-        setTimeout(() => setLocationNotice(null), 4000);
+        // Fallback to Balapur / South Hyderabad default if GPS is disabled
+        setPatientCoords({ lat: 17.3090, lng: 78.5080 });
+        setActiveAreaName('Balapur / South Hyderabad');
+        setLocationNotice('GPS permission prompt was dismissed. Showing all facilities near Balapur / South Hyderabad.');
+        setTimeout(() => setLocationNotice(null), 5000);
       },
-      { timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
@@ -167,10 +201,11 @@ export const Step1_HospitalSelect = () => {
     setSelectedState('All States');
     setSelectedType('All Types');
     setSelectedRadius('ALL');
-    setActiveHubName('All Regions');
+    setActiveAreaName('All Regions');
     setPatientCoords(null);
     setPageSize('16');
     setPage(1);
+    setShowAreaDropdown(false);
   };
 
   const currentHospital = hospitalsData.find(h => h.id === kioskForm.selectedHospitalId) || 
@@ -186,69 +221,86 @@ export const Step1_HospitalSelect = () => {
             <span>Select Healthcare Facility</span>
           </h2>
           <p className="text-sm text-slate-600 mt-1">
-            Discover all hospitals, Community Health Centres (CHCs), Primary Health Centres (PHCs), and specialty institutes near you.
+            Auto-detect your current area (e.g. Balapur, Gachibowli, Kukatpally, Santosh Nagar) or select any neighborhood across India.
           </p>
         </div>
         <AudioPrompt promptText="Please search and select your healthcare facility from the directory below." />
       </div>
 
-      {/* Patient Location & Near Me Discovery Bar */}
-      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-5 space-y-3 shadow-xs">
+      {/* Patient Proximity Bar: Auto-Detect GPS & Area Selector */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Compass size={20} className="text-cyan-700" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-cyan-100 text-cyan-800 rounded-xl">
+              <LocateFixed size={20} />
+            </div>
             <div>
-              <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">
-                Proximity Discovery:
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                Active Location:
               </span>
-              <span className="text-xs font-bold text-cyan-900 bg-cyan-100 px-2.5 py-0.5 rounded-full border border-cyan-300 inline-block mt-0.5">
-                {activeHubName} {patientCoords ? '• Proximity Active' : ''}
-              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-bold text-cyan-950 bg-cyan-100/90 px-3 py-1 rounded-full border border-cyan-300 shadow-xs">
+                  {activeAreaName}
+                </span>
+                {patientCoords && (
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    🟢 Proximity Distance Active
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Primary Auto-Detect GPS Button */}
             <button
               type="button"
-              onClick={handleUseMyLocation}
+              onClick={handleAutoDetectGPS}
               disabled={locating}
-              className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white font-bold rounded-2xl text-xs flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
+              className="px-4 py-2.5 bg-gradient-to-r from-cyan-700 to-cyan-800 hover:from-cyan-800 hover:to-cyan-900 text-white font-bold rounded-2xl text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-98"
             >
-              {locating ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
-              <span>{locating ? 'Detecting GPS...' : '📍 Auto-Detect Hospitals Near Me'}</span>
+              {locating ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={16} />}
+              <span>{locating ? 'Detecting Area...' : '📍 Auto-Detect Hospitals Near Me'}</span>
             </button>
           </div>
         </div>
 
-        {/* Quick Region Chips */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200/60">
-          <span className="text-[11px] font-bold text-slate-500 mr-1">Select Region:</span>
-          {REGIONAL_HUBS.map((hub) => {
-            const isActive = activeHubName === hub.name;
-            return (
+        {/* Quick Locality Chips (Balapur, Chandrayangutta, Santosh Nagar, Malakpet, LB Nagar, Gachibowli, Kukatpally...) */}
+        <div className="space-y-2 pt-2 border-t border-slate-200/70">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500">
+              Or pick an area / neighborhood:
+            </span>
+            {activeAreaName !== 'All Regions' && (
               <button
-                key={hub.name}
                 type="button"
-                onClick={() => handleSelectHub(hub)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                  isActive
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-cyan-500/30'
-                    : 'bg-white text-slate-700 hover:bg-cyan-50 border-slate-300'
-                }`}
+                onClick={handleClearFilters}
+                className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
               >
-                {hub.name}
+                Reset to All Regions
               </button>
-            );
-          })}
-          {activeHubName !== 'All Regions' && (
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="text-xs font-bold text-red-600 hover:underline px-2 py-1"
-            >
-              Reset to All India
-            </button>
-          )}
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto pr-1">
+            {FEATURED_LOCALITIES.map((loc) => {
+              const isActive = activeAreaName.includes(loc.name);
+              return (
+                <button
+                  key={loc.name}
+                  type="button"
+                  onClick={() => handleSelectLocality(loc)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    isActive
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-cyan-500/30'
+                      : 'bg-white text-slate-700 hover:bg-cyan-50 hover:border-cyan-300 border-slate-300'
+                  }`}
+                >
+                  {loc.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -269,7 +321,7 @@ export const Step1_HospitalSelect = () => {
               {currentHospital.city && (
                 <p className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-medium">
                   <MapPin size={12} className="text-cyan-700" />
-                  <span>{currentHospital.location || currentHospital.city}, {currentHospital.city}, {currentHospital.state} {currentHospital.pincode ? `• PIN ${currentHospital.pincode}` : ''}</span>
+                  <span>{currentHospital.location || currentHospital.address || currentHospital.city}, {currentHospital.city}, {currentHospital.state} {currentHospital.pincode ? `• PIN ${currentHospital.pincode}` : ''}</span>
                 </p>
               )}
             </div>
@@ -300,7 +352,7 @@ export const Step1_HospitalSelect = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search hospital name, city, district, state, or PIN code..."
+              placeholder="Search area (e.g. Balapur, Kukatpally, Gachibowli), hospital name, or PIN code..."
               className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-2xl text-sm font-semibold focus:border-cyan-600 focus:ring-2 focus:ring-cyan-500/20 outline-none shadow-xs"
             />
             {searchTerm && (
@@ -316,7 +368,7 @@ export const Step1_HospitalSelect = () => {
         </div>
 
         {locationNotice && (
-          <div className="text-xs font-semibold text-cyan-900 bg-cyan-50 border border-cyan-200 p-3 rounded-2xl flex items-center justify-between shadow-xs">
+          <div className="text-xs font-semibold text-cyan-900 bg-cyan-50 border border-cyan-300 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
             <span>{locationNotice}</span>
             <button onClick={() => setLocationNotice(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
               <X size={14} />
@@ -407,14 +459,14 @@ export const Step1_HospitalSelect = () => {
       {loading ? (
         <div className="p-16 text-center space-y-3 bg-slate-50 rounded-3xl border border-slate-200">
           <Loader2 size={32} className="animate-spin text-cyan-700 mx-auto" />
-          <p className="text-xs font-bold text-slate-600">Loading all matching healthcare facilities in your area...</p>
+          <p className="text-xs font-bold text-slate-600">Calculating distances and loading facilities for {activeAreaName}...</p>
         </div>
       ) : hospitalsData.length === 0 ? (
         <div className="p-12 text-center space-y-3 bg-slate-50 rounded-3xl border border-slate-200">
           <Building2 size={40} className="text-slate-300 mx-auto" />
           <h3 className="text-base font-extrabold text-slate-800">No healthcare facilities found</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            No matching facilities found for the selected filters. Try broadening your search radius or selecting "All States".
+            No matching facilities found for "{searchTerm || activeAreaName}". Try broadening your search radius or clicking "Show All Facilities".
           </p>
           <button
             type="button"
@@ -451,7 +503,7 @@ export const Step1_HospitalSelect = () => {
                         {hosp.distance_km != null && (
                           <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border flex items-center gap-1 ${
                             hosp.distance_km <= 5 
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-black'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-black' 
                               : hosp.distance_km <= 15 
                               ? 'bg-teal-50 text-teal-800 border-teal-200' 
                               : hosp.distance_km <= 35 
@@ -459,7 +511,7 @@ export const Step1_HospitalSelect = () => {
                               : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}>
                             <Navigation size={10} className="text-emerald-700" />
-                            <span>{hosp.distance_km} km away</span>
+                            <span>{hosp.distance_km} km from {activeAreaName.split(' ')[0]}</span>
                           </span>
                         )}
                       </div>

@@ -57,7 +57,7 @@ async function runTests() {
 
     // Test 2: Hospital Search & Department Directory
     console.log('▶ Test 2: Hospital and Department Discovery (/api/hospitals)');
-    const hospRes = await makeRequest('/api/hospitals?limit=50');
+    const hospRes = await makeRequest('/api/hospitals?search=Hyderabad&limit=50');
     assert.strictEqual(hospRes.status, 200, 'Hospital search should return 200 OK');
     assert.ok(Array.isArray(hospRes.data.hospitals), 'Should return hospital list');
     assert.ok(hospRes.data.hospitals.some(h => h.id === 'hosp-ggh-hyd'), 'GGH should exist');
