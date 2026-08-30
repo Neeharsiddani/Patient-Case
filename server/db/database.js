@@ -53,26 +53,74 @@ export const run = (sql, params = []) => {
 
 export const initDb = async () => {
   const schemaSql = `
-    -- Users (Staff & Admin authentication)
+    -- 1. Healthcare Facilities / Hospitals (ABDM Health Facility Registry HFR Architecture Ready)
+    CREATE TABLE IF NOT EXISTS hospitals (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      code TEXT UNIQUE NOT NULL,
+      location TEXT NOT NULL,
+      city TEXT NOT NULL,
+      state TEXT NOT NULL,
+      facility_type TEXT NOT NULL,
+      hfr_id TEXT,
+      phone TEXT,
+      email TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 2. Clinical Departments / OPDs per Hospital
+    CREATE TABLE IF NOT EXISTS departments (
+      id TEXT PRIMARY KEY,
+      hospital_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL,
+      room_number TEXT DEFAULT 'Room 101',
+      description TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+    );
+
+    -- 3. Users (Doctors, Hospital Admins & Systems Admin authentication)
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('PATIENT', 'DOCTOR', 'ADMIN')),
+      role TEXT NOT NULL CHECK(role IN ('PATIENT', 'DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')),
       full_name TEXT NOT NULL,
       email TEXT,
       phone TEXT,
+      hospital_id TEXT,
       department TEXT,
       license_number TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      status TEXT DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL
     );
 
-    -- Patients Master Record
+    -- 4. Doctor-to-Department Authorization Mappings (Strict Healthcare RBAC)
+    CREATE TABLE IF NOT EXISTS doctor_departments (
+      id TEXT PRIMARY KEY,
+      doctor_id TEXT NOT NULL,
+      department_id TEXT NOT NULL,
+      hospital_id TEXT NOT NULL,
+      is_primary INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(doctor_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(department_id) REFERENCES departments(id) ON DELETE CASCADE,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+    );
+
+    -- 5. Patients & Clinical Consultation Cases Master Record
     CREATE TABLE IF NOT EXISTS patients (
       id TEXT PRIMARY KEY,
       token_number TEXT NOT NULL,
-      room_number TEXT DEFAULT 'Room 104',
+      hospital_id TEXT NOT NULL DEFAULT 'hosp-ggh-hyd',
+      hospital_name TEXT DEFAULT 'Government General Hospital, Hyderabad',
+      department_id TEXT NOT NULL DEFAULT 'dept-ggh-genmed',
       department TEXT DEFAULT 'General Medicine',
+      room_number TEXT DEFAULT 'Room 104',
       assigned_doctor_id TEXT,
       assigned_doctor_name TEXT,
       name TEXT NOT NULL,
@@ -83,22 +131,28 @@ export const initDb = async () => {
       abha_id TEXT,
       abha_address TEXT,
       language TEXT DEFAULT 'English',
+      reason_for_visit TEXT,
       triage_level INTEGER DEFAULT 4,
       triage_category TEXT DEFAULT 'Routine / Standard (Green)',
       triage_color TEXT DEFAULT 'green',
       wait_time TEXT DEFAULT '15 mins',
-      status TEXT DEFAULT 'Waiting' CHECK(status IN ('Waiting', 'History Verified', 'In-Consultation', 'Completed', 'Rejected')),
+      status TEXT DEFAULT 'Waiting' CHECK(status IN ('Waiting', 'Assigned', 'Under Review', 'History Verified', 'In-Consultation', 'Completed', 'Rejected')),
+      case_status TEXT DEFAULT 'Waiting for Review' CHECK(case_status IN ('Draft', 'Submitted', 'Waiting for Review', 'Assigned', 'Under Review', 'History Verified', 'Consultation Completed', 'Rejected')),
       verification_status TEXT DEFAULT 'Pending Verification',
       verification_timestamp TEXT,
       rejection_reason TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id),
+      FOREIGN KEY(department_id) REFERENCES departments(id),
+      FOREIGN KEY(assigned_doctor_id) REFERENCES users(id)
     );
 
-    -- Consents (DPDP Act 2023 & ABDM compliant consent artifacts)
+    -- 6. Consents (DPDP Act 2023 & Hospital-Specific Data Authorization)
     CREATE TABLE IF NOT EXISTS consents (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
+      hospital_id TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('GRANTED', 'DECLINED', 'REVOKED')),
       scope TEXT NOT NULL,
       purpose TEXT NOT NULL,
@@ -107,10 +161,12 @@ export const initDb = async () => {
       ip_address TEXT,
       granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       revoked_at DATETIME,
-      FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
+      revocation_status TEXT DEFAULT 'ACTIVE',
+      FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
     );
 
-    -- Structured Clinical Case History
+    -- 7. Structured Clinical Case History
     CREATE TABLE IF NOT EXISTS clinical_histories (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -131,7 +187,7 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- Measured Vitals
+    -- 8. Measured Vitals
     CREATE TABLE IF NOT EXISTS vitals (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -149,7 +205,7 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- Red Flags / Safety Triage Alerts
+    -- 9. Red Flags / Safety Triage Alerts
     CREATE TABLE IF NOT EXISTS red_flags (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -160,7 +216,7 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- Uploaded Medical Documents & Extracted OCR Entities
+    -- 10. Uploaded Medical Documents & Extracted OCR Entities
     CREATE TABLE IF NOT EXISTS documents (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -183,7 +239,7 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- AI Generated Drafts & Clinician Verified Summaries
+    -- 11. AI Generated Drafts & Clinician Verified Summaries
     CREATE TABLE IF NOT EXISTS clinical_summaries (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -201,7 +257,7 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- Doctor Consultation Notes & e-Prescriptions
+    -- 12. Doctor Consultation Notes & e-Prescriptions
     CREATE TABLE IF NOT EXISTS doctor_notes (
       id TEXT PRIMARY KEY,
       patient_id TEXT NOT NULL,
@@ -217,12 +273,13 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
-    -- Immutable Audit Trail for Healthcare Data Protection
+    -- 13. Immutable Audit Trail for Healthcare Data Protection
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       user_id TEXT,
       user_role TEXT,
+      hospital_id TEXT,
       action TEXT NOT NULL,
       resource_type TEXT NOT NULL,
       resource_id TEXT,
@@ -232,11 +289,43 @@ export const initDb = async () => {
   `;
 
   return new Promise((resolve, reject) => {
-    db.exec(schemaSql, (err) => {
+    db.exec(schemaSql, async (err) => {
       if (err) {
         console.error('❌ Error initializing database schema:', err);
-        reject(err);
-      } else {
+        return reject(err);
+      }
+
+      try {
+        // Auto-migration for users table
+        const userCols = await query("PRAGMA table_info(users)");
+        if (userCols && !userCols.some(c => c.name === 'hospital_id')) {
+          try { await run("ALTER TABLE users ADD COLUMN hospital_id TEXT"); } catch {}
+          try { await run("ALTER TABLE users ADD COLUMN department TEXT"); } catch {}
+          try { await run("ALTER TABLE users ADD COLUMN license_number TEXT"); } catch {}
+        }
+
+        // Auto-migration for patients table
+        const patCols = await query("PRAGMA table_info(patients)");
+        if (patCols && !patCols.some(c => c.name === 'hospital_id')) {
+          try { await run("ALTER TABLE patients ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN hospital_name TEXT DEFAULT 'Government General Hospital'"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN department_id TEXT DEFAULT 'dept-ggh-hyd-genmed'"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN reason_for_visit TEXT"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN case_status TEXT DEFAULT 'Waiting for Review'"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_id TEXT"); } catch {}
+          try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_name TEXT"); } catch {}
+        }
+
+        // Auto-migration for consents table
+        const conCols = await query("PRAGMA table_info(consents)");
+        if (conCols && !conCols.some(c => c.name === 'hospital_id')) {
+          try { await run("ALTER TABLE consents ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
+          try { await run("ALTER TABLE consents ADD COLUMN revocation_status TEXT DEFAULT 'ACTIVE'"); } catch {}
+        }
+
+        resolve();
+      } catch (migErr) {
+        console.warn('Schema migration notice:', migErr);
         resolve();
       }
     });

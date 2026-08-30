@@ -32,11 +32,18 @@ export const DoctorDashboard = () => {
     selectedPatient, 
     selectedPatientId, 
     setSelectedPatientId, 
-    speakText 
+    speakText,
+    authenticatedUser,
+    activeHospitalId,
+    hospitals
   } = usePatient();
 
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'timeline' | 'rx'
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
+  const doctorName = authenticatedUser?.fullName || 'Dr. Rajesh Sharma, MD';
+  const doctorDept = authenticatedUser?.department || 'Cardiology & General Medicine';
 
   const totalPatients = patients.length;
   const waitingPatients = patients.filter((p) => p.status === 'Waiting' || !p.status).length;
@@ -53,6 +60,36 @@ export const DoctorDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Top Hospital Hierarchy & Doctor Profile Banner */}
+      <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-md flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-cyan-700 rounded-2xl text-white shadow-sm">
+            <Stethoscope size={24} />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm sm:text-base font-extrabold text-white">
+                {doctorName}
+              </span>
+              <span className="bg-cyan-900/90 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full">
+                {doctorDept}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <Building2 size={13} className="text-cyan-400" />
+              <span>{currentHospital?.name} ({currentHospital?.city})</span>
+              <span className="text-slate-600">|</span>
+              <span>Scoped RBAC: Authorized Clinical Records Only</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 font-bold">
+            Hospital Code: {currentHospital?.code}
+          </span>
+        </div>
+      </div>
       {/* Top Clinical Stats Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">

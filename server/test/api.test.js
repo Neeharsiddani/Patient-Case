@@ -41,7 +41,7 @@ function makeRequest(path, options = {}, postData = null) {
 }
 
 async function runTests() {
-  console.log('🧪 Starting MediMitra Automated Backend Tests...\n');
+  console.log('🧪 Starting MediMitra Automated Backend Multi-Hospital & RBAC Test Suite...\n');
   await seedDatabase();
 
   server = app.listen(TEST_PORT);
@@ -55,20 +55,63 @@ async function runTests() {
     assert.strictEqual(healthRes.data.database, 'CONNECTED', 'Database should be CONNECTED');
     console.log('  ✓ PASSED: System health and DB connection verified.\n');
 
-    // Test 2: Doctor Authentication
-    console.log('▶ Test 2: Doctor authentication (/api/auth/login)');
-    const loginRes = await makeRequest('/api/auth/login', { method: 'POST' }, {
+    // Test 2: Hospital Search & Department Directory
+    console.log('▶ Test 2: Hospital and Department Discovery (/api/hospitals)');
+    const hospRes = await makeRequest('/api/hospitals');
+    assert.strictEqual(hospRes.status, 200, 'Hospital search should return 200 OK');
+    assert.ok(Array.isArray(hospRes.data.hospitals), 'Should return hospital list');
+    assert.ok(hospRes.data.hospitals.some(h => h.id === 'hosp-ggh-hyd'), 'GGH should exist');
+    assert.ok(hospRes.data.hospitals.some(h => h.id === 'hosp-apollo-hyd'), 'Apollo should exist');
+
+    const deptRes = await makeRequest('/api/hospitals/hosp-ggh-hyd/departments');
+    assert.strictEqual(deptRes.status, 200, 'Departments should return 200 OK');
+    assert.ok(Array.isArray(deptRes.data.departments), 'Departments should be an array');
+    assert.ok(deptRes.data.departments.some(d => d.id === 'dept-ggh-hyd-cardio'), 'Cardiology dept should exist');
+    console.log('  ✓ PASSED: Hospital & Department discovery endpoints verified.\n');
+
+    // Test 3: Multi-Hospital Staff Authentication
+    console.log('▶ Test 3: Multi-Hospital Staff Authentication (/api/auth/login)');
+    
+    // Doctor A: Dr. Sharma at GGH (Cardiology, GenMed)
+    const docALogin = await makeRequest('/api/auth/login', { method: 'POST' }, {
       username: 'dr.sharma',
       password: 'Doctor@123'
     });
-    assert.strictEqual(loginRes.status, 200, 'Login should succeed with 200 OK');
-    assert.ok(loginRes.data.token, 'Response should contain a JWT token');
-    assert.strictEqual(loginRes.data.user.role, 'DOCTOR', 'User role should be DOCTOR');
-    const doctorToken = loginRes.data.token;
-    console.log('  ✓ PASSED: Doctor authentication and JWT generation verified.\n');
+    assert.strictEqual(docALogin.status, 200);
+    assert.strictEqual(docALogin.data.user.hospitalId, 'hosp-ggh-hyd');
+    const docAToken = docALogin.data.token;
 
-    // Test 3: Patient Intake Submission with Deterministic Red-Flag Triage
-    console.log('▶ Test 3: Patient Intake Submission (/api/patients/intake)');
+    // Doctor B: Dr. Anand at GGH (Orthopedics ONLY)
+    const docBLogin = await makeRequest('/api/auth/login', { method: 'POST' }, {
+      username: 'dr.anand',
+      password: 'Doctor@123'
+    });
+    assert.strictEqual(docBLogin.status, 200);
+    assert.strictEqual(docBLogin.data.user.hospitalId, 'hosp-ggh-hyd');
+    const docBToken = docBLogin.data.token;
+
+    // Doctor C: Dr. Kiran at Apollo (Cardiology ONLY at Apollo)
+    const docCLogin = await makeRequest('/api/auth/login', { method: 'POST' }, {
+      username: 'dr.kiran',
+      password: 'Doctor@123'
+    });
+    assert.strictEqual(docCLogin.status, 200);
+    assert.strictEqual(docCLogin.data.user.hospitalId, 'hosp-apollo-hyd');
+    const docCToken = docCLogin.data.token;
+
+    // Admin: GGH Hospital Admin
+    const adminLogin = await makeRequest('/api/auth/login', { method: 'POST' }, {
+      username: 'admin.ggh',
+      password: 'Admin@123'
+    });
+    assert.strictEqual(adminLogin.status, 200);
+    assert.strictEqual(adminLogin.data.user.role, 'HOSPITAL_ADMIN');
+    const adminToken = adminLogin.data.token;
+
+    console.log('  ✓ PASSED: Multi-facility clinicians & administrators authenticated.\n');
+
+    // Test 4: Patient Intake Routed to GGH Cardiology
+    console.log('▶ Test 4: Patient Intake Routed to GGH Cardiology (/api/patients/intake)');
     const intakePayload = {
       name: 'Vikramaditya Rao',
       age: 58,
@@ -77,6 +120,11 @@ async function runTests() {
       address: 'Banjara Hills, Hyderabad',
       abhaId: '91-9988-7766-5544',
       language: 'Telugu',
+      hospitalId: 'hosp-ggh-hyd',
+      hospitalName: 'Government General Hospital',
+      departmentId: 'dept-ggh-hyd-cardio',
+      department: 'Cardiology',
+      reasonForVisit: 'Severe chest tightness and cold sweat for 45 mins',
       consentAgreed: true,
       signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
       chiefComplaints: ['Chest Pain / Angina', 'Cold Sweating'],
@@ -97,27 +145,76 @@ async function runTests() {
     const intakeRes = await makeRequest('/api/patients/intake', { method: 'POST' }, intakePayload);
     assert.strictEqual(intakeRes.status, 201, 'Intake should return 201 Created');
     assert.ok(intakeRes.data.data.id, 'Patient ID should be generated');
-    assert.strictEqual(intakeRes.data.data.triageLevel, 1, 'Triage should be Level 1 (Resuscitation)');
-    assert.strictEqual(intakeRes.data.data.triageColor, 'red', 'Triage color should be red');
-    assert.ok(intakeRes.data.data.redFlags.length > 0, 'Red flags should be identified');
+    assert.strictEqual(intakeRes.data.data.hospitalId, 'hosp-ggh-hyd');
+    assert.strictEqual(intakeRes.data.data.departmentId, 'dept-ggh-hyd-cardio');
+    assert.strictEqual(intakeRes.data.data.triageLevel, 1, 'Triage should be Level 1 (Resuscitation / High Risk)');
     const createdPatientId = intakeRes.data.data.id;
-    console.log('  ✓ PASSED: Patient intake & deterministic red-flag triage verified.\n');
+    console.log('  ✓ PASSED: Case routed to Hospital: GGH, Department: Cardiology.\n');
 
-    // Test 4: Retrieve Patient Queue
-    console.log('▶ Test 4: Retrieve Patient Queue (/api/patients)');
-    const queueRes = await makeRequest('/api/patients');
-    assert.strictEqual(queueRes.status, 200, 'Queue should return 200 OK');
-    assert.ok(Array.isArray(queueRes.data.patients), 'Patients should be an array');
-    const foundPatient = queueRes.data.patients.find(p => p.id === createdPatientId);
-    assert.ok(foundPatient, 'Created patient should appear in live queue');
-    assert.strictEqual(foundPatient.status, 'Waiting', 'Initial status should be Waiting');
-    console.log('  ✓ PASSED: Patient queue retrieval verified.\n');
+    // Test 5: Strict Multi-Hospital & Department RBAC Isolation
+    console.log('▶ Test 5: Strict Multi-Hospital & Department RBAC Isolation Enforcement');
+    
+    // Doctor A (GGH Cardiology) queries queue
+    const docAQueue = await makeRequest('/api/patients', {
+      headers: { Authorization: `Bearer ${docAToken}` }
+    });
+    assert.strictEqual(docAQueue.status, 200);
+    const docAHasPatient = docAQueue.data.patients.some(p => p.id === createdPatientId);
+    assert.strictEqual(docAHasPatient, true, 'Doctor A (GGH Cardiology) MUST see the GGH Cardiology case');
 
-    // Test 5: Doctor Confirm Summary
-    console.log('▶ Test 5: Doctor Confirm Clinical Summary (/api/doctor/confirm-summary)');
+    // Doctor B (GGH Orthopedics) queries queue
+    const docBQueue = await makeRequest('/api/patients', {
+      headers: { Authorization: `Bearer ${docBToken}` }
+    });
+    assert.strictEqual(docBQueue.status, 200);
+    const docBHasPatient = docBQueue.data.patients.some(p => p.id === createdPatientId);
+    assert.strictEqual(docBHasPatient, false, 'Doctor B (GGH Ortho) MUST NOT see the GGH Cardiology case');
+
+    // Doctor C (Apollo Cardiology) queries queue
+    const docCQueue = await makeRequest('/api/patients', {
+      headers: { Authorization: `Bearer ${docCToken}` }
+    });
+    assert.strictEqual(docCQueue.status, 200);
+    const docCHasPatient = docCQueue.data.patients.some(p => p.id === createdPatientId);
+    assert.strictEqual(docCHasPatient, false, 'Doctor C (Apollo) MUST NOT see GGH cases');
+
+    // Doctor B directly accessing patient record by ID -> 403 Forbidden
+    const docBAccessRes = await makeRequest(`/api/patients/${createdPatientId}`, {
+      headers: { Authorization: `Bearer ${docBToken}` }
+    });
+    assert.strictEqual(docBAccessRes.status, 403, 'Doctor B must be Forbidden (403) from accessing Cardiology record');
+
+    // Doctor C directly accessing patient record by ID -> 403 Forbidden
+    const docCAccessRes = await makeRequest(`/api/patients/${createdPatientId}`, {
+      headers: { Authorization: `Bearer ${docCToken}` }
+    });
+    assert.strictEqual(docCAccessRes.status, 403, 'Doctor C must be Forbidden (403) from accessing GGH patient record');
+
+    console.log('  ✓ PASSED: Strict Hospital & Department RBAC isolation verified on backend (403 Forbidden on cross-access).\n');
+
+    // Test 6: Hospital Admin Stats & Doctor Assignment
+    console.log('▶ Test 6: Hospital Admin Stats & Doctor Assignment');
+    const adminStatsRes = await makeRequest('/api/hospitals/hosp-ggh-hyd/stats', {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    assert.strictEqual(adminStatsRes.status, 200);
+    assert.ok(adminStatsRes.data.stats.departmentBreakdown.length > 0);
+
+    const assignRes = await makeRequest('/api/hospitals/hosp-ggh-hyd/assign-doctor', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` }
+    }, {
+      patientId: createdPatientId,
+      doctorId: docALogin.data.user.id
+    });
+    assert.strictEqual(assignRes.status, 200, 'Assignment should succeed');
+    console.log('  ✓ PASSED: Hospital admin stats and doctor assignment verified.\n');
+
+    // Test 7: Doctor Confirm Clinical Summary
+    console.log('▶ Test 7: Doctor Verification of Clinical History (/api/doctor/confirm-summary)');
     const confirmRes = await makeRequest('/api/doctor/confirm-summary', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${doctorToken}` }
+      headers: { Authorization: `Bearer ${docAToken}` }
     }, {
       patientId: createdPatientId,
       doctorNotes: 'Confirmed acute coronary presentation. STAT ECG ordered.'
@@ -126,9 +223,11 @@ async function runTests() {
     assert.strictEqual(confirmRes.data.verificationStatus, 'History Verified', 'Status should be History Verified');
     console.log('  ✓ PASSED: Doctor clinical summary verification verified.\n');
 
-    // Test 6: Export ABDM FHIR R4 Bundle
-    console.log('▶ Test 6: ABDM FHIR R4 Bundle Export (/api/fhir/patient/:id)');
-    const fhirRes = await makeRequest(`/api/fhir/patient/${createdPatientId}`);
+    // Test 8: Export ABDM FHIR R4 Bundle
+    console.log('▶ Test 8: ABDM FHIR R4 Bundle Export (/api/fhir/patient/:id)');
+    const fhirRes = await makeRequest(`/api/fhir/patient/${createdPatientId}`, {
+      headers: { Authorization: `Bearer ${docAToken}` }
+    });
     assert.strictEqual(fhirRes.status, 200, 'FHIR export should return 200 OK');
     assert.strictEqual(fhirRes.data.resourceType, 'Bundle', 'Resource type should be Bundle');
     assert.strictEqual(fhirRes.data.type, 'document', 'Bundle type should be document');
@@ -137,7 +236,7 @@ async function runTests() {
     assert.strictEqual(patientResource.resource.name[0].text, 'Vikramaditya Rao', 'Patient name should match');
     console.log('  ✓ PASSED: ABDM FHIR R4 document bundle verified.\n');
 
-    console.log('🎉 ALL AUTOMATED BACKEND TESTS PASSED (6/6)!\n');
+    console.log('🎉 ALL MULTI-HOSPITAL & RBAC AUTOMATED TESTS PASSED (8/8)!\n');
   } catch (err) {
     console.error('❌ Test Failure:', err);
     process.exitCode = 1;

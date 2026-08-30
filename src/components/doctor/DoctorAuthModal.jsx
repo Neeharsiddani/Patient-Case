@@ -7,20 +7,101 @@ import {
   AlertCircle, 
   Sparkles, 
   KeyRound,
-  X
+  X,
+  Building2,
+  CheckCircle2
 } from 'lucide-react';
 import { ApiService } from '../../services/api';
-import { MediMitraLogo } from '../common/MediMitraLogo';
 
 export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
   const [username, setUsername] = useState('dr.sharma');
   const [password, setPassword] = useState('Doctor@123');
   const [pin, setPin] = useState('');
-  const [authMode, setAuthMode] = useState('pin'); // 'pin' | 'credentials'
+  const [authMode, setAuthMode] = useState('quick'); // 'quick' | 'credentials' | 'pin'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   if (!isOpen) return null;
+
+  const quickProfiles = [
+    {
+      username: 'dr.sharma',
+      name: 'Dr. Rajesh Sharma, MD',
+      hospital: 'Government General Hospital',
+      department: 'Cardiology & General Medicine',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'dr.priya',
+      name: 'Dr. Priya Nair, MBBS, DNB',
+      hospital: 'Government General Hospital',
+      department: 'General Medicine',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'dr.anand',
+      name: 'Dr. Anand Verma, MS',
+      hospital: 'Government General Hospital',
+      department: 'Orthopedics',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'dr.kiran',
+      name: 'Dr. Kiran Reddy, MD, DM',
+      hospital: 'Apollo Hospitals',
+      department: 'Cardiology',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'dr.meera',
+      name: 'Dr. Meera Deshmukh, MS',
+      hospital: 'Apollo Hospitals',
+      department: 'Orthopedics',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'dr.suresh',
+      name: 'Dr. Suresh Babu, MD',
+      hospital: 'Yashoda Hospitals',
+      department: 'General Medicine',
+      role: 'DOCTOR'
+    },
+    {
+      username: 'admin.ggh',
+      name: 'GGH Hospital Administrator',
+      hospital: 'Government General Hospital',
+      department: 'Hospital Administration',
+      role: 'HOSPITAL_ADMIN'
+    },
+    {
+      username: 'admin.apollo',
+      name: 'Apollo Hospital Administrator',
+      hospital: 'Apollo Hospitals',
+      department: 'Hospital Administration',
+      role: 'HOSPITAL_ADMIN'
+    }
+  ];
+
+  const handleQuickSelect = async (profile) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const authRes = await ApiService.quickDoctorAuth(profile.username);
+      if (authRes?.user) {
+        onAuthenticated(authRes.user);
+        onClose();
+      } else {
+        // Direct login with default password
+        const loginRes = await ApiService.login(profile.username, profile.role === 'HOSPITAL_ADMIN' ? 'Admin@123' : 'Doctor@123');
+        onAuthenticated(loginRes.user);
+        onClose();
+      }
+    } catch (err) {
+      setError(err.message || 'Authentication failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e) => {
     e?.preventDefault();
@@ -29,17 +110,18 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
 
     try {
       if (authMode === 'pin') {
-        // Quick 4-digit Staff Workstation PIN verification
         if (pin === '1234' || pin === '4321' || pin.length === 4) {
           const authRes = await ApiService.quickDoctorAuth('dr.sharma');
           onAuthenticated(authRes?.user || {
             fullName: 'Dr. Rajesh Sharma, MD',
             role: 'DOCTOR',
+            hospitalId: 'hosp-ggh-hyd',
+            hospitalName: 'Government General Hospital',
             department: 'Cardiology & General Medicine'
           });
           onClose();
         } else {
-          throw new Error('Invalid Doctor PIN. (Default workstation PIN: 1234)');
+          throw new Error('Invalid Staff PIN. (Default workstation PIN: 1234)');
         }
       } else {
         const res = await ApiService.login(username, password);
@@ -59,22 +141,15 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
       setPin(newPin);
       if (newPin.length === 4) {
         setTimeout(() => {
-          if (newPin === '1234' || newPin.length === 4) {
-            handleLogin();
-          }
+          handleLogin();
         }, 200);
       }
     }
   };
 
-  const handleClearPin = () => {
-    setPin('');
-    setError(null);
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Top Banner */}
         <div style={{ backgroundColor: '#0A4D68' }} className="p-6 text-white text-center relative">
@@ -90,10 +165,10 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
           </div>
           
           <h3 className="text-xl font-black font-heading tracking-tight">
-            Doctor Clinical Workstation
+            Staff & Clinician Authentication
           </h3>
           <p className="text-xs text-cyan-200 mt-1">
-            Authorized Medical Officers & Clinicians Only (DPDP Act 2023)
+            Verified Role-Based Access for Doctors & Hospital Administrators
           </p>
         </div>
 
@@ -104,17 +179,24 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
           <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-600">
             <button
               type="button"
-              onClick={() => { setAuthMode('pin'); setError(null); }}
-              className={`flex-1 py-2 rounded-lg transition-all ${authMode === 'pin' ? 'bg-white text-cyan-800 shadow-sm' : 'hover:text-slate-900'}`}
+              onClick={() => { setAuthMode('quick'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition-all ${authMode === 'quick' ? 'bg-white text-cyan-800 shadow-sm' : 'hover:text-slate-900'}`}
             >
-              Workstation PIN (Fast)
+              Select Profile
             </button>
             <button
               type="button"
               onClick={() => { setAuthMode('credentials'); setError(null); }}
               className={`flex-1 py-2 rounded-lg transition-all ${authMode === 'credentials' ? 'bg-white text-cyan-800 shadow-sm' : 'hover:text-slate-900'}`}
             >
-              Hospital ID & Password
+              Login Credentials
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('pin'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition-all ${authMode === 'pin' ? 'bg-white text-cyan-800 shadow-sm' : 'hover:text-slate-900'}`}
+            >
+              Workstation PIN
             </button>
           </div>
 
@@ -125,14 +207,51 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
             </div>
           )}
 
-          {authMode === 'pin' ? (
+          {authMode === 'quick' ? (
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              <p className="text-xs font-semibold text-slate-500 mb-2">
+                Select an authorized clinician or hospital administrator to test strict hospital & department routing:
+              </p>
+              
+              {quickProfiles.map((p) => (
+                <button
+                  key={p.username}
+                  type="button"
+                  onClick={() => handleQuickSelect(p)}
+                  disabled={loading}
+                  className="w-full p-3 bg-slate-50 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-400 rounded-2xl text-left transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-slate-900 group-hover:text-cyan-900">
+                        {p.name}
+                      </span>
+                      <span className={`text-[9px] font-extrabold px-2 py-0.2 rounded-full border ${
+                        p.role === 'HOSPITAL_ADMIN' 
+                          ? 'bg-purple-100 text-purple-800 border-purple-200' 
+                          : 'bg-cyan-100 text-cyan-800 border-cyan-200'
+                      }`}>
+                        {p.role === 'HOSPITAL_ADMIN' ? 'Hospital Admin' : 'Doctor'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      🏥 {p.hospital} • <strong className="text-cyan-800">{p.department}</strong>
+                    </p>
+                  </div>
+                  
+                  <span className="text-xs font-bold text-cyan-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Sign In →
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : authMode === 'pin' ? (
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-xs font-semibold text-slate-500 mb-2">
-                  Enter 4-Digit Clinician Access PIN (Workstation PIN: <strong>1234</strong>)
+                  Enter 4-Digit Clinician Access PIN (Default PIN: <strong>1234</strong>)
                 </p>
                 
-                {/* PIN Display Bubbles */}
                 <div className="flex justify-center gap-3 my-3">
                   {[0, 1, 2, 3].map((i) => (
                     <div
@@ -145,7 +264,6 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
                 </div>
               </div>
 
-              {/* Touch Keypad */}
               <div className="grid grid-cols-3 gap-2.5 max-w-[260px] mx-auto">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                   <button
@@ -159,7 +277,7 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
                 ))}
                 <button
                   type="button"
-                  onClick={handleClearPin}
+                  onClick={() => setPin('')}
                   className="h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors"
                 >
                   Clear
@@ -185,13 +303,13 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
             <form onSubmit={handleLogin} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Doctor Username / License #
+                  Staff Username / ID
                 </label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. dr.sharma"
+                  placeholder="e.g. dr.sharma or admin.ggh"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-cyan-700 outline-none"
                   required
                 />
@@ -199,7 +317,7 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Staff Password
+                  Password
                 </label>
                 <input
                   type="password"
@@ -218,7 +336,7 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
                 className="w-full py-3 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-all shadow-md mt-2 flex items-center justify-center gap-2"
               >
                 <KeyRound size={16} />
-                <span>{loading ? 'Authenticating Doctor...' : 'Sign In to Workstation'}</span>
+                <span>{loading ? 'Authenticating Staff...' : 'Sign In with Credentials'}</span>
               </button>
             </form>
           )}
@@ -229,7 +347,7 @@ export const DoctorAuthModal = ({ isOpen, onClose, onAuthenticated }) => {
               <ShieldCheck size={14} className="text-cyan-700" />
               <span>RBAC Protected</span>
             </span>
-            <span className="font-mono text-slate-400">AIIMS / NHA Verified</span>
+            <span className="font-mono text-slate-400">ABDM / NHA Verified</span>
           </div>
 
         </div>

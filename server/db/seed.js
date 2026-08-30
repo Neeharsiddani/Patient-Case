@@ -4,50 +4,284 @@ import { run, get, query, initDb } from './database.js';
 
 export const seedDatabase = async () => {
   await initDb();
+  await run('PRAGMA foreign_keys = OFF;');
 
-  // 1. Seed Users (Doctors & Admin)
-  const existingDoctor = await get('SELECT id FROM users WHERE username = ?', ['dr.sharma']);
-  if (!existingDoctor) {
-    const salt = await bcrypt.genSalt(10);
-    const doctorPassword = await bcrypt.hash('Doctor@123', salt);
-    const adminPassword = await bcrypt.hash('Admin@123', salt);
+  try {
+    // 1. Seed Healthcare Facilities / Hospitals
+    const existingHospitals = await query('SELECT id FROM hospitals');
+    if (existingHospitals.length === 0) {
+    const hospitals = [
+      {
+        id: 'hosp-ggh-hyd',
+        name: 'Government General Hospital',
+        code: 'GGH-HYD',
+        location: 'Afzal Gunj, Osmania Hospital Road',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        facility_type: 'Government Teaching Tertiary Hospital',
+        hfr_id: 'IN-TG-HYD-GGH-001',
+        phone: '+91 40 2460 0121',
+        email: 'info@ggh-hyderabad.gov.in'
+      },
+      {
+        id: 'hosp-apollo-hyd',
+        name: 'Apollo Hospitals',
+        code: 'APOLLO-HYD',
+        location: 'Road No. 72, Opposite Bharatiya Vidya Bhavan, Jubilee Hills',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        facility_type: 'Multi-Specialty Super Specialty Hospital',
+        hfr_id: 'IN-TG-HYD-APL-002',
+        phone: '+91 40 2360 7777',
+        email: 'jubileehills@apollohospitals.com'
+      },
+      {
+        id: 'hosp-yashoda-hyd',
+        name: 'Yashoda Hospitals',
+        code: 'YASHODA-HYD',
+        location: 'Alexander Road, Raj Bhavan Rd, Somajiguda',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        facility_type: 'Tertiary Care Super Specialty Hospital',
+        hfr_id: 'IN-TG-HYD-YSH-003',
+        phone: '+91 40 4567 4567',
+        email: 'somajiguda@yashodamail.com'
+      },
+      {
+        id: 'hosp-aiims-delhi',
+        name: 'All India Institute of Medical Sciences (AIIMS)',
+        code: 'AIIMS-DEL',
+        location: 'Sri Aurobindo Marg, Ansari Nagar East',
+        city: 'New Delhi',
+        state: 'Delhi',
+        facility_type: 'Apex National Institute of Medical Sciences',
+        hfr_id: 'IN-DL-DEL-AIIMS-001',
+        phone: '+91 11 2658 8500',
+        email: 'director@aiims.edu'
+      }
+    ];
 
-    await run(`
-      INSERT INTO users (id, username, password_hash, role, full_name, email, phone, department, license_number)
-      VALUES 
-      (?, 'dr.sharma', ?, 'DOCTOR', 'Dr. Rajesh Sharma, MD', 'dr.sharma@aiims.gov.in', '9811223344', 'Cardiology & General Medicine', 'MCI-DEL-2012-48291'),
-      (?, 'dr.priya', ?, 'DOCTOR', 'Dr. Priya Nair, MBBS, DNB', 'dr.priya@aiims.gov.in', '9822334455', 'General Medicine & OPD', 'MCI-DEL-2016-19382'),
-      (?, 'admin', ?, 'ADMIN', 'Hospital Systems Administrator', 'admin@aiims.gov.in', '9900112233', 'Hospital Administration', 'ADM-AIIMS-01')
-    `, [
-      uuidv4(), doctorPassword,
-      uuidv4(), doctorPassword,
-      uuidv4(), adminPassword
-    ]);
+    for (const h of hospitals) {
+      await run(`
+        INSERT INTO hospitals (id, name, code, location, city, state, facility_type, hfr_id, phone, email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [h.id, h.name, h.code, h.location, h.city, h.state, h.facility_type, h.hfr_id, h.phone, h.email]);
+    }
   }
 
-  // 2. Seed Initial Patients if empty
+  // 2. Seed Departments per Hospital
+  const existingDepts = await query('SELECT id FROM departments');
+  if (existingDepts.length === 0) {
+    const standardDepts = [
+      { name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Internal Medicine, Chronic Diseases & Acute Fevers' },
+      { name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Cardiac Care, Angina, HTN & ECG Evaluation' },
+      { name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Bone, Joint & Musculoskeletal Disorders' },
+      { name: 'Dermatology', code: 'DERM', room_number: 'Room 112', description: 'Skin, Hair & Allergy Clinic' },
+      { name: 'Pediatrics', code: 'PED', room_number: 'Room 115', description: 'Child Health, Neonatology & Immunization' },
+      { name: 'Gynecology & Obstetrics', code: 'GYN', room_number: 'Room 120', description: 'Maternal Health & Women Wellness' },
+      { name: 'ENT', code: 'ENT', room_number: 'Room 124', description: 'Ear, Nose & Throat Disorders' },
+      { name: 'General Surgery', code: 'SURG', room_number: 'Room 130', description: 'Outpatient Surgical Consultation & Wound Care' },
+      { name: 'AYUSH / Ayurveda', code: 'AYUSH', room_number: 'Room 135', description: 'Holistic Traditional Medicine & Lifestyle Wellness' }
+    ];
+
+    const hospitalsList = await query('SELECT id, code FROM hospitals');
+    for (const hosp of hospitalsList) {
+      for (const dept of standardDepts) {
+        const deptId = `dept-${hosp.code.toLowerCase()}-${dept.code.toLowerCase()}`;
+        await run(`
+          INSERT INTO departments (id, hospital_id, name, code, room_number, description)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [deptId, hosp.id, dept.name, dept.code, dept.room_number, dept.description]);
+      }
+    }
+  }
+
+  // 3. Seed Users (Doctors & Hospital Administrators with Multi-Hospital Scope)
+  const salt = await bcrypt.genSalt(10);
+  const doctorPassword = await bcrypt.hash('Doctor@123', salt);
+  const adminPassword = await bcrypt.hash('Admin@123', salt);
+
+  const usersToSeed = [
+    // GGH Hyderabad Staff
+    {
+      id: 'usr-dr-sharma',
+      username: 'dr.sharma',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Rajesh Sharma, MD',
+      email: 'dr.sharma@ggh-hyderabad.gov.in',
+      phone: '9845012345',
+      hospital_id: 'hosp-ggh-hyd',
+      department: 'Cardiology & General Medicine',
+      license_number: 'TS-MCI-2012-48291',
+      departmentsAuth: ['dept-ggh-hyd-cardio', 'dept-ggh-hyd-genmed']
+    },
+    {
+      id: 'usr-dr-priya',
+      username: 'dr.priya',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Priya Nair, MBBS, DNB',
+      email: 'dr.priya@ggh-hyderabad.gov.in',
+      phone: '9845023456',
+      hospital_id: 'hosp-ggh-hyd',
+      department: 'General Medicine',
+      license_number: 'TS-MCI-2016-19382',
+      departmentsAuth: ['dept-ggh-hyd-genmed']
+    },
+    {
+      id: 'usr-dr-anand',
+      username: 'dr.anand',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Anand Verma, MS (Ortho)',
+      email: 'dr.anand@ggh-hyderabad.gov.in',
+      phone: '9845034567',
+      hospital_id: 'hosp-ggh-hyd',
+      department: 'Orthopedics',
+      license_number: 'TS-MCI-2014-77219',
+      departmentsAuth: ['dept-ggh-hyd-ortho']
+    },
+    {
+      id: 'usr-admin-ggh',
+      username: 'admin.ggh',
+      password_hash: adminPassword,
+      role: 'HOSPITAL_ADMIN',
+      full_name: 'GGH Hospital Administrator',
+      email: 'admin@ggh-hyderabad.gov.in',
+      phone: '9900112233',
+      hospital_id: 'hosp-ggh-hyd',
+      department: 'Hospital Administration',
+      license_number: 'ADM-GGH-01',
+      departmentsAuth: []
+    },
+
+    // Apollo Hyderabad Staff
+    {
+      id: 'usr-dr-kiran',
+      username: 'dr.kiran',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Kiran Reddy, MD, DM (Cardiology)',
+      email: 'dr.kiran.r@apollohospitals.com',
+      phone: '9845045678',
+      hospital_id: 'hosp-apollo-hyd',
+      department: 'Cardiology',
+      license_number: 'TS-MCI-2010-88123',
+      departmentsAuth: ['dept-apollo-hyd-cardio']
+    },
+    {
+      id: 'usr-dr-meera',
+      username: 'dr.meera',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Meera Deshmukh, MS (Ortho)',
+      email: 'dr.meera.d@apollohospitals.com',
+      phone: '9845056789',
+      hospital_id: 'hosp-apollo-hyd',
+      department: 'Orthopedics',
+      license_number: 'TS-MCI-2015-33910',
+      departmentsAuth: ['dept-apollo-hyd-ortho']
+    },
+    {
+      id: 'usr-admin-apollo',
+      username: 'admin.apollo',
+      password_hash: adminPassword,
+      role: 'HOSPITAL_ADMIN',
+      full_name: 'Apollo Hospital Administrator',
+      email: 'admin.hyd@apollohospitals.com',
+      phone: '9900223344',
+      hospital_id: 'hosp-apollo-hyd',
+      department: 'Hospital Administration',
+      license_number: 'ADM-APL-02',
+      departmentsAuth: []
+    },
+
+    // Yashoda Hyderabad Staff
+    {
+      id: 'usr-dr-suresh',
+      username: 'dr.suresh',
+      password_hash: doctorPassword,
+      role: 'DOCTOR',
+      full_name: 'Dr. Suresh Babu, MD (Gen Med)',
+      email: 'dr.suresh.b@yashodamail.com',
+      phone: '9845067890',
+      hospital_id: 'hosp-yashoda-hyd',
+      department: 'General Medicine',
+      license_number: 'TS-MCI-2013-11204',
+      departmentsAuth: ['dept-yashoda-hyd-genmed']
+    },
+    {
+      id: 'usr-admin-yashoda',
+      username: 'admin.yashoda',
+      password_hash: adminPassword,
+      role: 'HOSPITAL_ADMIN',
+      full_name: 'Yashoda Hospital Administrator',
+      email: 'admin.somajiguda@yashodamail.com',
+      phone: '9900334455',
+      hospital_id: 'hosp-yashoda-hyd',
+      department: 'Hospital Administration',
+      license_number: 'ADM-YSH-03',
+      departmentsAuth: []
+    }
+  ];
+
+  for (const u of usersToSeed) {
+    const existing = await get('SELECT id FROM users WHERE username = ?', [u.username]);
+    if (existing) {
+      await run(`
+        UPDATE users 
+        SET hospital_id = ?, department = ?, full_name = ?, role = ?, license_number = ?, email = ?, phone = ?
+        WHERE username = ?
+      `, [u.hospital_id, u.department, u.full_name, u.role, u.license_number, u.email, u.phone, u.username]);
+    } else {
+      await run(`
+        INSERT INTO users (id, username, password_hash, role, full_name, email, phone, hospital_id, department, license_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [u.id, u.username, u.password_hash, u.role, u.full_name, u.email, u.phone, u.hospital_id, u.department, u.license_number]);
+    }
+
+    // Seed Doctor-Department Authorizations
+    for (const deptId of u.departmentsAuth) {
+      const existingMapping = await get('SELECT id FROM doctor_departments WHERE doctor_id = ? AND department_id = ?', [u.id, deptId]);
+      if (!existingMapping) {
+        await run(`
+          INSERT INTO doctor_departments (id, doctor_id, department_id, hospital_id, is_primary)
+          VALUES (?, ?, ?, ?, 1)
+        `, [uuidv4(), u.id, deptId, u.hospital_id]);
+      }
+    }
+  }
+
+  // 4. Seed Initial Patients & Routed Consultation Cases
   const patientCount = await get('SELECT COUNT(*) as count FROM patients');
   if (patientCount && patientCount.count === 0) {
     const defaultPatients = [
       {
         id: 'patient-101',
         token_number: 'MED-101',
+        hospital_id: 'hosp-ggh-hyd',
+        hospital_name: 'Government General Hospital',
+        department_id: 'dept-ggh-hyd-cardio',
+        department: 'Cardiology',
         room_number: 'Room 104',
-        department: 'Cardiology & General Medicine',
+        assigned_doctor_id: 'usr-dr-sharma',
         assigned_doctor_name: 'Dr. Rajesh Sharma, MD',
         name: 'Ramesh Kumar Verma',
         age: 54,
         gender: 'Male',
         phone: '9876543210',
-        address: 'Sector 4, Rohini, New Delhi',
+        address: 'Banjara Hills, Hyderabad',
         abha_id: '91-8472-9182-3451',
         abha_address: 'ramesh.verma@abdm',
         language: 'Hindi',
+        reason_for_visit: 'Severe crushing chest pain radiating to left arm and jaw with profuse cold sweating',
         triage_level: 1,
         triage_category: 'Resuscitation / Immediate Priority',
         triage_color: 'red',
         wait_time: 'Immediate',
         status: 'Waiting',
+        case_status: 'Waiting for Review',
         verification_status: 'Pending Verification',
         chief_complaints: ['Chest Pain / Angina', 'Shortness of Breath on Exertion', 'Profuse Cold Sweating'],
         duration: '2 hours',
@@ -85,7 +319,7 @@ export const seedDatabase = async () => {
           'High Risk: Acute Coronary Syndrome (ACS) presentation with radiating chest pain and diaphoresis.',
           'Stage 2 Hypertensive Emergency: BP 174/106 mmHg with tachycardia (Pulse 108 bpm).',
           'Hypoxemia: SpO2 91% on room air requiring supplemental oxygen evaluation.',
-          'Severe Drug Allergy: Documented Penicillin allergy.'
+          'Severe Drug Allergy: Documented Penicillin allergy (Cross-reactive with Penicillin beta-lactams).'
         ],
         ai_summary: {
           subjective_summary: '54-year-old male with known T2D and HTN presenting with sudden-onset severe (9/10) crushing substernal chest pain radiating to left shoulder and jaw with cold sweating.',
@@ -98,22 +332,28 @@ export const seedDatabase = async () => {
       {
         id: 'patient-102',
         token_number: 'MED-102',
-        room_number: 'Room 102',
+        hospital_id: 'hosp-ggh-hyd',
+        hospital_name: 'Government General Hospital',
+        department_id: 'dept-ggh-hyd-genmed',
         department: 'General Medicine',
+        room_number: 'Room 101',
+        assigned_doctor_id: 'usr-dr-priya',
         assigned_doctor_name: 'Dr. Priya Nair, MBBS, DNB',
         name: 'Sunita Sharma',
         age: 48,
         gender: 'Female',
         phone: '9412378901',
-        address: 'Karol Bagh, New Delhi',
+        address: 'Secunderabad, Telangana',
         abha_id: '91-3321-4456-7890',
         abha_address: 'sunita.sharma@abdm',
         language: 'Hindi',
+        reason_for_visit: 'High grade continuous fever with bodyache and retro-orbital headache',
         triage_level: 3,
         triage_category: 'Urgent / Priority 3 (Yellow)',
         triage_color: 'amber',
         wait_time: '25 mins',
         status: 'Waiting',
+        case_status: 'Waiting for Review',
         verification_status: 'Pending Verification',
         chief_complaints: ['High Grade Fever with Chills', 'Severe Generalized Bodyache', 'Retro-orbital Headache'],
         duration: '4 days',
@@ -149,7 +389,7 @@ export const seedDatabase = async () => {
         },
         red_flags: [
           'High Grade Pyrexia: Body Temperature 102.4°F with chills and retro-orbital ache.',
-          'Severe Sulfa Allergy: Documented adverse drug reaction.'
+          'Severe Sulfa Allergy: Documented adverse drug reaction (Cross-reactive with Sulfonamides).'
         ],
         ai_summary: {
           subjective_summary: '48-year-old female presenting with 4-day history of acute high-grade fever (102.4°F) accompanied by chills, severe retro-orbital headache, and myalgias.',
@@ -158,25 +398,96 @@ export const seedDatabase = async () => {
           differential_diagnosis: ['Dengue Fever with Warning Signs', 'Malaria (Plasmodium Vivax / Falciparum)', 'Viral Pyrexia / Influenza', 'Enteric Fever (Typhoid)'],
           suggested_next_steps: ['Complete Blood Count (CBC with Platelet count and Hematocrit)', 'Dengue NS1 Antigen & IgM/IgG Serology', 'Peripheral Blood Smear for Malarial Parasite (MP) / Rapid Diagnostic Test', 'Widal Test / Blood Culture', 'Oral Rehydration Therapy']
         }
+      },
+      {
+        id: 'patient-103',
+        token_number: 'MED-103',
+        hospital_id: 'hosp-apollo-hyd',
+        hospital_name: 'Apollo Hospitals',
+        department_id: 'dept-apollo-hyd-cardio',
+        department: 'Cardiology',
+        room_number: 'Room 104',
+        assigned_doctor_id: 'usr-dr-kiran',
+        assigned_doctor_name: 'Dr. Kiran Reddy, MD, DM (Cardiology)',
+        name: 'Venkat Rao',
+        age: 62,
+        gender: 'Male',
+        phone: '9845099887',
+        address: 'Jubilee Hills, Hyderabad',
+        abha_id: '91-9988-7766-1122',
+        abha_address: 'venkat.rao@abdm',
+        language: 'Telugu',
+        reason_for_visit: 'Exertional breathlessness and palpitation episodes for 1 week',
+        triage_level: 2,
+        triage_category: 'Emergent / Priority 2 (Red)',
+        triage_color: 'red',
+        wait_time: '10 mins',
+        status: 'Waiting',
+        case_status: 'Waiting for Review',
+        verification_status: 'Pending Verification',
+        chief_complaints: ['Palpitations', 'Exertional Dyspnea'],
+        duration: '1 week',
+        pain_score: 4,
+        onset: 'Gradual onset with sudden rapid heart rhythm flutter',
+        hpi: {
+          character: 'Fluttering rapid irregular heart beats',
+          radiation: 'None',
+          triggers: 'Walking briskly',
+          relieving: 'Sitting and resting',
+          associatedSymptoms: ['Mild lightheadedness', 'Fatigue']
+        },
+        past_medical_history: ['Hypertension (10 years)'],
+        past_surgical_history: ['None'],
+        current_medications: ['Tab Amlodipine 5mg OD'],
+        drug_allergies: ['No Known Drug Allergies (NKDA)'],
+        family_history: 'Hypertension in mother.',
+        personal_history: 'Non-smoker, vegetarian.',
+        review_of_systems: {
+          cardiovascular: 'Irregular tachycardia reported.',
+          respiratory: 'Mild breathlessness.',
+          gastrointestinal: 'Normal.',
+          neurological: 'No syncope.'
+        },
+        vitals: {
+          bp_systolic: 156,
+          bp_diastolic: 94,
+          pulse: 124,
+          spo2: 96,
+          temp: 98.4,
+          respiratory_rate: 20,
+          blood_sugar: 135
+        },
+        red_flags: [
+          'Critical Arrhythmia Alert: Tachycardia (Pulse 124 bpm) with irregular flutter.'
+        ],
+        ai_summary: {
+          subjective_summary: '62-year-old male presenting with exertional palpitations and flutter.',
+          objective_summary: 'BP 156/94 mmHg, Pulse 124 bpm irregular, SpO2 96%.',
+          preliminary_risk_assessment: 'Emergent / Triage Level 2. Suspected Atrial Fibrillation with Rapid Ventricular Rate vs SVT.',
+          differential_diagnosis: ['Atrial Fibrillation with RVR', 'Supraventricular Tachycardia (SVT)', 'Hypertensive Cardiomyopathy'],
+          suggested_next_steps: ['STAT 12-Lead ECG', 'Serum Electrolytes (K+, Mg++)', 'Echocardiography 2D']
+        }
       }
     ];
 
     for (const p of defaultPatients) {
       await run(`
         INSERT INTO patients (
-          id, token_number, room_number, department, assigned_doctor_name, name, age, gender, phone, address,
-          abha_id, abha_address, language, triage_level, triage_category, triage_color, wait_time, status, verification_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, token_number, hospital_id, hospital_name, department_id, department, room_number,
+          assigned_doctor_id, assigned_doctor_name, name, age, gender, phone, address,
+          abha_id, abha_address, language, reason_for_visit, triage_level, triage_category, triage_color, wait_time, status, case_status, verification_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        p.id, p.token_number, p.room_number, p.department, p.assigned_doctor_name, p.name, p.age, p.gender, p.phone, p.address,
-        p.abha_id, p.abha_address, p.language, p.triage_level, p.triage_category, p.triage_color, p.wait_time, p.status, p.verification_status
+        p.id, p.token_number, p.hospital_id, p.hospital_name, p.department_id, p.department, p.room_number,
+        p.assigned_doctor_id, p.assigned_doctor_name, p.name, p.age, p.gender, p.phone, p.address,
+        p.abha_id, p.abha_address, p.language, p.reason_for_visit, p.triage_level, p.triage_category, p.triage_color, p.wait_time, p.status, p.case_status, p.verification_status
       ]);
 
       // Consent
       await run(`
-        INSERT INTO consents (id, patient_id, status, scope, purpose, consent_type, ip_address)
-        VALUES (?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical assessment, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', '127.0.0.1')
-      `, [uuidv4(), p.id]);
+        INSERT INTO consents (id, patient_id, hospital_id, status, scope, purpose, consent_type, ip_address)
+        VALUES (?, ?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical assessment, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', '127.0.0.1')
+      `, [uuidv4(), p.id, p.hospital_id]);
 
       // Clinical History
       await run(`
@@ -224,9 +535,14 @@ export const seedDatabase = async () => {
 
       // Audit Log
       await run(`
-        INSERT INTO audit_logs (id, user_id, user_role, action, resource_type, resource_id, details, ip_address)
-        VALUES (?, 'SYSTEM', 'KIOSK_CLIENT', 'PATIENT_REGISTERED', 'PATIENT', ?, ?, '127.0.0.1')
-      `, [uuidv4(), p.id, JSON.stringify({ name: p.name, abha_id: p.abha_id, triage: p.triage_category })]);
+        INSERT INTO audit_logs (id, user_id, user_role, hospital_id, action, resource_type, resource_id, details, ip_address)
+        VALUES (?, 'SYSTEM', 'KIOSK_CLIENT', ?, 'PATIENT_REGISTERED', 'PATIENT', ?, ?, '127.0.0.1')
+      `, [uuidv4(), p.hospital_id, p.id, JSON.stringify({ name: p.name, abha_id: p.abha_id, triage: p.triage_category })]);
     }
   }
+} finally {
+  await run('PRAGMA foreign_keys = ON;');
+}
 };
+
+

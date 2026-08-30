@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/authRoutes.js';
+import hospitalRoutes from './routes/hospitalRoutes.js';
 import patientRoutes from './routes/patientRoutes.js';
 import doctorRoutes from './routes/doctorRoutes.js';
 import consentRoutes from './routes/consentRoutes.js';
@@ -68,6 +69,7 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 // 5. Mount API Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/hospitals', hospitalRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/consent', consentRoutes);

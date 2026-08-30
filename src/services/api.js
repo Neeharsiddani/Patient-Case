@@ -2,7 +2,7 @@
  * MediMitra API Client & Network Service Layer
  * 
  * Provides authenticated HTTP communication with the MediMitra clinical backend.
- * Implements graceful offline fallbacks and error resilience.
+ * Implements graceful offline fallbacks and healthcare role-based access control.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -18,6 +18,11 @@ export class ApiService {
     } else {
       localStorage.removeItem('medimitra_auth_token');
     }
+  }
+
+  static logout() {
+    localStorage.removeItem('medimitra_auth_token');
+    localStorage.removeItem('medimitra_auth_user');
   }
 
   static async request(endpoint, options = {}) {
@@ -58,7 +63,7 @@ export class ApiService {
     }
   }
 
-  // Staff Authentication
+  // Staff & Doctor Authentication
   static async login(username, password) {
     const data = await this.request('/auth/login', {
       method: 'POST',
@@ -66,6 +71,9 @@ export class ApiService {
     });
     if (data.token) {
       this.setAuthToken(data.token);
+      if (data.user) {
+        localStorage.setItem('medimitra_auth_user', JSON.stringify(data.user));
+      }
     }
     return data;
   }
@@ -78,6 +86,9 @@ export class ApiService {
       });
       if (data.token) {
         this.setAuthToken(data.token);
+        if (data.user) {
+          localStorage.setItem('medimitra_auth_user', JSON.stringify(data.user));
+        }
       }
       return data;
     } catch {
@@ -85,12 +96,65 @@ export class ApiService {
     }
   }
 
-  // Patient Management
+  static async getMe() {
+    return await this.request('/auth/me');
+  }
+
+  // Hospital & Facility Management (ABDM HFR Architecture)
+  static async getHospitals(search = '', city = '') {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (city) params.append('city', city);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return await this.request(`/hospitals${qs}`);
+  }
+
+  static async getHospitalById(id) {
+    return await this.request(`/hospitals/${id}`);
+  }
+
+  static async getHospitalDepartments(hospitalId) {
+    return await this.request(`/hospitals/${hospitalId}/departments`);
+  }
+
+  static async getHospitalDoctors(hospitalId) {
+    return await this.request(`/hospitals/${hospitalId}/doctors`);
+  }
+
+  static async getHospitalStats(hospitalId) {
+    return await this.request(`/hospitals/${hospitalId}/stats`);
+  }
+
+  static async assignDoctorToCase(hospitalId, patientId, doctorId) {
+    return await this.request(`/hospitals/${hospitalId}/assign-doctor`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, doctorId })
+    });
+  }
+
+  static async createDepartment(hospitalId, deptData) {
+    return await this.request(`/hospitals/${hospitalId}/departments`, {
+      method: 'POST',
+      body: JSON.stringify(deptData)
+    });
+  }
+
+  static async registerDoctor(hospitalId, doctorData) {
+    return await this.request(`/hospitals/${hospitalId}/doctors`, {
+      method: 'POST',
+      body: JSON.stringify(doctorData)
+    });
+  }
+
+  // Patient Case Management (Hospital & Department Scoped)
   static async getPatients(filters = {}) {
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
     if (filters.triage) params.append('triage', filters.triage);
     if (filters.search) params.append('search', filters.search);
+    if (filters.hospitalId) params.append('hospitalId', filters.hospitalId);
+    if (filters.departmentId) params.append('departmentId', filters.departmentId);
+    if (filters.myAssignedOnly) params.append('myAssignedOnly', 'true');
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
     return await this.request(`/patients${queryString}`);

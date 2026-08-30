@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initialPatients } from '../data/initialPatients';
 import { translations } from '../data/translations';
 import { ApiService } from '../services/api';
@@ -6,12 +6,118 @@ import { ApiService } from '../services/api';
 const PatientContext = createContext(null);
 
 const STORAGE_KEY = 'medimitra_patients_v2';
+const AUTH_USER_KEY = 'medimitra_auth_user';
+
+export const fallbackHospitals = [
+  {
+    id: 'hosp-ggh-hyd',
+    name: 'Government General Hospital',
+    code: 'GGH-HYD',
+    location: 'Afzal Gunj, Osmania Hospital Road',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    facility_type: 'Government Teaching Tertiary Hospital',
+    hfr_id: 'IN-TG-HYD-GGH-001',
+    phone: '+91 40 2460 0121'
+  },
+  {
+    id: 'hosp-apollo-hyd',
+    name: 'Apollo Hospitals',
+    code: 'APOLLO-HYD',
+    location: 'Road No. 72, Opposite Bharatiya Vidya Bhavan, Jubilee Hills',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    facility_type: 'Multi-Specialty Super Specialty Hospital',
+    hfr_id: 'IN-TG-HYD-APL-002',
+    phone: '+91 40 2360 7777'
+  },
+  {
+    id: 'hosp-yashoda-hyd',
+    name: 'Yashoda Hospitals',
+    code: 'YASHODA-HYD',
+    location: 'Alexander Road, Raj Bhavan Rd, Somajiguda',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    facility_type: 'Tertiary Care Super Specialty Hospital',
+    hfr_id: 'IN-TG-HYD-YSH-003',
+    phone: '+91 40 4567 4567'
+  },
+  {
+    id: 'hosp-aiims-delhi',
+    name: 'All India Institute of Medical Sciences (AIIMS)',
+    code: 'AIIMS-DEL',
+    location: 'Sri Aurobindo Marg, Ansari Nagar East',
+    city: 'New Delhi',
+    state: 'Delhi',
+    facility_type: 'Apex National Institute of Medical Sciences',
+    hfr_id: 'IN-DL-DEL-AIIMS-001',
+    phone: '+91 11 2658 8500'
+  }
+];
+
+export const standardHospitalDepartments = {
+  'hosp-ggh-hyd': [
+    { id: 'dept-ggh-hyd-genmed', name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Internal Medicine, Fevers, Diabetes & Chronic Care' },
+    { id: 'dept-ggh-hyd-cardio', name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Chest Pain, Angina, HTN & ECG Evaluation' },
+    { id: 'dept-ggh-hyd-ortho', name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Bone, Joint & Spine Disorders' },
+    { id: 'dept-ggh-hyd-ped', name: 'Pediatrics', code: 'PED', room_number: 'Room 112', description: 'Child Health, Neonatology & Immunization' },
+    { id: 'dept-ggh-hyd-derm', name: 'Dermatology', code: 'DERM', room_number: 'Room 115', description: 'Skin, Hair & Allergy Clinic' },
+    { id: 'dept-ggh-hyd-surg', name: 'General Surgery', code: 'SURG', room_number: 'Room 120', description: 'Surgical Consultations & Wound Care' },
+    { id: 'dept-ggh-hyd-ent', name: 'ENT', code: 'ENT', room_number: 'Room 124', description: 'Ear, Nose & Throat Disorders' },
+    { id: 'dept-ggh-hyd-gyn', name: 'Gynecology & Obstetrics', code: 'GYN', room_number: 'Room 128', description: 'Maternal Health & Women Wellness' },
+    { id: 'dept-ggh-hyd-ayush', name: 'AYUSH / Ayurveda', code: 'AYUSH', room_number: 'Room 135', description: 'Traditional Medicine & Lifestyle Health' }
+  ],
+  'hosp-apollo-hyd': [
+    { id: 'dept-apollo-hyd-cardio', name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Comprehensive Cardiac Care & Intervention' },
+    { id: 'dept-apollo-hyd-genmed', name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Internal Medicine & Multisystem Health' },
+    { id: 'dept-apollo-hyd-ortho', name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Joint Replacement & Arthroscopy' },
+    { id: 'dept-apollo-hyd-derm', name: 'Dermatology', code: 'DERM', room_number: 'Room 112', description: 'Cosmetic & Medical Dermatology' },
+    { id: 'dept-apollo-hyd-ped', name: 'Pediatrics', code: 'PED', room_number: 'Room 115', description: 'Pediatric Care & Intensive Medicine' },
+    { id: 'dept-apollo-hyd-surg', name: 'General Surgery', code: 'SURG', room_number: 'Room 120', description: 'Minimal Access & Laparoscopic Surgery' },
+    { id: 'dept-apollo-hyd-gyn', name: 'Gynecology & Obstetrics', code: 'GYN', room_number: 'Room 128', description: 'Advanced Obstetrics & High-Risk Pregnancy' }
+  ],
+  'hosp-yashoda-hyd': [
+    { id: 'dept-yashoda-hyd-genmed', name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Comprehensive Adult Healthcare' },
+    { id: 'dept-yashoda-hyd-cardio', name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Interventional Cardiology & Electrophysiology' },
+    { id: 'dept-yashoda-hyd-ortho', name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Orthopedics & Spine Center' },
+    { id: 'dept-yashoda-hyd-surg', name: 'General Surgery', code: 'SURG', room_number: 'Room 120', description: 'Surgical Gastroenterology & General Surgery' },
+    { id: 'dept-yashoda-hyd-ent', name: 'ENT', code: 'ENT', room_number: 'Room 124', description: 'Otolaryngology & Head-Neck Clinic' }
+  ],
+  'hosp-aiims-delhi': [
+    { id: 'dept-aiims-del-genmed', name: 'General Medicine', code: 'GENMED', room_number: 'Room 101', description: 'Department of Medicine & OPD' },
+    { id: 'dept-aiims-del-cardio', name: 'Cardiology', code: 'CARDIO', room_number: 'Room 104', description: 'Cardio-Thoracic Centre (CTC)' },
+    { id: 'dept-aiims-del-ortho', name: 'Orthopedics', code: 'ORTHO', room_number: 'Room 108', description: 'Orthopedics & Trauma Center' },
+    { id: 'dept-aiims-del-derm', name: 'Dermatology', code: 'DERM', room_number: 'Room 112', description: 'Dermatology & Venereology' },
+    { id: 'dept-aiims-del-ped', name: 'Pediatrics', code: 'PED', room_number: 'Room 115', description: 'Department of Pediatrics' },
+    { id: 'dept-aiims-del-surg', name: 'General Surgery', code: 'SURG', room_number: 'Room 120', description: 'Department of Surgical Disciplines' },
+    { id: 'dept-aiims-del-ent', name: 'ENT', code: 'ENT', room_number: 'Room 124', description: 'Otorhinolaryngology' },
+    { id: 'dept-aiims-del-gyn', name: 'Gynecology & Obstetrics', code: 'GYN', room_number: 'Room 128', description: 'Obstetrics & Gynaecology' },
+    { id: 'dept-aiims-del-ayush', name: 'AYUSH / Ayurveda', code: 'AYUSH', room_number: 'Room 135', description: 'Center for Integrative Medicine (AYUSH)' }
+  ]
+};
 
 export const PatientProvider = ({ children }) => {
-  const [role, setRole] = useState('kiosk'); // 'kiosk' | 'doctor'
+  const [role, setRole] = useState('kiosk'); // 'kiosk' | 'doctor' | 'hospital_admin'
   const [language, setLanguage] = useState('en'); // 'en', 'hi', 'te', 'ta', 'mr', 'bn'
   const [serverOnline, setServerOnline] = useState(false);
   
+  // Hospital Facility Management
+  const [hospitals, setHospitals] = useState(fallbackHospitals);
+  const [activeHospitalId, setActiveHospitalId] = useState('hosp-ggh-hyd');
+  
+  // Authenticated Staff User Profile (Doctor or Hospital Admin)
+  const [authenticatedUser, setAuthenticatedUser] = useState(() => {
+    const saved = localStorage.getItem(AUTH_USER_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
   // Persistent Patients Queue
   const [patients, setPatients] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('medikiosk_patients_v2');
@@ -31,7 +137,7 @@ export const PatientProvider = ({ children }) => {
   // Active Patient for Doctor Consultation
   const [selectedPatientId, setSelectedPatientId] = useState('patient-101');
 
-  // Kiosk In-Progress Patient State
+  // Kiosk In-Progress Patient State (10 Steps)
   const [kioskStep, setKioskStep] = useState(1);
   const [kioskForm, setKioskForm] = useState({
     abhaId: '',
@@ -41,8 +147,21 @@ export const PatientProvider = ({ children }) => {
     gender: 'Male',
     phone: '',
     address: '',
+    
+    // Hospital & Department Selection
+    selectedHospitalId: 'hosp-ggh-hyd',
+    selectedHospitalName: 'Government General Hospital',
+    selectedDepartmentId: 'dept-ggh-hyd-genmed',
+    selectedDepartmentName: 'General Medicine',
+    
+    // Primary Reason for Visit
+    reasonForVisit: '',
+    
+    // Consent
     consentAgreed: false,
     signature: '',
+    
+    // Clinical Complaints & Symptoms
     selectedRegion: 'chest',
     selectedComplaintId: 'chest_pain',
     chiefComplaints: [],
@@ -50,6 +169,8 @@ export const PatientProvider = ({ children }) => {
     duration: '2 Days',
     painScore: 5,
     onset: 'Gradual',
+    
+    // History & Vitals
     pastConditions: [],
     customCondition: '',
     allergies: [],
@@ -82,30 +203,38 @@ export const PatientProvider = ({ children }) => {
     generatedToken: null
   });
 
-  // Fetch initial patient data from Backend Server on mount
-  useEffect(() => {
-    const syncWithBackend = async () => {
-      try {
-        const health = await ApiService.checkHealth();
-        if (health && health.status === 'HEALTHY') {
-          setServerOnline(true);
-          const queueRes = await ApiService.getPatients();
-          if (queueRes && queueRes.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
-            setPatients(queueRes.patients);
-            if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
-              setSelectedPatientId(queueRes.patients[0].id);
-            }
-          }
-        } else {
-          setServerOnline(false);
+  // Load Hospitals and Patient Queue from Backend Server
+  const fetchQueueAndHospitals = useCallback(async () => {
+    try {
+      const health = await ApiService.checkHealth();
+      if (health && health.status === 'HEALTHY') {
+        setServerOnline(true);
+        
+        // Fetch active hospitals
+        const hospRes = await ApiService.getHospitals();
+        if (hospRes?.success && Array.isArray(hospRes.hospitals) && hospRes.hospitals.length > 0) {
+          setHospitals(hospRes.hospitals);
         }
-      } catch {
+
+        // Fetch patients based on role & auth
+        const queueRes = await ApiService.getPatients();
+        if (queueRes?.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
+          setPatients(queueRes.patients);
+          if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
+            setSelectedPatientId(queueRes.patients[0].id);
+          }
+        }
+      } else {
         setServerOnline(false);
       }
-    };
+    } catch {
+      setServerOnline(false);
+    }
+  }, [selectedPatientId]);
 
-    syncWithBackend();
-  }, []);
+  useEffect(() => {
+    fetchQueueAndHospitals();
+  }, [fetchQueueAndHospitals]);
 
   // Persist patients to localStorage for offline resilience
   useEffect(() => {
@@ -128,6 +257,28 @@ export const PatientProvider = ({ children }) => {
     } catch (err) {
       console.warn('Speech synthesis not available or blocked:', err);
     }
+  };
+
+  // Login handler
+  const handleUserLogin = (user, token) => {
+    setAuthenticatedUser(user);
+    if (user.hospitalId) {
+      setActiveHospitalId(user.hospitalId);
+    }
+    if (user.role === 'DOCTOR') {
+      setRole('doctor');
+    } else if (user.role === 'HOSPITAL_ADMIN' || user.role === 'ADMIN') {
+      setRole('hospital_admin');
+    }
+    fetchQueueAndHospitals();
+  };
+
+  // Logout handler
+  const handleUserLogout = () => {
+    ApiService.logout();
+    setAuthenticatedUser(null);
+    setRole('kiosk');
+    fetchQueueAndHospitals();
   };
 
   // Automated Triage & Red-Flag Severity Calculator
@@ -169,16 +320,17 @@ export const PatientProvider = ({ children }) => {
       severityScore += 4;
     }
 
-    // Check Symptoms
-    form.chiefComplaints.forEach((comp) => {
-      const lower = comp.toLowerCase();
-      if (lower.includes('crushing chest') || lower.includes('radiating') || lower.includes('worst headache') || lower.includes('blood in') || lower.includes('syncope') || lower.includes('blackout')) {
+    // Check Symptoms & Reason for Visit
+    const complaintsToCheck = [...(form.chiefComplaints || []), form.reasonForVisit || ''];
+    complaintsToCheck.forEach((comp) => {
+      const lower = String(comp).toLowerCase();
+      if (lower.includes('crushing chest') || lower.includes('radiating') || lower.includes('worst headache') || lower.includes('blood in') || lower.includes('syncope') || lower.includes('blackout') || lower.includes('heart attack')) {
         redFlags.push(`High Risk Symptom: ${comp}`);
         severityScore += 4;
       } else if (lower.includes('cough for > 2 weeks') || lower.includes('tb screening') || lower.includes('> 2 weeks')) {
         redFlags.push(`Infectious Disease Surveillance: Suspected TB`);
         severityScore += 2;
-      } else {
+      } else if (lower.trim().length > 0) {
         severityScore += 1;
       }
     });
@@ -209,26 +361,34 @@ export const PatientProvider = ({ children }) => {
     return { triageLevel, triageCategory, triageColor, redFlags };
   };
 
-  // Submit Kiosk Case to Doctor Queue (Syncs with real backend)
+  // Submit Kiosk Case to Selected Hospital & Department Queue
   const submitKioskCase = async () => {
     const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
 
-    const tokenPrefix = kioskForm.selectedRegion === 'chest' ? 'MED' : kioskForm.selectedRegion === 'lungs' ? 'PUL' : kioskForm.selectedRegion === 'joints' ? 'ORT' : 'OPD';
+    const tokenPrefix = kioskForm.selectedDepartmentName?.includes('Cardiology') ? 'CARD' 
+      : kioskForm.selectedDepartmentName?.includes('Ortho') ? 'ORTH' 
+      : kioskForm.selectedDepartmentName?.includes('Pediatric') ? 'PED' 
+      : 'MED';
     const randomNum = Math.floor(100 + Math.random() * 900);
     const tokenNumber = `${tokenPrefix}-${randomNum}`;
     const newId = `patient-${Date.now().toString().slice(-6)}`;
 
-    const primaryComplaintTitle = kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
+    const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
 
     const newPatient = {
       id: newId,
       tokenNumber,
+      hospitalId: kioskForm.selectedHospitalId || 'hosp-ggh-hyd',
+      hospitalName: kioskForm.selectedHospitalName || 'Government General Hospital',
+      departmentId: kioskForm.selectedDepartmentId || 'dept-ggh-hyd-genmed',
+      department: kioskForm.selectedDepartmentName || 'General Medicine',
       roomNumber: kioskForm.roomNumber || 'Room 104',
-      department: kioskForm.assignedDepartment || 'General Medicine',
-      assignedDoctor: kioskForm.assignedDoctor || 'Dr. Rajesh Sharma, MD (Med)',
+      assignedDoctor: kioskForm.assignedDoctor || 'Assigned OPD Clinician',
+      reasonForVisit: kioskForm.reasonForVisit || primaryComplaintTitle,
       registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       waitTime: triageLevel <= 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins',
       status: 'Waiting',
+      caseStatus: 'Waiting for Review',
       verificationStatus: 'Pending Verification',
       verificationTimestamp: null,
       rejectionReason: null,
@@ -292,7 +452,7 @@ export const PatientProvider = ({ children }) => {
       // AI Generated Draft for Doctor
       aiGeneratedDraft: {
         disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
-        subjectiveSummary: `${kioskForm.age || 42}-year-old ${kioskForm.gender || 'patient'} presenting with ${primaryComplaintTitle} of ${kioskForm.duration || '2-3 days'} duration.`,
+        subjectiveSummary: `${kioskForm.age || 42}-year-old ${kioskForm.gender || 'patient'} presenting at ${kioskForm.selectedHospitalName} (${kioskForm.selectedDepartmentName}) with ${primaryComplaintTitle} of ${kioskForm.duration || '2-3 days'} duration.`,
         objectiveSummary: `Vitals: BP ${kioskForm.vitals.bpSystolic}/${kioskForm.vitals.bpDiastolic} mmHg, HR ${kioskForm.vitals.pulse} bpm, SpO2 ${kioskForm.vitals.spo2}%, RBS ${kioskForm.vitals.bloodSugar} mg/dL.`,
         preliminaryRiskAssessment: `Triage Priority: ${triageCategory} (ESI Level ${triageLevel}).`,
         differentialDiagnosisDraft: [
@@ -339,6 +499,11 @@ export const PatientProvider = ({ children }) => {
         abhaId: newPatient.abhaId,
         abhaAddress: newPatient.abhaAddress,
         language: newPatient.language,
+        hospitalId: newPatient.hospitalId,
+        hospitalName: newPatient.hospitalName,
+        departmentId: newPatient.departmentId,
+        department: newPatient.department,
+        reasonForVisit: newPatient.reasonForVisit,
         consentAgreed: kioskForm.consentAgreed || true,
         signatureData: kioskForm.signature,
         chiefComplaints: newPatient.chiefComplaints,
@@ -374,6 +539,11 @@ export const PatientProvider = ({ children }) => {
       gender: 'Male',
       phone: '',
       address: '',
+      selectedHospitalId: 'hosp-ggh-hyd',
+      selectedHospitalName: 'Government General Hospital',
+      selectedDepartmentId: 'dept-ggh-hyd-genmed',
+      selectedDepartmentName: 'General Medicine',
+      reasonForVisit: '',
       consentAgreed: false,
       signature: '',
       selectedRegion: 'chest',
@@ -440,6 +610,7 @@ export const PatientProvider = ({ children }) => {
           return {
             ...p,
             status: 'History Verified',
+            caseStatus: 'History Verified',
             verificationStatus: 'History Verified',
             verificationTimestamp: timestamp,
             rejectionReason: null,
@@ -466,6 +637,7 @@ export const PatientProvider = ({ children }) => {
           return {
             ...p,
             status: 'Rejected',
+            caseStatus: 'Rejected',
             verificationStatus: 'Rejected',
             verificationTimestamp: timestamp,
             rejectionReason: reason || 'Incomplete or inconsistent clinical history; re-intake required.'
@@ -490,6 +662,7 @@ export const PatientProvider = ({ children }) => {
           return {
             ...p,
             status: shouldComplete ? 'Completed' : p.status,
+            caseStatus: shouldComplete ? 'Consultation Completed' : p.caseStatus,
             doctorNotes: {
               ...p.doctorNotes,
               ...updatedNotes
@@ -528,6 +701,12 @@ export const PatientProvider = ({ children }) => {
         setLanguage,
         t,
         serverOnline,
+        hospitals,
+        activeHospitalId,
+        setActiveHospitalId,
+        authenticatedUser,
+        handleUserLogin,
+        handleUserLogout,
         patients,
         setPatients,
         selectedPatientId,
@@ -544,7 +723,8 @@ export const PatientProvider = ({ children }) => {
         confirmPatientSummary,
         rejectPatientSummary,
         updateDoctorNotes,
-        speakText
+        speakText,
+        refreshQueue: fetchQueueAndHospitals
       }}
     >
       {children}

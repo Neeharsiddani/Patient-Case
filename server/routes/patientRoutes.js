@@ -10,7 +10,7 @@ const router = express.Router();
 
 /**
  * POST /api/patients/intake
- * Kiosk intake submission endpoint: saves complete patient case persistently
+ * Kiosk intake submission endpoint: routes patient case to selected Hospital and Department
  */
 router.post('/intake', optionalAuth, async (req, res, next) => {
   try {
@@ -23,6 +23,11 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       abhaId,
       abhaAddress,
       language = 'English',
+      hospitalId = 'hosp-ggh-hyd',
+      hospitalName = 'Government General Hospital',
+      departmentId = 'dept-ggh-hyd-genmed',
+      department = 'General Medicine',
+      reasonForVisit = '',
       consentAgreed,
       signatureData,
       chiefComplaints = [],
@@ -59,17 +64,33 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       });
     }
 
+    // 2. Hospital and Department verification
+    const hospital = await get('SELECT id, name FROM hospitals WHERE id = ?', [hospitalId]);
+    const validatedHospitalId = hospital ? hospital.id : 'hosp-ggh-hyd';
+    const validatedHospitalName = hospital ? hospital.name : (hospitalName || 'Government General Hospital');
+
+    const dept = await get('SELECT id, name, room_number FROM departments WHERE id = ? AND hospital_id = ?', [departmentId, validatedHospitalId]);
+    const validatedDeptId = dept ? dept.id : departmentId;
+    const validatedDeptName = dept ? dept.name : department;
+    const roomNumber = dept?.room_number || (validatedDeptName.includes('Cardiology') ? 'Room 104' : 'Room 101');
+
+    // Auto-assign available primary doctor for this hospital & department if present
+    const primaryDoctor = await get(
+      `SELECT u.id, u.full_name 
+       FROM doctor_departments dd
+       JOIN users u ON dd.doctor_id = u.id
+       WHERE dd.hospital_id = ? AND dd.department_id = ? AND u.status = 'ACTIVE'
+       LIMIT 1`,
+      [validatedHospitalId, validatedDeptId]
+    );
+
+    const assignedDoctorId = primaryDoctor ? primaryDoctor.id : null;
+    const assignedDoctorName = primaryDoctor ? primaryDoctor.full_name : 'Assigned OPD Clinician';
+
     const patientId = `patient-${uuidv4().substring(0, 8)}`;
     const tokenNumber = `MED-${Math.floor(100 + Math.random() * 900)}`;
-    const department = chiefComplaints.some(c => String(c).toLowerCase().includes('chest')) 
-      ? 'Cardiology & General Medicine' 
-      : 'General Medicine';
-    const roomNumber = department.includes('Cardiology') ? 'Room 104' : 'Room 102';
-    const assignedDoctorName = department.includes('Cardiology') 
-      ? 'Dr. Rajesh Sharma, MD' 
-      : 'Dr. Priya Nair, MBBS, DNB';
 
-    // 2. Server-Side Deterministic Clinical Triage & Red-Flag Assessment
+    // 3. Server-Side Deterministic Clinical Triage & Red-Flag Assessment
     const triageResult = evaluateClinicalTriage({
       chiefComplaints,
       hpi,
@@ -79,7 +100,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       age: parseInt(age, 10) || 30
     });
 
-    // 3. Assistive AI Clinical Summary Draft Generation
+    // 4. Assistive AI Clinical Summary Draft Generation
     const aiDraft = generateAssistiveSummary({
       patientName: name,
       age: parseInt(age, 10) || 30,
@@ -98,25 +119,28 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       personalHistory
     });
 
-    // 4. Database Persistence: Insert Patient
+    // 5. Database Persistence: Insert Patient & Routed Case
     await run(`
       INSERT INTO patients (
-        id, token_number, room_number, department, assigned_doctor_name, name, age, gender, phone, address,
-        abha_id, abha_address, language, triage_level, triage_category, triage_color, wait_time, status, verification_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Pending Verification')
+        id, token_number, hospital_id, hospital_name, department_id, department, room_number,
+        assigned_doctor_id, assigned_doctor_name, name, age, gender, phone, address,
+        abha_id, abha_address, language, reason_for_visit, triage_level, triage_category, triage_color,
+        wait_time, status, case_status, verification_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification')
     `, [
-      patientId, tokenNumber, roomNumber, department, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
-      phone || '', address || '', abhaId || '', abhaAddress || '', language,
+      patientId, tokenNumber, validatedHospitalId, validatedHospitalName, validatedDeptId, validatedDeptName, roomNumber,
+      assignedDoctorId, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
+      phone || '', address || '', abhaId || '', abhaAddress || '', language, reasonForVisit || chiefComplaints.join('; '),
       triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime
     ]);
 
-    // 5. Insert Consent Record
+    // 6. Insert Hospital-Scoped Consent Record (DPDP Act 2023)
     await run(`
-      INSERT INTO consents (id, patient_id, status, scope, purpose, consent_type, signature_data, ip_address)
-      VALUES (?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical assessment, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', ?, ?)
-    `, [uuidv4(), patientId, signatureData || '', req.ip || '127.0.0.1']);
+      INSERT INTO consents (id, patient_id, hospital_id, status, scope, purpose, consent_type, signature_data, ip_address)
+      VALUES (?, ?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical consultation, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', ?, ?)
+    `, [uuidv4(), patientId, validatedHospitalId, signatureData || '', req.ip || '127.0.0.1']);
 
-    // 6. Insert Clinical History
+    // 7. Insert Clinical History
     await run(`
       INSERT INTO clinical_histories (
         id, patient_id, chief_complaints, duration, pain_score, onset, hpi, past_medical_history,
@@ -131,7 +155,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       JSON.stringify(reviewOfSystems), JSON.stringify(structuredDialogue)
     ]);
 
-    // 7. Insert Vitals
+    // 8. Insert Vitals
     await run(`
       INSERT INTO vitals (
         id, patient_id, bp_systolic, bp_diastolic, pulse, spo2, temp, respiratory_rate, blood_sugar, weight, height
@@ -149,7 +173,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       vitals.height || null
     ]);
 
-    // 8. Insert Red Flags
+    // 9. Insert Red Flags
     for (const flag of triageResult.redFlags) {
       await run(`
         INSERT INTO red_flags (id, patient_id, flag_text, severity, trigger_source)
@@ -157,7 +181,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       `, [uuidv4(), patientId, flag]);
     }
 
-    // 9. Insert AI Summary Draft
+    // 10. Insert AI Summary Draft
     await run(`
       INSERT INTO clinical_summaries (
         id, patient_id, subjective_summary, objective_summary, preliminary_risk_assessment,
@@ -169,25 +193,29 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       JSON.stringify(aiDraft.differential_diagnosis), JSON.stringify(aiDraft.suggested_next_steps)
     ]);
 
-    // 10. Record Audit Log
+    // 11. Record Immutable Audit Log
     await recordAuditLog({
       userId: req.user ? req.user.id : 'KIOSK_INTAKE_STATION',
       userRole: 'PATIENT_KIOSK',
-      action: 'PATIENT_INTAKE_SUBMITTED',
+      hospitalId: validatedHospitalId,
+      action: 'PATIENT_CASE_SUBMITTED',
       resourceType: 'PATIENT',
       resourceId: patientId,
-      details: { tokenNumber, name, triageCategory: triageResult.triageCategory },
+      details: { tokenNumber, name, hospital: validatedHospitalName, department: validatedDeptName, triageCategory: triageResult.triageCategory },
       ipAddress: req.ip || '127.0.0.1'
     });
 
     res.status(201).json({
       success: true,
-      message: 'Patient intake registered successfully',
+      message: 'Patient intake registered and routed to hospital department queue successfully',
       data: {
         id: patientId,
         tokenNumber,
+        hospitalId: validatedHospitalId,
+        hospitalName: validatedHospitalName,
+        departmentId: validatedDeptId,
+        department: validatedDeptName,
         roomNumber,
-        department,
         assignedDoctorName,
         triageLevel: triageResult.triageLevel,
         triageCategory: triageResult.triageCategory,
@@ -203,11 +231,12 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
 
 /**
  * GET /api/patients
- * Retrieve all patients in the OPD queue with associated history and triage indicators
+ * Retrieve patient cases in the OPD queue with strict Role-Based Access Control
+ * Hierarchy: Hospital -> Department -> Assigned/Authorized Cases
  */
-router.get('/', async (req, res, next) => {
+router.get('/', optionalAuth, async (req, res, next) => {
   try {
-    const { status, triage, search } = req.query;
+    const { status, triage, search, hospitalId, departmentId, myAssignedOnly } = req.query;
 
     let sql = `
       SELECT 
@@ -229,9 +258,56 @@ router.get('/', async (req, res, next) => {
     `;
     const params = [];
 
+    // --- STRICT HEALTHCARE RBAC AUTHORIZATION ENFORCEMENT ---
+    if (req.user) {
+      if (req.user.role === 'DOCTOR') {
+        // Doctor can ONLY view patients in their assigned hospital
+        if (req.user.hospital_id) {
+          sql += ' AND p.hospital_id = ?';
+          params.push(req.user.hospital_id);
+        }
+
+        // Retrieve authorized departments for this doctor
+        const authorizedDepts = await query(
+          'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+          [req.user.id]
+        );
+        const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+
+        if (myAssignedOnly === 'true') {
+          sql += ' AND p.assigned_doctor_id = ?';
+          params.push(req.user.id);
+        } else if (authorizedDeptIds.length > 0) {
+          // Doctor sees cases in their authorized departments OR cases assigned directly to them
+          const placeholders = authorizedDeptIds.map(() => '?').join(', ');
+          sql += ` AND (p.department_id IN (${placeholders}) OR p.assigned_doctor_id = ?)`;
+          params.push(...authorizedDeptIds, req.user.id);
+        } else {
+          // If no departments mapped, only directly assigned cases
+          sql += ' AND p.assigned_doctor_id = ?';
+          params.push(req.user.id);
+        }
+      } else if (req.user.role === 'HOSPITAL_ADMIN') {
+        // Hospital admin can only see patients belonging to their hospital
+        if (req.user.hospital_id) {
+          sql += ' AND p.hospital_id = ?';
+          params.push(req.user.hospital_id);
+        }
+      }
+    } else if (hospitalId) {
+      // Unauthenticated query with explicit hospital filter (e.g. Kiosk mode or dev)
+      sql += ' AND p.hospital_id = ?';
+      params.push(hospitalId);
+    }
+
+    if (departmentId && departmentId !== 'all') {
+      sql += ' AND (p.department_id = ? OR p.department LIKE ?)';
+      params.push(departmentId, `%${departmentId}%`);
+    }
+
     if (status && status !== 'all') {
-      sql += ' AND p.status = ?';
-      params.push(status);
+      sql += ' AND (p.status = ? OR p.case_status = ?)';
+      params.push(status, status);
     }
 
     if (triage && triage !== 'all') {
@@ -256,8 +332,12 @@ router.get('/', async (req, res, next) => {
       return {
         id: row.id,
         tokenNumber: row.token_number,
-        roomNumber: row.room_number,
+        hospitalId: row.hospital_id,
+        hospitalName: row.hospital_name,
+        departmentId: row.department_id,
         department: row.department,
+        roomNumber: row.room_number,
+        assignedDoctorId: row.assigned_doctor_id,
         assignedDoctorName: row.assigned_doctor_name,
         name: row.name,
         age: row.age,
@@ -267,11 +347,13 @@ router.get('/', async (req, res, next) => {
         abhaId: row.abha_id,
         abhaAddress: row.abha_address,
         language: row.language,
+        reasonForVisit: row.reason_for_visit,
         triageLevel: row.triage_level,
         triageCategory: row.triage_category,
         triageColor: row.triage_color,
         waitTime: row.wait_time,
         status: row.status,
+        caseStatus: row.case_status || row.status,
         verificationStatus: row.verification_status,
         verificationTimestamp: row.verification_timestamp,
         rejectionReason: row.rejection_reason,
@@ -331,9 +413,9 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /api/patients/:id
- * Retrieve detailed patient record by ID
+ * Retrieve detailed patient record by ID with strict Permission & Consent verification
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', optionalAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
     const patient = await get('SELECT * FROM patients WHERE id = ?', [id]);
@@ -345,12 +427,64 @@ router.get('/:id', async (req, res, next) => {
       });
     }
 
+    // --- STRICT PATIENT PRIVACY & ACCESS CONTROL CHECK ---
+    if (req.user) {
+      if (req.user.role === 'DOCTOR') {
+        // Verify hospital relationship
+        if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden Access',
+            message: 'You are not authorized to view patient records belonging to another healthcare facility.'
+          });
+        }
+
+        // Verify department authorization
+        const authorizedDepts = await query(
+          'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+          [req.user.id]
+        );
+        const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+
+        const isAssigned = patient.assigned_doctor_id === req.user.id;
+        const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
+
+        if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden Access',
+            message: 'You are not authorized to view cases outside your registered clinical departments.'
+          });
+        }
+      } else if (req.user.role === 'HOSPITAL_ADMIN') {
+        if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+          return res.status(403).json({
+            success: false,
+            error: 'Forbidden Access',
+            message: 'Hospital Administrators can only access records from their registered facility.'
+          });
+        }
+      }
+    }
+
     const vitals = await get('SELECT * FROM vitals WHERE patient_id = ?', [id]);
     const clinicalHistory = await get('SELECT * FROM clinical_histories WHERE patient_id = ?', [id]);
     const redFlags = await query('SELECT * FROM red_flags WHERE patient_id = ?', [id]);
     const aiSummary = await get('SELECT * FROM clinical_summaries WHERE patient_id = ?', [id]);
     const documents = await query('SELECT * FROM documents WHERE patient_id = ?', [id]);
     const consent = await get('SELECT * FROM consents WHERE patient_id = ? ORDER BY granted_at DESC LIMIT 1', [id]);
+
+    // Record Audit Log for sensitive medical record access
+    await recordAuditLog({
+      userId: req.user ? req.user.id : 'UNAUTHENTICATED_KIOSK_VIEW',
+      userRole: req.user ? req.user.role : 'CLIENT',
+      hospitalId: patient.hospital_id,
+      action: 'PATIENT_RECORD_VIEWED',
+      resourceType: 'PATIENT',
+      resourceId: id,
+      details: { patientName: patient.name, tokenNumber: patient.token_number },
+      ipAddress: req.ip || '127.0.0.1'
+    });
 
     res.json({
       success: true,

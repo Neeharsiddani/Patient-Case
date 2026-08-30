@@ -12,7 +12,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   XCircle,
-  Stethoscope
+  Stethoscope,
+  Layers
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
@@ -21,33 +22,60 @@ export const PatientQueue = () => {
   const { 
     patients, 
     selectedPatientId, 
-    setSelectedPatientId 
+    setSelectedPatientId,
+    authenticatedUser,
+    activeHospitalId
   } = usePatient();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTriage, setFilterTriage] = useState('ALL'); // 'ALL' | 'RED' | 'YELLOW' | 'GREEN'
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'Waiting' | 'History Verified' | 'Completed'
+  const [filterDept, setFilterDept] = useState('ALL');
+  const [activeFilterTab, setActiveFilterTab] = useState('ALL'); // 'ALL' | 'WAITING' | 'RED_FLAG' | 'ASSIGNED_TO_ME' | 'VERIFIED'
+
+  const currentHospId = authenticatedUser?.hospitalId || activeHospitalId || 'hosp-ggh-hyd';
+
+  // Get distinct departments from doctor's authorized departments or patient list
+  const authorizedDepts = authenticatedUser?.authorizedDepartments || [];
+  const distinctDepts = authorizedDepts.length > 0 
+    ? authorizedDepts 
+    : [...new Set(patients.map(p => p.department))].map(d => ({ id: d, name: d }));
 
   const filteredPatients = patients.filter((p) => {
+    // 1. Hospital Scope
+    if (p.hospitalId && p.hospitalId !== currentHospId) {
+      return false;
+    }
+
+    // 2. Department Filter
+    if (filterDept !== 'ALL') {
+      const matchDept = p.departmentId === filterDept || p.department === filterDept;
+      if (!matchDept) return false;
+    }
+
+    // 3. Search Filter
     const matchSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.tokenNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.abhaId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.abhaId && p.abhaId.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.reasonForVisit && p.reasonForVisit.toLowerCase().includes(searchQuery.toLowerCase())) ||
       p.department.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchTriage =
-      filterTriage === 'ALL' ||
-      (filterTriage === 'RED' && p.triageLevel <= 2) ||
-      (filterTriage === 'YELLOW' && p.triageLevel === 3) ||
-      (filterTriage === 'GREEN' && p.triageLevel >= 4);
+    if (!matchSearch) return false;
 
-    const matchStatus =
-      statusFilter === 'ALL' ||
-      (statusFilter === 'Waiting' && (p.status === 'Waiting' || !p.status)) ||
-      (statusFilter === 'History Verified' && p.status === 'History Verified') ||
-      (statusFilter === 'Completed' && p.status === 'Completed');
+    // 4. Quick Category Filters
+    if (activeFilterTab === 'WAITING') {
+      return p.status === 'Waiting' || p.caseStatus === 'Waiting for Review';
+    }
+    if (activeFilterTab === 'RED_FLAG') {
+      return p.triageLevel <= 2 && p.status !== 'Completed';
+    }
+    if (activeFilterTab === 'ASSIGNED_TO_ME') {
+      return authenticatedUser ? p.assignedDoctorId === authenticatedUser.id : Boolean(p.assignedDoctorId);
+    }
+    if (activeFilterTab === 'VERIFIED') {
+      return p.status === 'History Verified' || p.verificationStatus === 'History Verified';
+    }
 
-    return matchSearch && matchTriage && matchStatus;
+    return true;
   });
 
   return (
@@ -58,11 +86,11 @@ export const PatientQueue = () => {
           <div className="flex items-center gap-2">
             <Users className="text-cyan-700" size={18} />
             <h3 className="font-bold text-slate-900 text-sm">
-              Live Patient Queue ({filteredPatients.length})
+              Clinical Queue ({filteredPatients.length})
             </h3>
           </div>
           <span className="text-[10px] font-extrabold text-cyan-800 bg-cyan-100 px-2.5 py-0.5 rounded-full border border-cyan-200">
-            Realtime ABDM Queue
+            {authenticatedUser?.hospitalName ? `${authenticatedUser.hospitalName}` : 'Hospital OPD Queue'}
           </span>
         </div>
 
@@ -78,70 +106,43 @@ export const PatientQueue = () => {
           />
         </div>
 
-        {/* Status Filters */}
-        <div className="flex gap-1 overflow-x-auto pb-0.5">
-          {['ALL', 'Waiting', 'History Verified', 'Completed'].map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setStatusFilter(st)}
-              style={{
-                backgroundColor: statusFilter === st ? '#0A4D68' : '#ffffff',
-                color: statusFilter === st ? '#ffffff' : '#475569'
-              }}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-200 whitespace-nowrap transition-colors"
-            >
-              {st === 'ALL' ? 'All Status' : st}
-            </button>
-          ))}
+        {/* Department Filter Dropdown */}
+        <div className="flex items-center gap-2">
+          <Layers size={14} className="text-slate-400 flex-shrink-0" />
+          <select
+            value={filterDept}
+            onChange={(e) => setFilterDept(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700 focus:border-cyan-600 outline-none"
+          >
+            <option value="ALL">All Authorized Departments</option>
+            {distinctDepts.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Triage Urgency Filters */}
-        <div className="flex gap-1 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setFilterTriage('ALL')}
-            style={{
-              backgroundColor: filterTriage === 'ALL' ? '#334155' : '#ffffff',
-              color: filterTriage === 'ALL' ? '#ffffff' : '#475569'
-            }}
-            className="px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200"
-          >
-            All Triage
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterTriage('RED')}
-            style={{
-              backgroundColor: filterTriage === 'RED' ? '#dc2626' : '#ffffff',
-              color: filterTriage === 'RED' ? '#ffffff' : '#b91c1c'
-            }}
-            className="px-2 py-0.5 rounded text-[10px] font-bold border border-red-200"
-          >
-            🔴 Red Flags
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterTriage('YELLOW')}
-            style={{
-              backgroundColor: filterTriage === 'YELLOW' ? '#d97706' : '#ffffff',
-              color: filterTriage === 'YELLOW' ? '#ffffff' : '#b45309'
-            }}
-            className="px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200"
-          >
-            🟡 Urgent
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterTriage('GREEN')}
-            style={{
-              backgroundColor: filterTriage === 'GREEN' ? '#16a34a' : '#ffffff',
-              color: filterTriage === 'GREEN' ? '#ffffff' : '#15803d'
-            }}
-            className="px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-200"
-          >
-            🟢 Routine
-          </button>
+        {/* Quick Filter Tabs (All, Waiting for Review, Red Flag, Assigned to Me, History Verified) */}
+        <div className="flex gap-1 overflow-x-auto pb-0.5">
+          {[
+            { id: 'ALL', label: 'All Cases' },
+            { id: 'WAITING', label: 'Waiting for Review' },
+            { id: 'RED_FLAG', label: '🔴 Red Flag' },
+            { id: 'ASSIGNED_TO_ME', label: 'Assigned to Me' },
+            { id: 'VERIFIED', label: '✓ Verified' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveFilterTab(tab.id)}
+              style={{
+                backgroundColor: activeFilterTab === tab.id ? '#0A4D68' : '#ffffff',
+                color: activeFilterTab === tab.id ? '#ffffff' : '#475569'
+              }}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-slate-200 whitespace-nowrap transition-colors"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -149,7 +150,7 @@ export const PatientQueue = () => {
       <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2 space-y-1.5">
         {filteredPatients.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
-            No patients match current filters.
+            No patient cases match current hospital and department filters.
           </div>
         ) : (
           filteredPatients.map((p) => {
@@ -176,7 +177,7 @@ export const PatientQueue = () => {
                       {p.tokenNumber}
                     </span>
                     <span className="text-[10px] text-slate-400 font-medium">
-                      {p.registrationTime}
+                      {p.registrationTime || 'Today'}
                     </span>
                   </div>
 
@@ -194,17 +195,17 @@ export const PatientQueue = () => {
                   ) : isRejected ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-800 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">
                       <XCircle size={12} />
-                      <span>Rejected (Re-Intake)</span>
+                      <span>Rejected</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                       <Clock size={11} />
-                      <span>Waiting Doctor Review</span>
+                      <span>Waiting for Review</span>
                     </span>
                   )}
                 </div>
 
-                {/* Patient Name, Age, Gender & ABHA */}
+                {/* Patient Name, Age, Gender & Department */}
                 <div>
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-extrabold text-slate-900 leading-tight">
@@ -214,19 +215,29 @@ export const PatientQueue = () => {
                       {p.age} Y / {p.gender}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                    ABHA: <span className="text-cyan-800 font-bold">{p.abhaId}</span>
-                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">
+                    <span>Dept: <strong className="text-cyan-900">{p.department}</strong></span>
+                    <span className="font-mono text-slate-400">{p.roomNumber}</span>
+                  </div>
                 </div>
 
-                {/* Chief Complaint */}
+                {/* Chief Complaint / Reason for Visit */}
                 <div className="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 font-semibold line-clamp-2">
-                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Chief Complaint:</span>
-                  {p.chiefComplaints?.[0] || 'General Medical Intake'}
+                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Reason for Visit:</span>
+                  {p.reasonForVisit || p.chiefComplaints?.[0] || 'General Medical Intake'}
+                </div>
+
+                {/* Assigned Doctor / Clinician */}
+                <div className="flex items-center justify-between text-[10px] pt-1 text-slate-500">
+                  <div className="flex items-center gap-1">
+                    <Stethoscope size={11} className="text-cyan-700" />
+                    <span>{p.assignedDoctorName || p.assignedDoctor || 'Assigned Clinician'}</span>
+                  </div>
+                  <span className="font-mono text-cyan-900 font-bold">{p.abhaId ? p.abhaId.slice(-9) : ''}</span>
                 </div>
 
                 {/* Bottom Row: Red-Flag Triage Badge & Wait Time */}
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <TriageBadge level={p.triageLevel} category={p.triageCategory} color={p.triageColor} size="sm" />
                   <span className="text-[10px] text-slate-500 font-semibold">
                     Wait: <strong className="text-cyan-900">{p.waitTime}</strong>

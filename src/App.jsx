@@ -3,6 +3,7 @@ import { PatientProvider, usePatient } from './context/PatientContext';
 import { Header } from './components/common/Header';
 import { KioskWizard } from './components/kiosk/KioskWizard';
 import { DoctorDashboard } from './components/doctor/DoctorDashboard';
+import { HospitalDashboard } from './components/hospital/HospitalDashboard';
 import { ShieldCheck, HeartHandshake, Building2, HelpCircle } from 'lucide-react';
 import { MediMitraLogo } from './components/common/MediMitraLogo';
 
@@ -18,7 +19,9 @@ const AppContent = () => {
       <div>
         <Header />
         <main className="pb-12">
-          {role === 'kiosk' ? <KioskWizard /> : <DoctorDashboard />}
+          {role === 'kiosk' && <KioskWizard />}
+          {role === 'doctor' && <DoctorDashboard />}
+          {role === 'hospital_admin' && <HospitalDashboard />}
         </main>
       </div>
 
@@ -45,10 +48,10 @@ const AppContent = () => {
             </div>
             <button
               type="button"
-              onClick={() => setRole(role === 'kiosk' ? 'doctor' : 'kiosk')}
+              onClick={() => setRole(role === 'kiosk' ? 'doctor' : role === 'doctor' ? 'hospital_admin' : 'kiosk')}
               className="text-cyan-700 hover:underline font-bold"
             >
-              Switch to {role === 'kiosk' ? 'Doctor Workstation' : 'Patient Kiosk'}
+              Switch Role ({role === 'kiosk' ? 'Doctor Workstation' : role === 'doctor' ? 'Hospital Admin' : 'Patient Kiosk'})
             </button>
           </div>
         </div>
