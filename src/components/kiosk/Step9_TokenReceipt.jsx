@@ -1,5 +1,3 @@
-import React, { useEffect } from 'react';
-import confetti from 'canvas-confetti';
 import { 
   Ticket, 
   Printer, 
@@ -31,19 +29,6 @@ export const Step9_TokenReceipt = () => {
     triageColor: kioskForm.triageColor || 'red',
     id: 'PAT-101'
   };
-
-  useEffect(() => {
-    // Fire celebration confetti upon token generation
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch (e) {
-      console.log('Confetti error:', e);
-    }
-  }, []);
 
   const handlePrint = () => {
     window.print();
