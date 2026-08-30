@@ -18,14 +18,14 @@ const AppContent = () => {
         </main>
       </div>
 
-      {/* Modern Healthcare Footer with MediMitra Branding */}
+      {/* Modern Healthcare Footer */}
       <footer className="no-print bg-white border-t border-slate-200 py-6 px-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <MediMitraLogo size="sm" showText={true} showTagline={true} />
             <div className="hidden md:block border-l border-slate-200 pl-3">
-              <p className="text-[11px] text-slate-400">
-                Smart India Hackathon (SIH 2026) Problem Statement: Patient Case-Taking Software
+              <p className="text-[11px] text-slate-500 font-medium">
+                AI-Powered Clinical Intake & Medical History Platform
               </p>
             </div>
           </div>
@@ -33,11 +33,11 @@ const AppContent = () => {
           <div className="flex flex-wrap items-center gap-4 text-slate-600 font-medium">
             <div className="flex items-center gap-1">
               <ShieldCheck size={15} className="text-cyan-700" />
-              <span>ABDM FHIR R4 Ready</span>
+              <span>FHIR R4 Standard</span>
             </div>
             <div className="flex items-center gap-1">
               <HeartHandshake size={15} className="text-emerald-700" />
-              <span>DPDP Act 2023 Compliant</span>
+              <span>DPDP Privacy Framework</span>
             </div>
             <button
               type="button"

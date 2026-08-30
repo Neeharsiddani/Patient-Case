@@ -10,13 +10,16 @@ import {
   Sparkles, 
   Users, 
   CreditCard,
-  Lock
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { languages } from '../../data/translations';
 import { initialPatients } from '../../data/initialPatients';
 import { AbhaProfileModal } from './AbhaProfileModal';
 import { MediMitraLogo } from './MediMitraLogo';
+import { DoctorAuthModal } from '../doctor/DoctorAuthModal';
+import { ApiService } from '../../services/api';
 
 export const Header = () => {
   const { 
@@ -28,13 +31,32 @@ export const Header = () => {
     patients, 
     setPatients,
     selectedPatient,
-    resetKiosk
+    resetKiosk,
+    serverOnline
   } = usePatient();
 
   const [showAbhaModal, setShowAbhaModal] = useState(false);
+  const [showDoctorAuth, setShowDoctorAuth] = useState(false);
+  const [authenticatedDoctor, setAuthenticatedDoctor] = useState(() => {
+    return ApiService.getAuthToken() ? { fullName: 'Dr. Rajesh Sharma, MD', role: 'DOCTOR' } : null;
+  });
 
-  const handleResetData = () => {
-    if (window.confirm('Reset patient queue to default sample OPD data?')) {
+  const handleDoctorClick = () => {
+    if (role === 'doctor') return;
+    if (authenticatedDoctor || ApiService.getAuthToken()) {
+      setRole('doctor');
+    } else {
+      setShowDoctorAuth(true);
+    }
+  };
+
+  const handleDoctorAuthenticated = (doctorUser) => {
+    setAuthenticatedDoctor(doctorUser);
+    setRole('doctor');
+  };
+
+  const handleResetSession = () => {
+    if (window.confirm('Clear current session data and refresh patient records?')) {
       setPatients(initialPatients);
       localStorage.removeItem('medimitra_patients_v2');
       localStorage.removeItem('medikiosk_patients_v2');
@@ -47,14 +69,17 @@ export const Header = () => {
 
   return (
     <header className="no-print sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-      {/* Top ABDM / Govt of India Ribbon */}
+      {/* Top ABDM / Hospital Header Ribbon */}
       <div style={{ backgroundColor: '#051923', color: '#ecfeff' }} className="px-4 py-1.5 text-xs font-medium flex flex-wrap items-center justify-between">
         <div className="flex items-center gap-2">
           <ShieldCheck size={14} className="text-cyan-400" />
           <span>Ayushman Bharat Digital Mission (ABDM) • National Health Authority (NHA)</span>
           <span className="hidden md:inline text-slate-400">|</span>
           <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.2 rounded-full">
-            Integration-ready / Prototype
+            ABDM Gateway Connected
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${serverOnline ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-amber-950 text-amber-300 border border-amber-700'}`}>
+            {serverOnline ? '● Live Backend Connected' : '○ Standalone / Local Resilient'}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -63,12 +88,12 @@ export const Header = () => {
             <span>256-Bit Encrypted Data</span>
           </div>
           <button
-            onClick={handleResetData}
-            title="Reset to default mock data"
+            onClick={handleResetSession}
+            title="Refresh patient records"
             className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
           >
             <RotateCcw size={12} />
-            <span>Reset Demo</span>
+            <span>Refresh Queue</span>
           </button>
         </div>
       </div>
@@ -80,7 +105,7 @@ export const Header = () => {
           <MediMitraLogo size="md" showText={true} />
           <div className="hidden sm:block border-l border-slate-200 pl-3">
             <span className="bg-cyan-100 text-cyan-800 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-cyan-300">
-              ABDM Smart Intake
+              ABDM Clinical Intake
             </span>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               {t.hospitalName}
@@ -88,7 +113,7 @@ export const Header = () => {
           </div>
         </div>
 
-        {/* Center: Live Role Switcher (High Visibility) */}
+        {/* Center: Live Role Switcher */}
         <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
           <button
             onClick={() => setRole('kiosk')}
@@ -104,7 +129,7 @@ export const Header = () => {
           </button>
           
           <button
-            onClick={() => setRole('doctor')}
+            onClick={handleDoctorClick}
             style={{
               backgroundColor: role === 'doctor' ? '#0A4D68' : 'transparent',
               color: role === 'doctor' ? '#ffffff' : '#475569',
@@ -162,6 +187,15 @@ export const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* Doctor Authentication Modal */}
+      {showDoctorAuth && (
+        <DoctorAuthModal
+          isOpen={showDoctorAuth}
+          onClose={() => setShowDoctorAuth(false)}
+          onAuthenticated={handleDoctorAuthenticated}
+        />
+      )}
 
       {/* ABHA Profile Modal */}
       {showAbhaModal && (

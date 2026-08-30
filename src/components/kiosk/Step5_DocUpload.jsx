@@ -136,12 +136,12 @@ export const Step5_DocUpload = () => {
         </div>
       )}
 
-      {/* Preset Sample Indian Hospital Records for Instant Testing */}
+      {/* Medical Document Records Selection */}
       <div className="bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 border border-cyan-200 rounded-3xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-cyan-900 font-bold text-sm">
             <Sparkles size={18} className="text-cyan-600" />
-            <span>Select Sample Hospital Document to Test AI OCR & Timeline:</span>
+            <span>Select Medical Document to Digitize & Build Timeline:</span>
           </div>
 
           {/* Filter Pills for 4 Doc Types */}

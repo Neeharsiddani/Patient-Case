@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialPatients } from '../data/initialPatients';
 import { translations } from '../data/translations';
+import { ApiService } from '../services/api';
 
 const PatientContext = createContext(null);
 
@@ -9,6 +10,7 @@ const STORAGE_KEY = 'medimitra_patients_v2';
 export const PatientProvider = ({ children }) => {
   const [role, setRole] = useState('kiosk'); // 'kiosk' | 'doctor'
   const [language, setLanguage] = useState('en'); // 'en', 'hi', 'te', 'ta', 'mr', 'bn'
+  const [serverOnline, setServerOnline] = useState(false);
   
   // Persistent Patients Queue
   const [patients, setPatients] = useState(() => {
@@ -27,7 +29,7 @@ export const PatientProvider = ({ children }) => {
   });
 
   // Active Patient for Doctor Consultation
-  const [selectedPatientId, setSelectedPatientId] = useState('PAT-101');
+  const [selectedPatientId, setSelectedPatientId] = useState('patient-101');
 
   // Kiosk In-Progress Patient State
   const [kioskStep, setKioskStep] = useState(1);
@@ -80,7 +82,32 @@ export const PatientProvider = ({ children }) => {
     generatedToken: null
   });
 
-  // Persist patients to localStorage
+  // Fetch initial patient data from Backend Server on mount
+  useEffect(() => {
+    const syncWithBackend = async () => {
+      try {
+        const health = await ApiService.checkHealth();
+        if (health && health.status === 'HEALTHY') {
+          setServerOnline(true);
+          const queueRes = await ApiService.getPatients();
+          if (queueRes && queueRes.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
+            setPatients(queueRes.patients);
+            if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
+              setSelectedPatientId(queueRes.patients[0].id);
+            }
+          }
+        } else {
+          setServerOnline(false);
+        }
+      } catch {
+        setServerOnline(false);
+      }
+    };
+
+    syncWithBackend();
+  }, []);
+
+  // Persist patients to localStorage for offline resilience
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
   }, [patients]);
@@ -170,26 +197,26 @@ export const PatientProvider = ({ children }) => {
     let triageColor = 'green';
 
     if (severityScore >= 7 || redFlags.some(r => r.includes('Critical') || r.includes('Hypoxia') || r.includes('High Risk'))) {
-      triageLevel = 2;
-      triageCategory = 'Emergent / Priority (Red Flag)';
+      triageLevel = 1;
+      triageCategory = 'Resuscitation / Immediate Priority';
       triageColor = 'red';
     } else if (severityScore >= 3 || redFlags.length > 0) {
       triageLevel = 3;
       triageCategory = 'Urgent (Yellow)';
-      triageColor = 'yellow';
+      triageColor = 'amber';
     }
 
     return { triageLevel, triageCategory, triageColor, redFlags };
   };
 
-  // Submit Kiosk Case to Doctor Queue
-  const submitKioskCase = () => {
+  // Submit Kiosk Case to Doctor Queue (Syncs with real backend)
+  const submitKioskCase = async () => {
     const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
 
     const tokenPrefix = kioskForm.selectedRegion === 'chest' ? 'MED' : kioskForm.selectedRegion === 'lungs' ? 'PUL' : kioskForm.selectedRegion === 'joints' ? 'ORT' : 'OPD';
     const randomNum = Math.floor(100 + Math.random() * 900);
     const tokenNumber = `${tokenPrefix}-${randomNum}`;
-    const newId = `PAT-${Date.now().toString().slice(-4)}`;
+    const newId = `patient-${Date.now().toString().slice(-6)}`;
 
     const primaryComplaintTitle = kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
 
@@ -200,7 +227,7 @@ export const PatientProvider = ({ children }) => {
       department: kioskForm.assignedDepartment || 'General Medicine',
       assignedDoctor: kioskForm.assignedDoctor || 'Dr. Rajesh Sharma, MD (Med)',
       registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      waitTime: triageLevel === 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins',
+      waitTime: triageLevel <= 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins',
       status: 'Waiting',
       verificationStatus: 'Pending Verification',
       verificationTimestamp: null,
@@ -250,7 +277,14 @@ export const PatientProvider = ({ children }) => {
         imaging: 'None attached.'
       },
 
-      vitals: kioskForm.vitals,
+      vitals: {
+        bp_systolic: kioskForm.vitals.bpSystolic,
+        bp_diastolic: kioskForm.vitals.bpDiastolic,
+        pulse: kioskForm.vitals.pulse,
+        spo2: kioskForm.vitals.spo2,
+        temp: kioskForm.vitals.temp,
+        blood_sugar: kioskForm.vitals.bloodSugar
+      },
       redFlags,
       documents: kioskForm.uploadedDocs,
       structuredHistory: kioskForm.structuredHistory || [],
@@ -281,7 +315,7 @@ export const PatientProvider = ({ children }) => {
       }
     };
 
-    // Prepend to patients list so new patient appears at the top of the queue
+    // Prepend to state queue immediately
     setPatients((prev) => [newPatient, ...prev]);
     setSelectedPatientId(newId);
     
@@ -293,6 +327,38 @@ export const PatientProvider = ({ children }) => {
       triageColor,
       redFlags
     }));
+
+    // Post to real backend asynchronously with graceful offline fallback
+    try {
+      await ApiService.submitPatientIntake({
+        name: newPatient.name,
+        age: newPatient.age,
+        gender: newPatient.gender,
+        phone: newPatient.phone,
+        address: newPatient.address,
+        abhaId: newPatient.abhaId,
+        abhaAddress: newPatient.abhaAddress,
+        language: newPatient.language,
+        consentAgreed: kioskForm.consentAgreed || true,
+        signatureData: kioskForm.signature,
+        chiefComplaints: newPatient.chiefComplaints,
+        duration: kioskForm.duration,
+        painScore: kioskForm.painScore,
+        onset: kioskForm.onset,
+        hpi: newPatient.hpi,
+        pastMedicalHistory: newPatient.pastMedicalHistory,
+        pastSurgicalHistory: newPatient.pastSurgicalHistory,
+        currentMedications: newPatient.currentMedications,
+        drugAllergies: newPatient.drugAllergies,
+        familyHistory: newPatient.familyHistory,
+        personalHistory: newPatient.personalHistory,
+        reviewOfSystems: newPatient.reviewOfSystems,
+        vitals: newPatient.vitals,
+        uploadedDocuments: newPatient.documents
+      });
+    } catch (apiErr) {
+      console.warn('Backend intake sync notice (saved locally in browser session):', apiErr.message);
+    }
 
     return newPatient;
   };
@@ -366,7 +432,7 @@ export const PatientProvider = ({ children }) => {
   };
 
   // Doctor Action: Confirm Clinical Summary
-  const confirmPatientSummary = (patientId, doctorNotes = null) => {
+  const confirmPatientSummary = async (patientId, doctorNotes = null) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setPatients((prev) =>
       prev.map((p) => {
@@ -383,10 +449,16 @@ export const PatientProvider = ({ children }) => {
         return p;
       })
     );
+
+    try {
+      await ApiService.confirmSummary(patientId, doctorNotes, null);
+    } catch (err) {
+      console.warn('Backend confirmation sync notice (saved locally in browser session):', err.message);
+    }
   };
 
   // Doctor Action: Reject Summary / Request Re-Intake
-  const rejectPatientSummary = (patientId, reason) => {
+  const rejectPatientSummary = async (patientId, reason) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setPatients((prev) =>
       prev.map((p) => {
@@ -402,10 +474,16 @@ export const PatientProvider = ({ children }) => {
         return p;
       })
     );
+
+    try {
+      await ApiService.rejectSummary(patientId, reason);
+    } catch (err) {
+      console.warn('Backend rejection sync notice (saved locally in browser session):', err.message);
+    }
   };
 
-  // Doctor Consultation Updates
-  const updateDoctorNotes = (patientId, updatedNotes, shouldComplete = false) => {
+  // Doctor Consultation Updates & e-Prescriptions
+  const updateDoctorNotes = async (patientId, updatedNotes, shouldComplete = false) => {
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id === patientId) {
@@ -421,6 +499,22 @@ export const PatientProvider = ({ children }) => {
         return p;
       })
     );
+
+    if (shouldComplete) {
+      try {
+        await ApiService.ePrescribe({
+          patientId,
+          provisionalDiagnosis: updatedNotes.provisionalDiagnosis,
+          icd10Codes: updatedNotes.icd10,
+          prescriptions: updatedNotes.prescriptions,
+          investigations: updatedNotes.investigations,
+          advice: updatedNotes.advice,
+          followUp: updatedNotes.followUp
+        });
+      } catch (err) {
+        console.warn('Backend e-prescribe sync notice:', err.message);
+      }
+    }
   };
 
   const selectedPatient = patients.find((p) => p.id === selectedPatientId) || patients[0];
@@ -433,6 +527,7 @@ export const PatientProvider = ({ children }) => {
         language,
         setLanguage,
         t,
+        serverOnline,
         patients,
         setPatients,
         selectedPatientId,

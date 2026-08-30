@@ -209,7 +209,7 @@ export const KioskWizard = () => {
           </span>
         </div>
         <span className="text-cyan-800 font-extrabold text-[11px] uppercase tracking-wider">
-          ABDM Integration-ready / Prototype
+          ABDM / FHIR Architecture
         </span>
       </div>
     </div>

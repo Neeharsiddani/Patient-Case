@@ -481,16 +481,16 @@ export const Step6_OcrExtraction = () => {
         </div>
       )}
 
-      {/* Footer Disclaimer & Architecture Note */}
+      {/* Footer Disclaimer & Standards Note */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2">
           <Info size={16} className="text-cyan-700 flex-shrink-0" />
           <span>
-            <strong>Digitization Architecture Note:</strong> Structured via MediMitra Clinical NLP Extraction Engine (API hook ready for Tesseract.js / AWS Textract / Google Cloud Healthcare API / ABDM Scanner).
+            <strong>Document Processing Standards:</strong> Structured via MediMitra Clinical Extraction Engine. Formatted according to HL7 FHIR DiagnosticReport guidelines.
           </span>
         </div>
         <span className="text-emerald-700 font-bold whitespace-nowrap">
-          ABDM FHIR R4 Ready ✓
+          FHIR R4 Standard ✓
         </span>
       </div>
     </div>

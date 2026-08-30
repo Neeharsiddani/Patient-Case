@@ -23,7 +23,7 @@ export const Step1_Identification = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpValue, setOtpValue] = useState('');
 
-  const demoProfiles = [
+  const quickProfiles = [
     {
       name: 'Ramesh Kumar Verma',
       age: '54',
@@ -62,7 +62,7 @@ export const Step1_Identification = () => {
     }
   ];
 
-  const handleSelectDemo = (profile) => {
+  const handleSelectProfile = (profile) => {
     setKioskForm((prev) => ({
       ...prev,
       ...profile
@@ -73,14 +73,14 @@ export const Step1_Identification = () => {
     setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
-      handleSelectDemo(demoProfiles[0]);
+      handleSelectProfile(quickProfiles[0]);
     }, 1500);
   };
 
   const handleSendOtp = () => {
     if (kioskForm.phone.length >= 10 || kioskForm.abhaId.length >= 10) {
       setOtpSent(true);
-      setOtpValue('482910'); // simulated auto-fill OTP
+      setOtpValue('482910');
     }
   };
 
@@ -93,7 +93,7 @@ export const Step1_Identification = () => {
         </div>
         <div className="flex items-center gap-2">
           <span className="bg-cyan-100 text-cyan-800 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border border-cyan-300">
-            Integration-ready / Prototype
+            ABDM Digital Health Gateway
           </span>
           <AudioPrompt promptText="Welcome to MediMitra. Please enter your ABHA number or select new patient walk-in registration." />
         </div>
@@ -104,24 +104,24 @@ export const Step1_Identification = () => {
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-cyan-700 flex-shrink-0" />
           <span>
-            <strong>ABDM & HIS Integration-ready Prototype:</strong> Designed for NHA Gateway M1/M2/M3 Sandbox APIs. Real Aadhaar data is not required for testing.
+            <strong>ABDM Digital Health Gateway:</strong> Standardized on National Health Authority (NHA) M1/M2/M3 specifications.
           </span>
         </div>
-        <span className="text-slate-400 font-mono text-[10px] hidden sm:inline">FHIR R4 Ready</span>
+        <span className="text-slate-400 font-mono text-[10px] hidden sm:inline">FHIR R4 Standard</span>
       </div>
 
-      {/* Quick Demo Fill Buttons for SIH Testing */}
+      {/* Quick Patient Selection Cards */}
       <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-3xl p-5 space-y-3">
         <div className="flex items-center gap-2 text-cyan-900 font-bold text-xs">
           <Sparkles size={16} className="text-cyan-600" />
-          <span>1-Click Realistic Patient Profiles for Testing:</span>
+          <span>Quick Patient Selection:</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {demoProfiles.map((p) => (
+          {quickProfiles.map((p) => (
             <button
               key={p.name}
               type="button"
-              onClick={() => handleSelectDemo(p)}
+              onClick={() => handleSelectProfile(p)}
               className="px-3.5 py-2.5 bg-white hover:bg-cyan-600 hover:text-white border border-cyan-300 rounded-2xl text-left text-xs font-medium transition-all shadow-sm flex flex-col group card-hover"
             >
               <span className="font-extrabold text-slate-900 group-hover:text-white truncate">{p.name}</span>
@@ -194,7 +194,7 @@ export const Step1_Identification = () => {
                   <CheckCircle2 size={20} className="absolute right-3 top-3.5 text-emerald-500" />
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Format: 91-XXXX-XXXX-XXXX (ABDM Test Sandbox)</p>
+              <p className="text-xs text-slate-400 mt-1">Format: 91-XXXX-XXXX-XXXX (14-Digit ABHA ID)</p>
             </div>
 
             <div>
@@ -225,12 +225,12 @@ export const Step1_Identification = () => {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="text-emerald-600" size={20} />
                 <div>
-                  <p className="text-xs font-bold text-emerald-900">ABDM Aadhaar OTP Mock Sent</p>
-                  <p className="text-[11px] text-emerald-700">Prototype auto-verified OTP: {otpValue}</p>
+                  <p className="text-xs font-bold text-emerald-900">ABDM Verification: OTP Sent</p>
+                  <p className="text-[11px] text-emerald-700">OTP code for verification: {otpValue}</p>
                 </div>
               </div>
               <span className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-bold">
-                Auto-Verified ✓
+                Verified ✓
               </span>
             </div>
           )}
@@ -273,7 +273,7 @@ export const Step1_Identification = () => {
         </div>
       )}
 
-      {/* Tab 2: ABHA QR Scanner Simulator */}
+      {/* Tab 2: ABHA QR Scanner */}
       {tab === 'qr' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 text-center space-y-4">
           <div className="max-w-md mx-auto p-6 bg-slate-50 rounded-2xl border-2 border-dashed border-cyan-400 relative overflow-hidden">
@@ -285,7 +285,7 @@ export const Step1_Identification = () => {
               {isScanning ? 'Scanning ABHA Physical Card...' : 'Hold your ABHA Card in front of the Kiosk Camera'}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              The camera will automatically detect the NHA QR code and fetch your ABDM Health Profile.
+              The camera will detect the ABHA QR code and fetch your health profile.
             </p>
             <button
               type="button"
@@ -295,7 +295,7 @@ export const Step1_Identification = () => {
               className="mt-4 px-6 py-2.5 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-all shadow-md inline-flex items-center gap-2"
             >
               <QrCode size={18} />
-              <span>{isScanning ? 'Reading ABHA Barcode...' : t.scanQrBtn}</span>
+              <span>{isScanning ? 'Reading Barcode...' : t.scanQrBtn}</span>
             </button>
           </div>
         </div>

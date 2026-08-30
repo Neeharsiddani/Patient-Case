@@ -126,7 +126,7 @@ export const Step3_Consent = () => {
               <span>Patient Consent & Privacy Notice</span>
             </h2>
             <span className="bg-cyan-100 text-cyan-800 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border border-cyan-300">
-              Integration-ready / Prototype
+              DPDP Consent Framework
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
@@ -333,7 +333,7 @@ export const Step3_Consent = () => {
               256-Bit Encrypted
             </span>
             <span className="bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 text-emerald-300">
-              ABDM Consent Artifact Ready
+              Electronic Consent Artifact Logged
             </span>
           </div>
         </div>

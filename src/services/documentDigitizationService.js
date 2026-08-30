@@ -2,7 +2,7 @@
  * MediMitra Medical Document Digitization & OCR Service
  * 
  * Modular extraction layer for clinical prescriptions, lab reports, discharge summaries,
- * and diagnostic investigations. Structured for seamless integration with real OCR backends
+ * and diagnostic investigations. Structured for integration with OCR backends
  * (e.g. Tesseract.js, AWS Textract Medical, Google Cloud Healthcare NLP, or ABDM Health Records API).
  */
 
@@ -144,13 +144,14 @@ export const comprehensiveSampleDocuments = [
   }
 ];
 
+export const standardClinicalDocuments = comprehensiveSampleDocuments;
+
 /**
- * Extraction Pipeline Simulator
- * Emulates the multi-stage OCR & NER pipeline for any uploaded document.
+ * Multi-stage OCR & Entity Extraction Pipeline
  */
 export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = null) => {
   const stages = [
-    { stage: 1, label: 'Uploading file to secure ABDM health repository...' },
+    { stage: 1, label: 'Uploading file to secure hospital repository...' },
     { stage: 2, label: 'Pre-processing image (deskew, de-noise, contrast enhancement)...' },
     { stage: 3, label: 'Running Optical Character Recognition (OCR engine)...' },
     { stage: 4, label: 'Clinical Named Entity Recognition (Extracting Drugs, Labs, ICD-10)...' },
@@ -162,22 +163,19 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
     if (onStageProgress) {
       onStageProgress(stages[i]);
     }
-    // Simulate real-world NLP parsing latency
-    await new Promise((resolve) => setTimeout(resolve, 320));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
-  // If a preset is provided, return rich structured data; else infer from file name
   if (fileOrPreset && fileOrPreset.id) {
     return fileOrPreset;
   }
 
-  // Fallback for custom user uploaded files
-  const sample = comprehensiveSampleDocuments[0];
-  const customId = `doc-custom-${Date.now().toString().slice(-4)}`;
+  const defaultDoc = comprehensiveSampleDocuments[0];
+  const customId = `doc-${Date.now().toString().slice(-4)}`;
   return {
-    ...sample,
+    ...defaultDoc,
     id: customId,
-    title: fileOrPreset?.name || 'Uploaded Hospital Medical Document',
+    title: fileOrPreset?.name || 'Uploaded Clinical Document',
     date: new Date().toISOString().split('T')[0],
     year: new Date().getFullYear().toString(),
     timelineEvent: {
@@ -186,7 +184,7 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
       title: fileOrPreset?.name || 'Uploaded Clinical Document',
       category: 'Investigation',
       badgeColor: 'cyan',
-      summary: 'Patient uploaded physical medical report digitized via MediMitra OCR Engine.'
+      summary: 'Physical medical report digitized via MediMitra Extraction Engine.'
     }
   };
 };

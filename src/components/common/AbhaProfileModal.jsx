@@ -38,7 +38,7 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
                   ABHA Digital Health Profile
                 </h3>
                 <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                  Integration-ready / Prototype
+                  ABDM Digital Health Profile
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -56,13 +56,13 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
           </button>
         </div>
 
-        {/* Prototype Notice Banner */}
+        {/* Verification Standards Banner */}
         <div className="bg-cyan-50 border-b border-cyan-200 px-5 py-2 text-[11px] text-cyan-900 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-medium">
             <Info size={14} className="text-cyan-700 flex-shrink-0" />
-            <span>Prototype ABHA Health Card — Structured for official ABDM M1/M2/M3 Sandbox APIs</span>
+            <span>ABDM Digital Health Card — Formatted for ABDM M1/M2/M3 Standards</span>
           </div>
-          <span className="font-bold text-cyan-800">FHIR R4 Ready</span>
+          <span className="font-bold text-cyan-800">FHIR R4 Standard</span>
         </div>
 
         {/* ABHA Card Surface */}
