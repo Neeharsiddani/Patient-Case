@@ -3,12 +3,12 @@ import {
   Building2, 
   ShieldCheck, 
   Printer, 
-  QrCode, 
   X, 
   Stethoscope, 
   Calendar,
   Clock
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { printElement } from '../../utils/printUtility';
 
@@ -228,13 +228,27 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
 
           {/* Doctor Signature & OPD Stamp */}
           <div className="pt-6 flex items-end justify-between border-t-2 border-dashed border-slate-300">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-slate-100 rounded-xl border border-slate-200">
-                <QrCode size={42} className="text-slate-900" />
+            <div className="flex items-center gap-3">
+              <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-xs flex items-center justify-center">
+                <QRCodeSVG 
+                  value={JSON.stringify({
+                    app: 'MediMitra',
+                    type: 'VERIFIED_CLINICAL_CONSULTATION',
+                    token: patient.tokenNumber,
+                    patientName: patient.name,
+                    abhaId: patient.abhaId,
+                    doctor: patient.assignedDoctor,
+                    diagnosis: notes.provisionalDiagnosis,
+                    date: new Date().toISOString()
+                  })}
+                  size={56}
+                  level="M"
+                  includeMargin={false}
+                />
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">
-                <span>ABDM-SIGNED-CONSULT-RECORD</span><br />
-                <span>NHA-AUTH-ID: #99482910</span>
+              <div className="text-[10px] text-slate-500 font-mono">
+                <span className="font-bold text-slate-800">ABDM VERIFIED RECORD</span><br />
+                <span>TOKEN: #{patient.tokenNumber}</span>
               </div>
             </div>
 

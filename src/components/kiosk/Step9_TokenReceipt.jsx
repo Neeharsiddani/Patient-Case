@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { 
   Ticket, 
   Printer, 
-  QrCode, 
   Building2, 
   Stethoscope, 
   Clock, 
@@ -12,6 +11,7 @@ import {
   RotateCcw,
   Sparkles
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { printElement } from '../../utils/printUtility';
@@ -134,13 +134,27 @@ export const Step9_TokenReceipt = () => {
 
           {/* QR Barcode & Security Stamp */}
           <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-slate-100 rounded-xl border border-slate-200">
-                <QrCode size={48} className="text-slate-800" />
+            <div className="flex items-center gap-3">
+              <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-xs flex items-center justify-center">
+                <QRCodeSVG 
+                  value={JSON.stringify({
+                    app: 'MediMitra',
+                    type: 'TOKEN_RECEIPT',
+                    token: tokenData.tokenNumber,
+                    name: tokenData.name,
+                    abhaId: tokenData.abhaId,
+                    department: tokenData.department,
+                    room: tokenData.roomNumber,
+                    doctor: tokenData.assignedDoctor
+                  })}
+                  size={52}
+                  level="M"
+                  includeMargin={false}
+                />
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">
-                <span>DIGITAL VERIFIED</span><br />
-                <span>SEC-HASH: #{tokenData.tokenNumber}-99X</span>
+              <div className="text-[10px] text-slate-500 font-mono">
+                <span className="font-bold text-slate-700">ABDM DIGITAL PASS</span><br />
+                <span>TOKEN: #{tokenData.tokenNumber}</span>
               </div>
             </div>
 

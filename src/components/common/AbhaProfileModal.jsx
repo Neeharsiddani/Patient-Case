@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   X, 
   ShieldCheck, 
-  QrCode, 
   User, 
   Phone, 
   Calendar, 
@@ -11,11 +10,12 @@ import {
   Lock, 
   CheckCircle2, 
   AlertCircle, 
-  Building2,
-  Sparkles,
+  Building2, 
+  Sparkles, 
   ExternalLink,
   Info
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 export const AbhaProfileModal = ({ patient, onClose }) => {
   if (!patient) return null;
@@ -115,8 +115,21 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
                   {patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`}
                 </span>
               </div>
-              <div className="p-1.5 bg-white rounded-xl shadow-xs">
-                <QrCode size={36} className="text-slate-900" />
+              <div className="p-1 bg-white rounded-xl shadow-md flex items-center justify-center">
+                <QRCodeSVG 
+                  value={JSON.stringify({
+                    hidn: patient.abhaId,
+                    hid: patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`,
+                    name: patient.name,
+                    gender: patient.gender === 'Male' ? 'M' : patient.gender === 'Female' ? 'F' : 'O',
+                    age: patient.age,
+                    mobile: patient.phone || '',
+                    address: patient.address || ''
+                  })}
+                  size={46}
+                  level="M"
+                  includeMargin={false}
+                />
               </div>
             </div>
           </div>

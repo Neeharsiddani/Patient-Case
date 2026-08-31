@@ -4,7 +4,6 @@ import {
   Printer, 
   RotateCcw, 
   ShieldCheck, 
-  QrCode, 
   Building2, 
   Clock, 
   User, 
@@ -12,6 +11,7 @@ import {
   Heart,
   FileCheck2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { printElement } from '../../utils/printUtility';
@@ -33,6 +33,21 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
     abhaId: kioskForm.abhaId || '91-8472-9182-3451',
     hospitalName: kioskForm.selectedHospitalName || 'Government General Hospital'
   };
+
+  // Real verifiable clinical consultation token payload
+  const qrVerificationPayload = JSON.stringify({
+    app: 'MediMitra',
+    type: 'OPD_TOKEN_PASS',
+    token: patientToken.tokenNumber,
+    name: patientToken.name,
+    age: patientToken.age,
+    gender: patientToken.gender,
+    abhaId: patientToken.abhaId,
+    hospital: patientToken.hospitalName,
+    department: patientToken.department,
+    room: patientToken.roomNumber,
+    time: patientToken.registrationTime
+  });
 
   const handlePrint = () => {
     if (slipRef.current) {
@@ -123,12 +138,18 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         {/* QR Code & Clinical Verification Bar */}
         <div className="flex items-center justify-between pt-4 border-t-2 border-dashed border-slate-300">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center p-1">
-              <QrCode size={40} />
+            <div className="w-16 h-16 bg-white p-1 rounded-xl border border-slate-300 shadow-sm flex items-center justify-center flex-shrink-0">
+              <QRCodeSVG 
+                value={qrVerificationPayload}
+                size={56}
+                level="M"
+                includeMargin={false}
+              />
             </div>
             <div>
-              <span className="text-[10px] font-mono font-bold text-slate-400 block">ABDM TOKEN PASS</span>
-              <span className="text-xs font-bold text-slate-700">Scan at Room Door Display</span>
+              <span className="text-[10px] font-mono font-bold text-slate-500 block">DIGITAL VERIFIED PASS</span>
+              <span className="text-xs font-bold text-slate-800">Scan with Phone / OPD Display</span>
+              <span className="text-[10px] text-cyan-800 font-mono block">Token #{patientToken.tokenNumber}</span>
             </div>
           </div>
 
