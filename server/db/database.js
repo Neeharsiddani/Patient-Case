@@ -264,8 +264,9 @@ export const initDb = async () => {
       doctor_name TEXT,
       diagnosis TEXT,
       ocr_confidence INTEGER DEFAULT 95,
+      raw_ocr_text TEXT, -- Complete raw extracted OCR text stream
       extracted_data TEXT, -- JSON object
-      verification_status TEXT DEFAULT 'Unverified',
+      verification_status TEXT DEFAULT 'MACHINE_EXTRACTED_UNVERIFIED',
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
@@ -372,6 +373,12 @@ export const initDb = async () => {
         if (conCols && !conCols.some(c => c.name === 'hospital_id')) {
           try { await run("ALTER TABLE consents ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
           try { await run("ALTER TABLE consents ADD COLUMN revocation_status TEXT DEFAULT 'ACTIVE'"); } catch {}
+        }
+
+        // Auto-migration for documents table
+        const docCols = await query("PRAGMA table_info(documents)");
+        if (docCols && !docCols.some(c => c.name === 'raw_ocr_text')) {
+          try { await run("ALTER TABLE documents ADD COLUMN raw_ocr_text TEXT"); } catch {}
         }
 
         resolve();

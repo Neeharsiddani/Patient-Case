@@ -36,8 +36,8 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
       INSERT INTO documents (
         id, patient_id, original_filename, stored_filename, file_path,
         mime_type, file_size, doc_type, doc_type_name, doc_date, doc_year,
-        hospital_name, doctor_name, diagnosis, ocr_confidence, extracted_data, verification_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        hospital_name, doctor_name, diagnosis, ocr_confidence, raw_ocr_text, extracted_data, verification_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       docId,
       patientId,
@@ -54,6 +54,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
       extractionResult.doctorName,
       extractionResult.diagnosis,
       extractionResult.ocrConfidence,
+      extractionResult.extractedData.rawOcrText || '',
       JSON.stringify(extractionResult.extractedData),
       extractionResult.verificationStatus
     ]);
@@ -76,7 +77,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Medical document uploaded and processed successfully',
+      message: 'Medical document uploaded and processed with real OCR engine successfully',
       document: {
         id: docId,
         patientId,
@@ -90,9 +91,70 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         docYear: extractionResult.docYear,
         diagnosis: extractionResult.diagnosis,
         ocrConfidence: extractionResult.ocrConfidence,
+        ocrProvider: extractionResult.ocrProvider,
         requiresManualReview: extractionResult.requiresManualReview,
+        rawOcrText: extractionResult.extractedData.rawOcrText,
         extractedData: extractionResult.extractedData,
-        timelineEntry: extractionResult.timelineEntry
+        timelineEntry: extractionResult.timelineEntry,
+        verificationStatus: extractionResult.verificationStatus
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/documents/:id/verify
+ * Doctor verifies and optionally edits extracted OCR entities
+ */
+router.patch('/:id/verify', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { editedData, diagnosis, docDate } = req.body;
+
+    const doc = await get('SELECT * FROM documents WHERE id = ?', [id]);
+    if (!doc) {
+      return res.status(404).json({
+        success: false,
+        error: 'Document Not Found',
+        message: `No document found with ID ${id}.`
+      });
+    }
+
+    const currentExtracted = JSON.parse(doc.extracted_data || '{}');
+    const updatedExtracted = editedData ? { ...currentExtracted, ...editedData } : currentExtracted;
+    const updatedDiagnosis = diagnosis || doc.diagnosis;
+    const updatedDate = docDate || doc.doc_date;
+
+    await run(`
+      UPDATE documents
+      SET verification_status = 'VERIFIED_BY_CLINICIAN',
+          diagnosis = ?,
+          doc_date = ?,
+          extracted_data = ?
+      WHERE id = ?
+    `, [updatedDiagnosis, updatedDate, JSON.stringify(updatedExtracted), id]);
+
+    await recordAuditLog({
+      userId: req.user ? req.user.id : 'ATTENDING_DOCTOR',
+      userRole: 'DOCTOR',
+      action: 'DOCUMENT_OCR_VERIFIED_BY_CLINICIAN',
+      resourceType: 'DOCUMENT',
+      resourceId: id,
+      details: { documentId: id, diagnosis: updatedDiagnosis },
+      ipAddress: req.ip || '127.0.0.1'
+    });
+
+    res.json({
+      success: true,
+      message: 'Medical document record verified and signed by clinician',
+      document: {
+        id,
+        verificationStatus: 'VERIFIED_BY_CLINICIAN',
+        diagnosis: updatedDiagnosis,
+        docDate: updatedDate,
+        extractedData: updatedExtracted
       }
     });
   } catch (err) {
@@ -121,6 +183,7 @@ router.get('/patient/:patientId', async (req, res, next) => {
         docDate: d.doc_date,
         diagnosis: d.diagnosis,
         ocrConfidence: d.ocr_confidence,
+        rawOcrText: d.raw_ocr_text,
         extractedData: JSON.parse(d.extracted_data || '{}'),
         verificationStatus: d.verification_status,
         uploadedAt: d.uploaded_at

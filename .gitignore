@@ -8,3 +8,4 @@ dist-ssr/
 *.db-wal
 *.db-shm
 scratch/
+*.traineddata

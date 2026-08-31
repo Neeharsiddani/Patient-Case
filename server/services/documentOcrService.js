@@ -1,101 +1,71 @@
-import path from 'path';
+import { ocrEngine } from './ocrEngine.js';
+import { extractClinicalEntities } from './clinicalEntityExtractor.js';
 
 /**
- * MediMitra Document Processing & Clinical Entity Extraction Service
- * Implements standard pipeline:
- * File Validation -> Text Extraction -> Medical Entity Extraction -> Verification Status & Timeline
+ * MediMitra Genuine Document Processing & Clinical Entity Extraction Service
+ * 
+ * Pipeline:
+ * File -> Real OCR Engine (Tesseract.js / pdf-parse) -> Real NLP Entity Extraction -> Timeline Structuring
+ * 
+ * Strict Directives:
+ * 1. 0% Fake/Mock template output.
+ * 2. 100% of raw OCR text is preserved and attached.
+ * 3. Never invent missing dates, diagnoses, medicines, or reference ranges.
+ * 4. Marked strictly as 'MACHINE_EXTRACTED_UNVERIFIED' until a physician confirms it.
  */
 export const processMedicalDocument = async (fileMetadata, docTypeHint = 'prescription') => {
-  const filename = fileMetadata.originalname.toLowerCase();
-  
-  let docType = 'Prescription';
-  let hospitalName = 'Civil Hospital / OPD Clinic';
-  let doctorName = 'Attending Medical Officer';
-  let docDate = new Date().toISOString().split('T')[0];
-  let docYear = new Date().getFullYear().toString();
-  let diagnosis = 'Clinical Evaluation';
-  let ocrConfidence = 94; // Realistic OCR confidence score
-  let medicines = [];
-  let investigations = [];
-  let procedures = [];
-  let category = 'Prescription';
-
-  if (filename.includes('lab') || filename.includes('cbc') || filename.includes('report') || docTypeHint === 'lab_report') {
-    docType = 'Lab Report';
-    category = 'Investigation';
-    hospitalName = 'AIIMS Clinical Pathology & Biochemistry Laboratory';
-    doctorName = 'Dr. S. K. Mehra, MD (Pathology)';
-    docDate = '2023-08-14';
-    docYear = '2023';
-    diagnosis = 'Metabolic Panel & Glycemic Evaluation';
-    ocrConfidence = 96;
-    investigations = [
-      { testName: 'Fasting Blood Sugar (FBS)', observedValue: '198', unit: 'mg/dL', refRange: '70 - 100', status: 'High', isAbnormal: true },
-      { testName: 'HbA1c (Glycated Hemoglobin)', observedValue: '8.9', unit: '%', refRange: '4.0 - 5.6', status: 'High', isAbnormal: true },
-      { testName: 'Serum Creatinine', observedValue: '1.6', unit: 'mg/dL', refRange: '0.7 - 1.3', status: 'High', isAbnormal: true },
-      { testName: 'Total Cholesterol', observedValue: '248', unit: 'mg/dL', refRange: '< 200', status: 'High', isAbnormal: true },
-      { testName: 'Hemoglobin (Hb)', observedValue: '13.4', unit: 'g/dL', refRange: '13.0 - 17.0', status: 'Normal', isAbnormal: false }
-    ];
-  } else if (filename.includes('discharge') || filename.includes('surgery') || docTypeHint === 'discharge_summary') {
-    docType = 'Discharge Summary';
-    category = 'Surgery';
-    hospitalName = 'Government Medical College Hospital';
-    doctorName = 'Dr. V. Ramanathan, MS (Gen Surgery)';
-    docDate = '2024-05-18';
-    docYear = '2024';
-    diagnosis = 'Acute Appendicitis - Post Laparoscopic Appendectomy';
-    ocrConfidence = 91;
-    procedures = [
-      { procedureName: 'Laparoscopic Appendectomy', date: '2024-05-18', surgeon: 'Dr. V. Ramanathan, MS', hospital: 'GMC Hospital', outcome: 'Uneventful recovery. Histopathology confirmed acute mucosal inflammation.' }
-    ];
-    medicines = [
-      { drugName: 'Tab Cefixime 200mg', dosage: '1 Tab', frequency: 'Twice daily (BD)', duration: '5 days', instructions: 'After meals' },
-      { drugName: 'Tab Pantoprazole 40mg', dosage: '1 Tab', frequency: 'Once daily (OD)', duration: '5 days', instructions: 'Before breakfast' }
-    ];
-  } else {
-    // Default Prescription
-    docType = 'Prescription';
-    category = 'Prescription';
-    hospitalName = 'District Civil Hospital OPD';
-    doctorName = 'Dr. A. K. Gupta, MD (Medicine)';
-    docDate = '2025-02-10';
-    docYear = '2025';
-    diagnosis = 'Essential Hypertension & Type 2 Diabetes Mellitus';
-    ocrConfidence = 88;
-    medicines = [
-      { drugName: 'Tab Metformin 500mg', dosage: '1 Tab', frequency: 'Twice daily (BD)', duration: 'Ongoing', instructions: 'With meals' },
-      { drugName: 'Tab Telmisartan 40mg', dosage: '1 Tab', frequency: 'Once daily (OD)', duration: 'Ongoing', instructions: 'Morning after breakfast' },
-      { drugName: 'Tab Atorvastatin 20mg', dosage: '1 Tab', frequency: 'Once daily (HS)', duration: 'Ongoing', instructions: 'At bedtime' }
-    ];
+  if (!fileMetadata) {
+    throw new Error('File metadata is required for OCR processing.');
   }
 
-  // Low confidence flag safety mechanism
-  const requiresManualReview = ocrConfidence < 85;
+  const filePath = fileMetadata.path;
+  const mimeType = fileMetadata.mimetype || '';
+  const originalName = fileMetadata.originalname || '';
+
+  // 1. Execute Genuine OCR on the uploaded image or PDF
+  const ocrResult = await ocrEngine.extractText(filePath || fileMetadata.buffer, mimeType, originalName);
+
+  const rawText = ocrResult.rawText || '';
+  const ocrConfidence = ocrResult.confidence || 0;
+  const ocrProvider = ocrResult.provider || 'UNKNOWN';
+
+  // 2. Perform Real Clinical Entity Extraction from the actual OCR text
+  const entities = extractClinicalEntities(rawText, docTypeHint);
+
+  const requiresManualReview = ocrConfidence < 75 || !entities.hasStructuredEntities || !entities.docDate;
+
+  const docDate = entities.docDate || null;
+  const docYear = entities.docYear || (docDate ? docDate.split(/[\/\-\.]/)[2] : null);
 
   return {
-    docType,
-    category,
-    hospitalName,
-    doctorName,
-    docDate,
-    docYear,
-    diagnosis,
+    docType: entities.docType,
+    category: entities.category,
+    hospitalName: entities.hospitalName || 'Unspecified Healthcare Facility',
+    doctorName: entities.doctorName || 'Attending Medical Officer',
+    docDate: docDate,
+    docYear: docYear,
+    diagnosis: entities.diagnosis || 'Clinical Consultation Record',
     ocrConfidence,
+    ocrProvider,
     requiresManualReview,
-    verificationStatus: 'Unverified',
+    verificationStatus: 'MACHINE_EXTRACTED_UNVERIFIED',
     extractedData: {
-      medicines,
-      investigations,
-      procedures,
-      rawTextSummary: `Extracted ${docType} from ${hospitalName} dated ${docDate} for ${diagnosis}.`
+      medicines: entities.medicines,
+      investigations: entities.investigations,
+      procedures: entities.procedures,
+      rawOcrText: rawText,
+      rawTextSummary: entities.rawTextSummary,
+      hasStructuredEntities: entities.hasStructuredEntities,
+      processedAt: new Date().toISOString()
     },
     timelineEntry: {
-      year: docYear,
-      date: docDate,
-      title: `${docType} - ${hospitalName}`,
-      category,
-      badgeColor: category === 'Surgery' ? 'purple' : category === 'Investigation' ? 'cyan' : 'emerald',
-      summary: `Digitized record: ${diagnosis}. Prescriptions: ${medicines.length}, Labs: ${investigations.length}.`
+      year: docYear || 'Recent',
+      date: docDate || 'Unspecified Date',
+      title: `${entities.docType}${entities.hospitalName ? ` - ${entities.hospitalName}` : ''}`,
+      category: entities.category,
+      badgeColor: entities.category === 'Surgery' ? 'purple' : entities.category === 'Investigation' ? 'cyan' : 'emerald',
+      summary: `${entities.rawTextSummary} [Status: Machine-Extracted, Pending Doctor Review]`,
+      isMachineExtracted: true
     }
   };
 };

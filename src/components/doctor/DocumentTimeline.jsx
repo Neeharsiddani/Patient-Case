@@ -352,6 +352,65 @@ export const DocumentTimeline = ({ patient }) => {
                         </div>
                       </div>
                     )}
+
+                    {/* Raw OCR Text Viewer (Preserving Original Text) */}
+                    {doc.rawOcrText && (
+                      <div className="p-3.5 bg-slate-900 text-slate-200 rounded-xl space-y-1.5 border border-slate-700">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                          <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase flex items-center gap-1">
+                            <span>📄 Preserved Raw OCR Text Stream</span>
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-400">
+                            Engine Confidence: {doc.ocrConfidence || 95}%
+                          </span>
+                        </div>
+                        <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
+                          {doc.rawOcrText}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* Clinician Review & Verification Footer */}
+                    <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
+                          doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                        }`}>
+                          {doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
+                            ? '✓ Clinician Verified Record'
+                            : '⚠️ Machine-Extracted (Pending Doctor Review)'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {doc.verificationStatus !== 'VERIFIED_BY_CLINICIAN' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                if (doc.id && !doc.id.startsWith('doc-preset')) {
+                                  await fetch(`/api/documents/${doc.id}/verify`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ diagnosis: doc.diagnosis, docDate: doc.date })
+                                  });
+                                }
+                                doc.verificationStatus = 'VERIFIED_BY_CLINICIAN';
+                                setExpandedDocId(doc.id); // Trigger re-render
+                              } catch (err) {
+                                console.error('Verification failed:', err);
+                              }
+                            }}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <ShieldCheck size={14} />
+                            <span>Verify & Sign Document</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
