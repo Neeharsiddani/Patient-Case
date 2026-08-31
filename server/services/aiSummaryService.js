@@ -103,7 +103,12 @@ export const generateAssistiveSummary = ({
     ];
   }
 
-  let subjectiveSummary = `${age}-year-old ${gender.toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0 ? `Past medical history notable for ${pastMedicalHistory.join(', ')}.` : 'No significant past chronic illness reported.'}`;
+  let hpiDetails = '';
+  if (hpi && typeof hpi === 'object' && Object.keys(hpi).length > 0) {
+    hpiDetails = `HPI: ${Object.entries(hpi).map(([k, v]) => `${k}: ${v}`).join(', ')}. `;
+  }
+
+  let subjectiveSummary = `${age}-year-old ${gender.toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${hpiDetails}${Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0 ? `Past medical history notable for ${pastMedicalHistory.join(', ')}.` : 'No significant past chronic illness reported.'}`;
   let objectiveSummary = `Vitals: ${vitalsSummary}.${Array.isArray(drugAllergies) && drugAllergies.length > 0 ? ` ⚠️ Known Drug Allergies: ${drugAllergies.join(', ')}.` : ' No known drug allergies documented.'}`;
 
   let ayushSummary = null;

@@ -17,10 +17,12 @@ import {
   Info, 
   ChevronRight, 
   ChevronLeft,
-  HeartHandshake
+  HeartHandshake,
+  Mic
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { VoiceInputWidget } from '../common/VoiceInputWidget';
 import { 
   DASHAVIDHA_PARIKSHA_FIELDS, 
   ADDITIONAL_AYUSH_SECTIONS, 
@@ -30,6 +32,8 @@ import {
 export const Step4_AyushHistory = () => {
   const { kioskForm, setKioskForm, language, speakText, t } = usePatient();
   const [activeTab, setActiveTab] = useState(0); // 0: Dashavidha 1-5, 1: Dashavidha 6-10, 2: Agni & Koshtha, 3: Ahara & Vihara, 4: Nidana & Samprapti
+  const [showNidanaVoice, setShowNidanaVoice] = useState(false);
+  const [showSampraptiVoice, setShowSampraptiVoice] = useState(false);
 
   // Ensure ayushHistory exists in kioskForm
   const ayushData = kioskForm.ayushHistory || createInitialAyushState();
@@ -581,9 +585,33 @@ export const Step4_AyushHistory = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700">
-                Patient-Reported Triggering Factors
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700">
+                  Patient-Reported Triggering Factors
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowNidanaVoice(!showNidanaVoice)}
+                  className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-300 flex items-center gap-1 hover:bg-emerald-100 cursor-pointer"
+                >
+                  <Mic size={13} />
+                  <span>{showNidanaVoice ? 'Close Mic' : 'Voice Dictate'}</span>
+                </button>
+              </div>
+
+              {showNidanaVoice && (
+                <VoiceInputWidget
+                  languageKey={language}
+                  promptLabel="Speak what triggers your condition (e.g. cold water, spicy food, late sleep)"
+                  currentValue={ayushData.additionalHistory?.nidana?.patientReportedTriggers || ''}
+                  onTranscriptConfirmed={(text) => {
+                    updateAdditionalHistory('nidana', 'patientReportedTriggers', text);
+                    setShowNidanaVoice(false);
+                  }}
+                  onFallbackToText={() => setShowNidanaVoice(false)}
+                />
+              )}
+
               <textarea
                 rows={3}
                 value={ayushData.additionalHistory?.nidana?.patientReportedTriggers || ''}
@@ -612,9 +640,33 @@ export const Step4_AyushHistory = () => {
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  How did the symptoms begin and change over time?
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">
+                    How did the symptoms begin and change over time?
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowSampraptiVoice(!showSampraptiVoice)}
+                    className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-300 flex items-center gap-1 hover:bg-emerald-100 cursor-pointer"
+                  >
+                    <Mic size={13} />
+                    <span>{showSampraptiVoice ? 'Close Mic' : 'Voice Dictate'}</span>
+                  </button>
+                </div>
+
+                {showSampraptiVoice && (
+                  <VoiceInputWidget
+                    languageKey={language}
+                    promptLabel="Speak how your illness started and changed over days or months"
+                    currentValue={ayushData.additionalHistory?.samprapti?.patientReportedProgression || ''}
+                    onTranscriptConfirmed={(text) => {
+                      updateAdditionalHistory('samprapti', 'patientReportedProgression', text);
+                      setShowSampraptiVoice(false);
+                    }}
+                    onFallbackToText={() => setShowSampraptiVoice(false)}
+                  />
+                )}
+
                 <textarea
                   rows={2}
                   value={ayushData.additionalHistory?.samprapti?.patientReportedProgression || ''}

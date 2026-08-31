@@ -22,10 +22,11 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { VoiceInputWidget } from '../common/VoiceInputWidget';
 
 export const Step2_ReasonForVisit = () => {
   const { kioskForm, setKioskForm, language, speakText, t } = usePatient();
-  const [isListening, setIsListening] = useState(false);
+  const [showVoiceWidget, setShowVoiceWidget] = useState(false);
   const [customInput, setCustomInput] = useState(kioskForm.reasonForVisit || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -111,53 +112,21 @@ export const Step2_ReasonForVisit = () => {
     setTimeout(() => setSaveSuccess(false), 3500);
   };
 
-  const handleVoiceInput = () => {
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
-
-    setIsListening(true);
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = language === 'hi' ? 'hi-IN' : language === 'te' ? 'te-IN' : 'en-IN';
-        recognition.interimResults = false;
-        recognition.onresult = (event) => {
-          const text = event.results[0][0].transcript;
-          setCustomInput(text);
-          setKioskForm(prev => ({
-            ...prev,
-            selectedComplaintId: 'other',
-            reasonForVisit: text,
-            chiefComplaints: [text]
-          }));
-          setIsListening(false);
-          setSaveSuccess(true);
-          setTimeout(() => setSaveSuccess(false), 3000);
-        };
-        recognition.onerror = () => {
-          setIsListening(false);
-        };
-        recognition.start();
-      } catch {
-        setIsListening(false);
-      }
-    } else {
-      setTimeout(() => {
-        setIsListening(false);
-        const sampleText = 'Severe chest tightness and difficulty breathing';
-        setCustomInput(sampleText);
-        setKioskForm(prev => ({
-          ...prev,
-          selectedComplaintId: 'other',
-          reasonForVisit: sampleText,
-          chiefComplaints: [sampleText]
-        }));
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }, 2000);
+  const handleVoiceTranscriptConfirmed = (spokenTranscript, shouldSave = true) => {
+    if (!spokenTranscript) return;
+    setCustomInput(spokenTranscript);
+    const detectedId = inferComplaintId(spokenTranscript);
+    setKioskForm(prev => ({
+      ...prev,
+      selectedComplaintId: detectedId,
+      reasonForVisit: spokenTranscript,
+      customComplaint: spokenTranscript,
+      chiefComplaints: [spokenTranscript]
+    }));
+    setErrorMessage(null);
+    if (shouldSave) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3500);
     }
   };
 
@@ -452,20 +421,43 @@ export const Step2_ReasonForVisit = () => {
 
       {/* 3. Voice / Text Entry Box (Below the common health concerns) */}
       <div className="bg-white border-2 border-cyan-300 rounded-3xl p-5 sm:p-6 space-y-3.5 shadow-xs">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="block text-xs font-extrabold uppercase tracking-wider text-cyan-950">
             Describe your primary illness or reason for visit: <span className="text-red-600">*</span>
           </label>
-          {kioskForm.reasonForVisit ? (
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Active: {kioskForm.reasonForVisit}
-            </span>
-          ) : (
-            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-              Active: Other complaint
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowVoiceWidget(!showVoiceWidget)}
+              className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                showVoiceWidget ? 'bg-cyan-700 text-white shadow-xs' : 'bg-cyan-50 text-cyan-800 border border-cyan-300 hover:bg-cyan-100'
+              }`}
+            >
+              <Mic size={14} />
+              <span>{showVoiceWidget ? 'Hide Voice Assistant' : 'Use Voice Input (ASR)'}</span>
+            </button>
+            {kioskForm.reasonForVisit ? (
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Active: {kioskForm.reasonForVisit}
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                Active: Other complaint
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Multilingual Voice Input Widget */}
+        {showVoiceWidget && (
+          <VoiceInputWidget
+            languageKey={language}
+            promptLabel="Speak your main symptom or illness (e.g. 'Severe fever since yesterday')"
+            currentValue={customInput}
+            onTranscriptConfirmed={(text) => handleVoiceTranscriptConfirmed(text, true)}
+            onFallbackToText={() => setShowVoiceWidget(false)}
+          />
+        )}
         
         <div className="flex flex-col sm:flex-row gap-2.5">
           <input
@@ -483,13 +475,13 @@ export const Step2_ReasonForVisit = () => {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleVoiceInput}
-              style={{ backgroundColor: isListening ? '#dc2626' : '#088395' }}
+              onClick={() => setShowVoiceWidget(!showVoiceWidget)}
+              style={{ backgroundColor: '#088395' }}
               className="flex-1 sm:flex-none px-5 py-3.5 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm hover:opacity-95 cursor-pointer whitespace-nowrap"
-              title="Voice input"
+              title="Toggle voice input"
             >
-              <Mic size={18} className={isListening ? 'animate-pulse' : ''} />
-              <span>{isListening ? 'Listening...' : 'Speak'}</span>
+              <Mic size={18} />
+              <span>Voice</span>
             </button>
 
             <button

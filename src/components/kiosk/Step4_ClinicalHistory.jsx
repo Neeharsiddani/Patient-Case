@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { VoiceInputWidget } from '../common/VoiceInputWidget';
+import { matchSpokenTextToOptions } from '../../services/speechService';
 import { 
   primaryComplaints, 
   clinicalQuestionsData, 
@@ -53,6 +55,8 @@ export const Step4_ClinicalHistory = () => {
   const [historyLang, setHistoryLang] = useState(() => {
     return ['en', 'hi', 'te'].includes(language) ? language : 'en';
   });
+
+  const [showVoiceWidget, setShowVoiceWidget] = useState(false);
 
   // Resolve complaint ID from Step 2 selection or custom reason for visit text
   const resolveComplaintId = () => {
@@ -204,68 +208,46 @@ export const Step4_ClinicalHistory = () => {
 
   const handleAddCustomTextAnswer = () => {
     if (!textAnswerInput.trim() || !currentQuestion) return;
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQuestion.id]: [textAnswerInput.trim()]
-    }));
+    handleVoiceAnswerConfirmed(textAnswerInput.trim(), true);
     setTextAnswerInput('');
-    setTimeout(() => {
-      handleNextQuestion();
-    }, 300);
   };
 
-  // Voice Input Speech Recognition
-  const handleToggleVoiceInput = () => {
-    if (isListening) {
-      setIsListening(false);
-      setVoiceWaveform(false);
-      return;
-    }
-
-    setIsListening(true);
-    setVoiceWaveform(true);
-
-    const voiceLangCode = historyLang === 'hi' ? 'hi-IN' : historyLang === 'te' ? 'te-IN' : 'en-IN';
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Real Voice Answer Handler
+  const handleVoiceAnswerConfirmed = (spokenTranscript, shouldAdvance = false) => {
+    if (!spokenTranscript || !currentQuestion) return;
     
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = voiceLangCode;
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+    setTextAnswerInput(spokenTranscript);
+    
+    // Match spoken text against question options
+    const matchResult = matchSpokenTextToOptions(spokenTranscript, currentQuestion.options, historyLang);
+    
+    setAnswers((prev) => {
+      const existing = prev[currentQuestion.id] || [];
+      let updatedAnswers = [...existing];
 
-        recognition.onresult = (event) => {
-          const transcript = event.results[0][0].transcript;
-          setTextAnswerInput(transcript);
-          setIsListening(false);
-          setVoiceWaveform(false);
-        };
-
-        recognition.onerror = () => {
-          fallbackVoiceSimulation();
-        };
-
-        recognition.start();
-        return;
-      } catch (e) {
-        fallbackVoiceSimulation();
+      if (matchResult.matchedOption) {
+        const optText = matchResult.matchedOption[historyLang] || matchResult.matchedOption.en;
+        if (!updatedAnswers.includes(optText)) {
+          updatedAnswers = currentQuestion.type === 'multi' ? [...updatedAnswers, optText] : [optText];
+        }
+      } else {
+        // Store verbatim spoken transcript
+        if (!updatedAnswers.includes(spokenTranscript)) {
+          updatedAnswers = currentQuestion.type === 'multi' ? [...updatedAnswers, spokenTranscript] : [spokenTranscript];
+        }
       }
-    } else {
-      fallbackVoiceSimulation();
+
+      return {
+        ...prev,
+        [currentQuestion.id]: updatedAnswers
+      };
+    });
+
+    if (shouldAdvance) {
+      setTimeout(() => {
+        handleNextQuestion();
+      }, 400);
     }
-  };
-
-  const fallbackVoiceSimulation = () => {
-    setTimeout(() => {
-      setIsListening(false);
-      setVoiceWaveform(false);
-      if (currentQuestion && currentQuestion.options && currentQuestion.options.length > 0) {
-        const firstOpt = currentQuestion.options[0];
-        const spokenText = firstOpt[historyLang] || firstOpt.en;
-        setTextAnswerInput(spokenText);
-      }
-    }, 2400);
   };
 
   const handleNextQuestion = () => {
@@ -631,11 +613,37 @@ export const Step4_ClinicalHistory = () => {
             })}
           </div>
 
-          {/* Custom Text / Spoken Answer Input Box */}
-          <div className="pt-2">
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Or Speak / Type your own answer:
-            </label>
+          {/* Voice Input Widget Toggle & Container */}
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700">
+                Or Speak / Type your answer in {historyLang === 'hi' ? 'Hindi' : historyLang === 'te' ? 'Telugu' : 'English'}:
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowVoiceWidget(!showVoiceWidget)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  showVoiceWidget ? 'bg-cyan-700 text-white shadow-xs' : 'bg-cyan-50 text-cyan-800 border border-cyan-300 hover:bg-cyan-100'
+                }`}
+              >
+                <Mic size={14} />
+                <span>{showVoiceWidget ? 'Close Voice Assistant' : 'Speak Answer (ASR)'}</span>
+              </button>
+            </div>
+
+            {showVoiceWidget && (
+              <VoiceInputWidget
+                languageKey={historyLang}
+                promptLabel={`Speak your clinical answer clearly in ${historyLang === 'hi' ? 'Hindi' : historyLang === 'te' ? 'Telugu' : 'English'}`}
+                currentValue={textAnswerInput}
+                onTranscriptConfirmed={(transcript) => {
+                  handleVoiceAnswerConfirmed(transcript, true);
+                  setShowVoiceWidget(false);
+                }}
+                onFallbackToText={() => setShowVoiceWidget(false)}
+              />
+            )}
+
             <div className="flex gap-2">
               <input
                 type="text"
@@ -647,11 +655,11 @@ export const Step4_ClinicalHistory = () => {
               />
               <button
                 type="button"
-                onClick={handleToggleVoiceInput}
+                onClick={() => setShowVoiceWidget(!showVoiceWidget)}
                 className="px-3.5 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Voice input"
               >
-                <Mic size={18} className={isListening ? 'text-red-600 animate-pulse' : ''} />
+                <Mic size={18} />
               </button>
               <button
                 type="button"

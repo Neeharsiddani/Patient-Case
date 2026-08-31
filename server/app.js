@@ -14,6 +14,7 @@ import documentRoutes from './routes/documentRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
 import fhirRoutes from './routes/fhirRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
+import voiceRoutes from './routes/voiceRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -76,6 +77,7 @@ app.use('/api/consent', consentRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/fhir', fhirRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // 6. 404 Handler for Unmatched API Endpoints
 app.use('/api', (req, res) => {
