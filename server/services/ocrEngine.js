@@ -27,9 +27,19 @@ class OcrEngineService {
    * Main entry point to extract text from a file buffer or disk path
    */
   async extractText(filePathOrBuffer, mimeType = '', originalName = '') {
+    const isText = mimeType.includes('text') || originalName.toLowerCase().endsWith('.txt');
     const isPdf = mimeType.includes('pdf') || originalName.toLowerCase().endsWith('.pdf');
 
-    if (isPdf) {
+    if (isText) {
+      const text = typeof filePathOrBuffer === 'string' ? fs.readFileSync(filePathOrBuffer, 'utf8') : filePathOrBuffer.toString('utf8');
+      return {
+        success: true,
+        provider: 'TEXT_STREAM',
+        rawText: text,
+        confidence: 100,
+        wordsCount: text.split(/\s+/).length
+      };
+    } else if (isPdf) {
       return this.extractFromPdf(filePathOrBuffer);
     } else {
       return this.extractFromImage(filePathOrBuffer);
