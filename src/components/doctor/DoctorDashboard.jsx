@@ -22,8 +22,8 @@ import { PatientQueue } from './PatientQueue';
 import { RedFlagAlerts } from './RedFlagAlerts';
 import { ClinicalSummary } from './ClinicalSummary';
 import { DocumentTimeline } from './DocumentTimeline';
-import { PrescriptionEditor } from './PrescriptionEditor';
 import { PrintableOpdSlip } from './PrintableOpdSlip';
+import { FhirBundleModal } from './FhirBundleModal';
 import { TriageBadge } from '../common/TriageBadge';
 
 export const DoctorDashboard = () => {
@@ -40,6 +40,7 @@ export const DoctorDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'timeline' | 'rx'
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showFhirModal, setShowFhirModal] = useState(false);
 
   const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
   const doctorName = authenticatedUser?.fullName || 'Dr. Rajesh Sharma, MD';
@@ -194,8 +195,18 @@ export const DoctorDashboard = () => {
 
                     <button
                       type="button"
+                      onClick={() => setShowFhirModal(true)}
+                      className="px-3.5 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                      title="View complete ABDM FHIR R4 document bundle"
+                    >
+                      <FileCheck2 size={15} />
+                      <span>FHIR R4 Bundle</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setShowPrintModal(true)}
-                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
                     >
                       <Printer size={15} />
                       <span>Print Slip</span>
@@ -280,6 +291,15 @@ export const DoctorDashboard = () => {
         <PrintableOpdSlip 
           patient={selectedPatient} 
           onClose={() => setShowPrintModal(false)} 
+        />
+      )}
+
+      {/* ABDM FHIR R4 Bundle Modal */}
+      {showFhirModal && selectedPatient && (
+        <FhirBundleModal
+          patient={selectedPatient}
+          isOpen={showFhirModal}
+          onClose={() => setShowFhirModal(false)}
         />
       )}
     </div>
