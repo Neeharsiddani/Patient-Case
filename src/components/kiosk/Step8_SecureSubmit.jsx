@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
+import { printElement } from '../../utils/printUtility';
 
 export const Step8_SecureSubmit = ({ onFinish }) => {
   const { kioskForm, resetKiosk } = usePatient();
@@ -34,75 +35,10 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
   };
 
   const handlePrint = () => {
-    try {
+    if (slipRef.current) {
+      printElement(slipRef.current, `MediMitra OPD Slip - ${patientToken.tokenNumber}`);
+    } else {
       window.print();
-    } catch (e) {
-      console.warn('Standard window.print() failed, trying popup fallback:', e);
-      if (slipRef.current) {
-        const printWindow = window.open('', '_blank', 'width=650,height=750');
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>OPD Consultation Slip - ${patientToken.tokenNumber}</title>
-                <style>
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
-                  .border-dashed { border-style: dashed; }
-                  .border-b-2 { border-bottom-width: 2px; }
-                  .border-t-2 { border-top-width: 2px; }
-                  .border-slate-300 { border-color: #cbd5e1; }
-                  .grid { display: grid; }
-                  .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-                  .gap-4 { gap: 1rem; }
-                  .text-xs { font-size: 0.75rem; }
-                  .text-sm { font-size: 0.875rem; }
-                  .text-base { font-size: 1rem; }
-                  .text-xl { font-size: 1.25rem; }
-                  .font-bold { font-weight: 700; }
-                  .font-black { font-weight: 900; }
-                  .font-mono { font-family: monospace; }
-                  .bg-slate-50 { background-color: #f8fafc; }
-                  .bg-slate-100 { background-color: #f1f5f9; }
-                  .bg-slate-900 { background-color: #0f172a; color: white; }
-                  .p-3 { padding: 0.75rem; }
-                  .p-6 { padding: 1.5rem; }
-                  .rounded-xl { border-radius: 0.75rem; }
-                  .rounded-2xl { border-radius: 1rem; }
-                  .rounded-3xl { border-radius: 1.5rem; }
-                  .border { border-width: 1px; }
-                  .border-2 { border-width: 2px; }
-                  .border-slate-200 { border-color: #e2e8f0; }
-                  .text-slate-400 { color: #94a3b8; }
-                  .text-slate-500 { color: #64748b; }
-                  .text-slate-700 { color: #334155; }
-                  .text-slate-800 { color: #1e293b; }
-                  .text-slate-900 { color: #0f172a; }
-                  .text-cyan-900 { color: #164e63; }
-                  .text-cyan-800 { color: #155e75; }
-                  .flex { display: flex; }
-                  .items-center { align-items: center; }
-                  .justify-between { justify-content: space-between; }
-                  .text-right { text-align: right; }
-                  .space-y-6 > * + * { margin-top: 1.5rem; }
-                  .space-y-4 > * + * { margin-top: 1rem; }
-                  .w-14 { width: 3.5rem; }
-                  .h-14 { height: 3.5rem; }
-                </style>
-              </head>
-              <body>
-                <div style="border: 2px solid #cbd5e1; border-radius: 1.5rem; padding: 1.5rem; background: white;">
-                  ${slipRef.current.innerHTML}
-                </div>
-                <script>
-                  window.onload = function() { window.print(); window.close(); };
-                </script>
-              </body>
-            </html>
-          `);
-          printWindow.document.close();
-        }
-      }
     }
   };
 

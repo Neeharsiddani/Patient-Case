@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   Building2, 
   ShieldCheck, 
@@ -10,12 +10,22 @@ import {
   Clock
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
+import { printElement } from '../../utils/printUtility';
 
 export const PrintableOpdSlip = ({ patient, onClose }) => {
   const { t } = usePatient();
+  const slipRef = useRef(null);
   if (!patient) return null;
 
   const notes = patient.doctorNotes || {};
+
+  const handlePrint = () => {
+    if (slipRef.current) {
+      printElement(slipRef.current, `Doctor Consultation Record - ${patient.tokenNumber}`);
+    } else {
+      window.print();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -28,16 +38,16 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.print()}
+              onClick={handlePrint}
               style={{ backgroundColor: '#088395' }}
-              className="px-4 py-1.5 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"
+              className="px-4 py-1.5 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow hover:opacity-90 transition-all cursor-pointer"
             >
               <Printer size={14} />
               <span>Print Slip</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -45,7 +55,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
         </div>
 
         {/* Printable Hospital Document Body */}
-        <div id="printable-opd-slip" className="p-8 space-y-6 text-slate-900 bg-white">
+        <div id="printable-opd-slip" ref={slipRef} className="p-8 space-y-6 text-slate-900 bg-white">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
             <div className="flex items-start gap-4">

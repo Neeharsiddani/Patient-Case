@@ -1,3 +1,4 @@
+import React, { useRef } from 'react';
 import { 
   Ticket, 
   Printer, 
@@ -7,15 +8,18 @@ import {
   Clock, 
   ShieldCheck, 
   UserCheck, 
-  ArrowRight,
+  ArrowRight, 
   RotateCcw,
   Sparkles
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
+import { printElement } from '../../utils/printUtility';
 
 export const Step9_TokenReceipt = () => {
   const { kioskForm, t, resetKiosk, setRole, setSelectedPatientId } = usePatient();
+  const slipRef = useRef(null);
+
   const tokenData = kioskForm.generatedToken || {
     tokenNumber: 'MED-108',
     roomNumber: 'Room 104',
@@ -31,7 +35,11 @@ export const Step9_TokenReceipt = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (slipRef.current) {
+      printElement(slipRef.current, `MediMitra OPD Token - ${tokenData.tokenNumber}`);
+    } else {
+      window.print();
+    }
   };
 
   const handleGoToDoctor = () => {
@@ -58,6 +66,7 @@ export const Step9_TokenReceipt = () => {
       {/* Official Printable OPD Slip Card */}
       <div 
         id="printable-opd-slip"
+        ref={slipRef}
         className="max-w-md mx-auto bg-white rounded-3xl border-2 border-slate-300 shadow-xl overflow-hidden relative"
       >
         {/* Slip Top Header */}
