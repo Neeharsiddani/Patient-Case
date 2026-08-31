@@ -135,40 +135,49 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Print Styles for OPD Slips */
 @media print {
-  html, body {
-    background: white !important;
+  /* Hide non-printable elements */
+  .no-print,
+  nav,
+  header,
+  footer,
+  aside,
+  button,
+  .kiosk-nav-bar,
+  .kiosk-steps-header {
+    display: none !important;
+  }
+
+  /* Reset document root for clean printing */
+  html, body, #root, main {
+    background: #ffffff !important;
     color: #0f172a !important;
+    height: auto !important;
+    min-height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  
-  body * {
-    visibility: hidden;
-  }
-  
-  #printable-opd-slip, #printable-opd-slip * {
-    visibility: visible !important;
-  }
-  
+
+  /* Target the printable OPD slip card */
   #printable-opd-slip {
-    position: absolute;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    top: 20px !important;
-    width: 90% !important;
-    max-width: 600px !important;
-    margin: 0 auto !important;
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    max-width: 650px !important;
+    margin: 15px auto !important;
     padding: 24px !important;
-    background: white !important;
-    color: #0f172a !important;
-    border: 2px solid #94a3b8 !important;
+    border: 2px solid #334155 !important;
     border-radius: 20px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
     box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
-  
-  .no-print, nav, header, footer {
-    display: none !important;
+
+  #printable-opd-slip * {
+    visibility: visible !important;
   }
 }
