@@ -21,10 +21,11 @@ export const generateAssistiveSummary = ({
   currentMedications = [],
   drugAllergies = [],
   familyHistory = '',
-  personalHistory = ''
+  personalHistory = '',
+  ayushHistory = null
 }) => {
   const complaintsList = Array.isArray(chiefComplaints) ? chiefComplaints.join(', ') : String(chiefComplaints);
-  const vitalsSummary = `BP: ${vitals.bp_systolic || '--'}/${vitals.bp_diastolic || '--'} mmHg, Pulse: ${vitals.pulse || '--'} bpm, SpO2: ${vitals.spo2 || '--'}%, Temp: ${vitals.temp || '--'}°F, RBS: ${vitals.blood_sugar || '--'} mg/dL`;
+  const vitalsSummary = `BP: ${vitals.bp_systolic || vitals.bpSystolic || '--'}/${vitals.bp_diastolic || vitals.bpDiastolic || '--'} mmHg, Pulse: ${vitals.pulse || '--'} bpm, SpO2: ${vitals.spo2 || '--'}%, Temp: ${vitals.temp || '--'}°F, RBS: ${vitals.blood_sugar || vitals.bloodSugar || '--'} mg/dL`;
   
   const complaintsStr = complaintsList.toLowerCase();
   
@@ -102,8 +103,33 @@ export const generateAssistiveSummary = ({
     ];
   }
 
-  const subjectiveSummary = `${age}-year-old ${gender.toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0 ? `Past medical history notable for ${pastMedicalHistory.join(', ')}.` : 'No significant past chronic illness reported.'}`;
-  const objectiveSummary = `Vitals: ${vitalsSummary}.${Array.isArray(drugAllergies) && drugAllergies.length > 0 ? ` ⚠️ Known Drug Allergies: ${drugAllergies.join(', ')}.` : ' No known drug allergies documented.'}`;
+  let subjectiveSummary = `${age}-year-old ${gender.toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0 ? `Past medical history notable for ${pastMedicalHistory.join(', ')}.` : 'No significant past chronic illness reported.'}`;
+  let objectiveSummary = `Vitals: ${vitalsSummary}.${Array.isArray(drugAllergies) && drugAllergies.length > 0 ? ` ⚠️ Known Drug Allergies: ${drugAllergies.join(', ')}.` : ' No known drug allergies documented.'}`;
+
+  let ayushSummary = null;
+  if (ayushHistory && (ayushHistory.dashavidhaPariksha || ayushHistory.additionalHistory)) {
+    const dp = ayushHistory.dashavidhaPariksha || {};
+    const ah = ayushHistory.additionalHistory || {};
+
+    const prakritiTraits = dp.prakriti ? `Body frame: ${dp.prakriti.bodyFrame || 'Moderate'}, Thermal preference: ${dp.prakriti.thermalPreference || 'Moderate'}, Skin: ${dp.prakriti.skinNature || 'Normal'}` : 'Not recorded';
+    const agniStatus = ah.agni || 'Samagni (Balanced)';
+    const koshthaStatus = ah.koshtha || 'Madhyama (Regular)';
+    const reportedImbalance = dp.vikriti?.primaryImbalanceSymptoms?.length > 0 ? dp.vikriti.primaryImbalanceSymptoms.join('; ') : 'Routine Ayurvedic wellness consultation';
+
+    ayushSummary = {
+      patient_reported_prakriti_traits: prakritiTraits,
+      digestive_fire_agni: agniStatus,
+      bowel_tendency_koshtha: koshthaStatus,
+      reported_imbalance_vikriti: reportedImbalance,
+      diet_regimen_ahara: ah.ahara?.dietType || 'Vegetarian',
+      lifestyle_regimen_vihara: `Wake: ${ah.vihara?.wakeTime || '6:30 AM'}, Sleep: ${ah.vihara?.sleepTime || '11:00 PM'}, Stress: ${ah.vihara?.stressLevel || 'Moderate'}`,
+      causative_triggers_nidana: ah.nidana?.patientReportedTriggers || 'Not specified',
+      disease_progression_samprapti: ah.samprapti?.patientReportedProgression || 'Not specified',
+      disclaimer: 'Patient-reported AYUSH observations — Dosha Prakriti, Dhatu Sara, and Ayurvedic therapeutic plan must be verified by a registered AYUSH/Ayurvedic clinician.'
+    };
+
+    subjectiveSummary += ` [AYUSH Intake: ${prakritiTraits}. Agni: ${agniStatus}, Koshtha: ${koshthaStatus}. Causative Triggers: ${ah.nidana?.patientReportedTriggers || 'None reported'}.]`;
+  }
 
   return {
     subjective_summary: subjectiveSummary,
@@ -111,6 +137,7 @@ export const generateAssistiveSummary = ({
     preliminary_risk_assessment: riskAssessment,
     differential_diagnosis: differential,
     suggested_next_steps: nextSteps,
+    ayush_summary: ayushSummary,
     disclaimer: 'AI-generated draft — requires clinician verification. Not a final clinical diagnosis.',
     is_ai_draft: 1,
     clinician_verified: 0

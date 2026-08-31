@@ -44,7 +44,8 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       reviewOfSystems = {},
       structuredDialogue = [],
       vitals = {},
-      uploadedDocuments = []
+      uploadedDocuments = [],
+      ayushHistory = null
     } = req.body;
 
     // 1. Mandatory Data Validation
@@ -116,7 +117,8 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       currentMedications,
       drugAllergies,
       familyHistory,
-      personalHistory
+      personalHistory,
+      ayushHistory
     });
 
     // 5. Database Persistence: Insert Patient & Routed Case
@@ -125,14 +127,31 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         id, token_number, hospital_id, hospital_name, department_id, department, room_number,
         assigned_doctor_id, assigned_doctor_name, name, age, gender, phone, address,
         abha_id, abha_address, language, reason_for_visit, triage_level, triage_category, triage_color,
-        wait_time, status, case_status, verification_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification')
+        wait_time, status, case_status, verification_status, ayush_history
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification', ?)
     `, [
       patientId, tokenNumber, validatedHospitalId, validatedHospitalName, validatedDeptId, validatedDeptName, roomNumber,
       assignedDoctorId, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
       phone || '', address || '', abhaId || '', abhaAddress || '', language, reasonForVisit || chiefComplaints.join('; '),
-      triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime
+      triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime,
+      ayushHistory ? JSON.stringify(ayushHistory) : null
     ]);
+
+    // 5b. Insert Granular AYUSH Clinical Record if present
+    if (ayushHistory) {
+      await run(`
+        INSERT INTO ayush_histories (
+          id, patient_id, hospital_id, department_id, dashavidha_pariksha, additional_history, clinician_verified
+        ) VALUES (?, ?, ?, ?, ?, ?, 0)
+      `, [
+        uuidv4(),
+        patientId,
+        validatedHospitalId,
+        validatedDeptId,
+        JSON.stringify(ayushHistory.dashavidhaPariksha || {}),
+        JSON.stringify(ayushHistory.additionalHistory || {})
+      ]);
+    }
 
     // 6. Insert Hospital-Scoped Consent Record (DPDP Act 2023)
     await run(`
@@ -397,7 +416,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
           docDate: d.doc_date,
           ocrConfidence: d.ocr_confidence,
           extractedData: d.extracted_data ? JSON.parse(d.extracted_data) : {}
-        }))
+        })),
+        ayushHistory: row.ayush_history ? JSON.parse(row.ayush_history) : null
       };
     }));
 
@@ -526,6 +546,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
           ocrConfidence: d.ocr_confidence,
           extractedData: JSON.parse(d.extracted_data || '{}')
         })),
+        ayushHistory: patient.ayush_history ? JSON.parse(patient.ayush_history) : null,
         consent: consent || null
       }
     });

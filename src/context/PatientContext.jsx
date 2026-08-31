@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { initialPatients } from '../data/initialPatients';
 import { translations } from '../data/translations';
 import { ApiService } from '../services/api';
+import { createInitialAyushState } from '../data/ayushClinicalFlows';
 
 const PatientContext = createContext(null);
 
@@ -200,7 +201,9 @@ export const PatientProvider = ({ children }) => {
     assignedDepartment: '',
     assignedDoctor: '',
     roomNumber: '',
-    generatedToken: null
+    generatedToken: null,
+    isAyushCase: false,
+    ayushHistory: createInitialAyushState()
   });
 
   // Load Hospitals and Patient Queue from Backend Server
@@ -472,7 +475,10 @@ export const PatientProvider = ({ children }) => {
         investigations: [],
         advice: '',
         followUp: ''
-      }
+      },
+      
+      // Structured AYUSH / Dashavidha Pariksha History
+      ayushHistory: kioskForm.ayushHistory || createInitialAyushState()
     };
 
     // Prepend to state queue immediately
@@ -519,7 +525,8 @@ export const PatientProvider = ({ children }) => {
         personalHistory: newPatient.personalHistory,
         reviewOfSystems: newPatient.reviewOfSystems,
         vitals: newPatient.vitals,
-        uploadedDocuments: newPatient.documents
+        uploadedDocuments: newPatient.documents,
+        ayushHistory: newPatient.ayushHistory
       });
     } catch (apiErr) {
       console.warn('Backend intake sync notice (saved locally in browser session):', apiErr.message);
@@ -582,7 +589,9 @@ export const PatientProvider = ({ children }) => {
       assignedDepartment: '',
       assignedDoctor: '',
       roomNumber: '',
-      generatedToken: null
+      generatedToken: null,
+      isAyushCase: false,
+      ayushHistory: createInitialAyushState()
     });
   };
 

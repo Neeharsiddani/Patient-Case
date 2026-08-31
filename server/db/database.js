@@ -152,11 +152,31 @@ export const initDb = async () => {
       verification_status TEXT DEFAULT 'Pending Verification',
       verification_timestamp TEXT,
       rejection_reason TEXT,
+      ayush_history TEXT, -- Structured JSON object for Dashavidha Pariksha & AYUSH History
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(hospital_id) REFERENCES hospitals(id),
       FOREIGN KEY(department_id) REFERENCES departments(id),
       FOREIGN KEY(assigned_doctor_id) REFERENCES users(id)
+    );
+
+    -- 5b. AYUSH / Dashavidha Pariksha Dedicated Clinical Store
+    CREATE TABLE IF NOT EXISTS ayush_histories (
+      id TEXT PRIMARY KEY,
+      patient_id TEXT NOT NULL,
+      hospital_id TEXT NOT NULL,
+      department_id TEXT NOT NULL,
+      dashavidha_pariksha TEXT NOT NULL, -- JSON structured object
+      additional_history TEXT NOT NULL, -- JSON structured object
+      clinician_verified INTEGER DEFAULT 0,
+      verified_by_doctor_id TEXT,
+      verified_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE,
+      FOREIGN KEY(department_id) REFERENCES departments(id) ON DELETE CASCADE,
+      FOREIGN KEY(verified_by_doctor_id) REFERENCES users(id)
     );
 
     -- 6. Consents (DPDP Act 2023 & Hospital-Specific Data Authorization)
@@ -332,14 +352,19 @@ export const initDb = async () => {
 
         // Auto-migration for patients table
         const patCols = await query("PRAGMA table_info(patients)");
-        if (patCols && !patCols.some(c => c.name === 'hospital_id')) {
-          try { await run("ALTER TABLE patients ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN hospital_name TEXT DEFAULT 'Government General Hospital'"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN department_id TEXT DEFAULT 'dept-ggh-hyd-genmed'"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN reason_for_visit TEXT"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN case_status TEXT DEFAULT 'Waiting for Review'"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_id TEXT"); } catch {}
-          try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_name TEXT"); } catch {}
+        if (patCols) {
+          if (!patCols.some(c => c.name === 'hospital_id')) {
+            try { await run("ALTER TABLE patients ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN hospital_name TEXT DEFAULT 'Government General Hospital'"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN department_id TEXT DEFAULT 'dept-ggh-hyd-genmed'"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN reason_for_visit TEXT"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN case_status TEXT DEFAULT 'Waiting for Review'"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_id TEXT"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN assigned_doctor_name TEXT"); } catch {}
+          }
+          if (!patCols.some(c => c.name === 'ayush_history')) {
+            try { await run("ALTER TABLE patients ADD COLUMN ayush_history TEXT"); } catch {}
+          }
         }
 
         // Auto-migration for consents table

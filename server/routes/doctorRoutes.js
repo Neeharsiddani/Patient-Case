@@ -97,6 +97,31 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
         params.push(patientId);
         await run(`UPDATE clinical_histories SET ${updates.join(', ')} WHERE patient_id = ?`, params);
       }
+
+      // 3b. Update AYUSH / Dashavidha Pariksha if present in edited fields
+      if (editedFields.ayushHistory || req.body.ayushHistory) {
+        const ayushPayload = editedFields.ayushHistory || req.body.ayushHistory;
+        await run(`UPDATE patients SET ayush_history = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+          JSON.stringify(ayushPayload),
+          patientId
+        ]);
+
+        await run(`
+          UPDATE ayush_histories
+          SET dashavidha_pariksha = ?,
+              additional_history = ?,
+              clinician_verified = 1,
+              verified_by_doctor_id = ?,
+              verified_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE patient_id = ?
+        `, [
+          JSON.stringify(ayushPayload.dashavidhaPariksha || {}),
+          JSON.stringify(ayushPayload.additionalHistory || {}),
+          doctorId,
+          patientId
+        ]);
+      }
     }
 
     // 4. Record Audit Log

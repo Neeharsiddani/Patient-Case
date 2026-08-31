@@ -199,6 +199,61 @@ export const Step2_ReasonForVisit = () => {
           </span>
         </div>
 
+        {/* Clinical Department / OPD Selection */}
+        <div className="pt-2 space-y-2 border-b border-slate-200/80 pb-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-slate-700 font-bold text-xs">
+              Select Clinical Department / OPD Unit <span className="text-red-600">*</span>
+            </label>
+            {(kioskForm.assignedDepartment?.includes('AYUSH') || kioskForm.assignedDepartment?.includes('Ayurveda')) && (
+              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                🌿 AYUSH / Dashavidha Pariksha Mode Active
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'dept-genmed', name: 'General Medicine', icon: '🩺' },
+              { id: 'dept-ayush', name: 'AYUSH / Ayurveda', icon: '🌿' },
+              { id: 'dept-cardio', name: 'Cardiology', icon: '❤️' },
+              { id: 'dept-ortho', name: 'Orthopedics', icon: '🦴' },
+              { id: 'dept-ped', name: 'Pediatrics', icon: '👶' },
+              { id: 'dept-derm', name: 'Dermatology', icon: '✨' }
+            ].map((d) => {
+              const isSelected = kioskForm.assignedDepartment === d.name || 
+                (d.id === 'dept-ayush' && (kioskForm.assignedDepartment?.includes('AYUSH') || kioskForm.assignedDepartment?.includes('Ayurveda')));
+
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => {
+                    setKioskForm(prev => ({
+                      ...prev,
+                      assignedDepartment: d.name,
+                      selectedDepartmentName: d.name,
+                      selectedDepartmentId: d.id,
+                      isAyushCase: d.id === 'dept-ayush'
+                    }));
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                    isSelected
+                      ? d.id === 'dept-ayush'
+                        ? 'bg-emerald-800 text-white border-emerald-800 shadow-xs'
+                        : 'bg-cyan-800 text-white border-cyan-800 shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300'
+                  }`}
+                >
+                  <span>{d.icon}</span>
+                  <span>{d.name}</span>
+                  {isSelected && <CheckCircle2 size={13} className="ml-0.5" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 text-xs font-semibold pt-1">
           {/* Full Name */}
           <div>

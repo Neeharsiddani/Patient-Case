@@ -247,6 +247,78 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
           </div>
         </div>
 
+        {/* 7. AYUSH & Dashavidha Pariksha Summary (When AYUSH department is selected) */}
+        {(kioskForm.assignedDepartment?.includes('AYUSH') || kioskForm.assignedDepartment?.includes('Ayurveda') || kioskForm.isAyushCase) && (
+          <div className="bg-emerald-50/80 p-5 rounded-3xl border-2 border-emerald-300 shadow-sm space-y-3 md:col-span-2">
+            <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+              <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                <span>🌿</span>
+                <span>Patient-Reported AYUSH & Dashavidha Pariksha Summary</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => onJumpToStep(4)}
+                className="text-xs text-emerald-800 hover:underline flex items-center gap-1 font-bold cursor-pointer"
+              >
+                <Edit2 size={12} /> Edit AYUSH Details
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Physical Frame (Prakriti):</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Medium / Athletic build'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Thermal Preference:</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Prefers Cool'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Digestive Fire (Agni):</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.additionalHistory?.agni || 'Samagni (Balanced)'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Bowel Habit (Koshtha):</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.additionalHistory?.koshtha || 'Madhyama Koshtha'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Tissue Vitality (Sara):</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Moderate / Good'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] text-slate-500 font-bold block">Mental Resilience (Sattva):</span>
+                <span className="font-bold text-emerald-950">
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Madhya Sattva'}
+                </span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 md:col-span-2">
+                <span className="text-[10px] text-slate-500 font-bold block">Active Imbalances & Symptoms (Vikriti):</span>
+                <span className="font-semibold text-emerald-950">
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.length > 0
+                    ? kioskForm.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.join(', ')
+                    : 'Reported digestive and bodily heat symptoms'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

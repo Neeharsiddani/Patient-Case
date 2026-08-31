@@ -268,6 +268,7 @@ export const handler = async (event, context) => {
         status: 'Waiting',
         caseStatus: 'Waiting for Review',
         verificationStatus: 'Pending Verification',
+        ayushHistory: body.ayushHistory || null,
         createdAt: new Date().toISOString()
       };
 
