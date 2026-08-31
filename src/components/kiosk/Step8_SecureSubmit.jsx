@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   CheckCircle2, 
   Printer, 
@@ -9,16 +9,19 @@ import {
   User, 
   ArrowRight,
   Heart,
-  FileCheck2
+  FileCheck2,
+  Maximize2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { printElement } from '../../utils/printUtility';
+import { QrZoomModal } from '../common/QrZoomModal';
 
 export const Step8_SecureSubmit = ({ onFinish }) => {
   const { kioskForm, resetKiosk } = usePatient();
   const slipRef = useRef(null);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const patientToken = kioskForm.generatedToken || {
     tokenNumber: 'MED-101',
@@ -138,16 +141,27 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         {/* QR Code & Clinical Verification Bar */}
         <div className="flex items-center justify-between pt-4 border-t-2 border-dashed border-slate-300">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 bg-white p-1 rounded-xl border border-slate-300 shadow-sm flex items-center justify-center flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              title="Click to enlarge QR code"
+              className="w-16 h-16 bg-white p-1 rounded-xl border-2 border-slate-300 hover:border-cyan-600 shadow-sm flex items-center justify-center flex-shrink-0 cursor-pointer transition-all hover:scale-105 group relative"
+            >
               <QRCodeSVG 
                 value={qrVerificationPayload}
                 size={56}
                 level="M"
                 includeMargin={false}
               />
-            </div>
+              <div className="absolute inset-0 bg-black/10 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Maximize2 size={16} className="text-slate-900 bg-white/90 p-0.5 rounded" />
+              </div>
+            </button>
             <div>
-              <span className="text-[10px] font-mono font-bold text-slate-500 block">DIGITAL VERIFIED PASS</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-mono font-bold text-slate-500 block">DIGITAL VERIFIED PASS</span>
+                <span className="no-print text-[9px] bg-cyan-100 text-cyan-800 font-bold px-1.5 py-0.2 rounded">Tap to Enlarge</span>
+              </div>
               <span className="text-xs font-bold text-slate-800">Scan with Phone / OPD Display</span>
               <span className="text-[10px] text-cyan-800 font-mono block">Token #{patientToken.tokenNumber}</span>
             </div>
@@ -158,6 +172,17 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
           </div>
         </div>
       </div>
+
+      {/* Enlarged QR Code Modal */}
+      <QrZoomModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        value={qrVerificationPayload}
+        title="Official OPD Token QR Pass"
+        tokenNumber={patientToken.tokenNumber}
+        patientName={patientToken.name}
+        subtitle={`${patientToken.hospitalName} • ${patientToken.department} (${patientToken.roomNumber})`}
+      />
 
       {/* Action Buttons */}
       <div className="no-print flex flex-col sm:flex-row gap-3 pt-2">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -13,11 +13,14 @@ import {
   Building2, 
   Sparkles, 
   ExternalLink,
-  Info
+  Info,
+  Maximize2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { QrZoomModal } from './QrZoomModal';
 
 export const AbhaProfileModal = ({ patient, onClose }) => {
+  const [showQrModal, setShowQrModal] = useState(false);
   if (!patient) return null;
 
   const isConsentGranted = patient.consentAgreed || patient.consentStatus === 'Granted' || patient.verificationStatus === 'History Verified';
@@ -115,7 +118,12 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
                   {patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`}
                 </span>
               </div>
-              <div className="p-1 bg-white rounded-xl shadow-md flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                title="Click to enlarge ABHA QR code"
+                className="p-1 bg-white rounded-xl shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-110 group relative border border-white/40"
+              >
                 <QRCodeSVG 
                   value={JSON.stringify({
                     hidn: patient.abhaId,
@@ -130,9 +138,31 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
                   level="M"
                   includeMargin={false}
                 />
-              </div>
+                <div className="absolute inset-0 bg-black/10 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 size={14} className="text-slate-900 bg-white/90 p-0.5 rounded" />
+                </div>
+              </button>
             </div>
           </div>
+
+          {/* Enlarged QR Modal */}
+          <QrZoomModal
+            isOpen={showQrModal}
+            onClose={() => setShowQrModal(false)}
+            value={JSON.stringify({
+              hidn: patient.abhaId,
+              hid: patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`,
+              name: patient.name,
+              gender: patient.gender === 'Male' ? 'M' : patient.gender === 'Female' ? 'F' : 'O',
+              age: patient.age,
+              mobile: patient.phone || '',
+              address: patient.address || ''
+            })}
+            title="Official ABHA Health ID QR"
+            tokenNumber={patient.abhaId}
+            patientName={patient.name}
+            subtitle={`PHR: ${patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`} • ${patient.age} Y / ${patient.gender}`}
+          />
 
           {/* 4 Core Status Indicators */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

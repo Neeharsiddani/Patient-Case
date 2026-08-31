@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Ticket, 
   Printer, 
@@ -9,16 +9,19 @@ import {
   UserCheck, 
   ArrowRight, 
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Maximize2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { printElement } from '../../utils/printUtility';
+import { QrZoomModal } from '../common/QrZoomModal';
 
 export const Step9_TokenReceipt = () => {
   const { kioskForm, t, resetKiosk, setRole, setSelectedPatientId } = usePatient();
   const slipRef = useRef(null);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const tokenData = kioskForm.generatedToken || {
     tokenNumber: 'MED-108',
@@ -135,7 +138,12 @@ export const Step9_TokenReceipt = () => {
           {/* QR Barcode & Security Stamp */}
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center gap-3">
-              <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-xs flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                title="Click to enlarge QR code"
+                className="p-1 bg-white rounded-xl border-2 border-slate-300 hover:border-cyan-600 shadow-xs flex items-center justify-center cursor-pointer transition-all hover:scale-105 group relative"
+              >
                 <QRCodeSVG 
                   value={JSON.stringify({
                     app: 'MediMitra',
@@ -151,9 +159,15 @@ export const Step9_TokenReceipt = () => {
                   level="M"
                   includeMargin={false}
                 />
-              </div>
+                <div className="absolute inset-0 bg-black/10 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 size={14} className="text-slate-900 bg-white/90 p-0.5 rounded" />
+                </div>
+              </button>
               <div className="text-[10px] text-slate-500 font-mono">
-                <span className="font-bold text-slate-700">ABDM DIGITAL PASS</span><br />
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-slate-700">ABDM DIGITAL PASS</span>
+                  <span className="no-print text-[8px] bg-cyan-100 text-cyan-800 font-bold px-1 rounded">Tap QR</span>
+                </div>
                 <span>TOKEN: #{tokenData.tokenNumber}</span>
               </div>
             </div>
@@ -165,6 +179,26 @@ export const Step9_TokenReceipt = () => {
           </div>
         </div>
       </div>
+
+      {/* Enlarged QR Code Modal */}
+      <QrZoomModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        value={JSON.stringify({
+          app: 'MediMitra',
+          type: 'TOKEN_RECEIPT',
+          token: tokenData.tokenNumber,
+          name: tokenData.name,
+          abhaId: tokenData.abhaId,
+          department: tokenData.department,
+          room: tokenData.roomNumber,
+          doctor: tokenData.assignedDoctor
+        })}
+        title="Official ABDM Token Pass"
+        tokenNumber={tokenData.tokenNumber}
+        patientName={tokenData.name}
+        subtitle={`${tokenData.department} • Room: ${tokenData.roomNumber}`}
+      />
 
       {/* Slip Action Buttons */}
       <div className="no-print max-w-md mx-auto flex flex-col sm:flex-row gap-3">

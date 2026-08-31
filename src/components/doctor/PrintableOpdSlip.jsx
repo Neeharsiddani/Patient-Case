@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Building2, 
   ShieldCheck, 
@@ -6,15 +6,18 @@ import {
   X, 
   Stethoscope, 
   Calendar,
-  Clock
+  Clock,
+  Maximize2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePatient } from '../../context/PatientContext';
 import { printElement } from '../../utils/printUtility';
+import { QrZoomModal } from '../common/QrZoomModal';
 
 export const PrintableOpdSlip = ({ patient, onClose }) => {
   const { t } = usePatient();
   const slipRef = useRef(null);
+  const [showQrModal, setShowQrModal] = useState(false);
   if (!patient) return null;
 
   const notes = patient.doctorNotes || {};
@@ -229,7 +232,12 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           {/* Doctor Signature & OPD Stamp */}
           <div className="pt-6 flex items-end justify-between border-t-2 border-dashed border-slate-300">
             <div className="flex items-center gap-3">
-              <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-xs flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(true)}
+                title="Click to enlarge QR code"
+                className="p-1 bg-white rounded-xl border-2 border-slate-300 hover:border-cyan-600 shadow-xs flex items-center justify-center cursor-pointer transition-all hover:scale-105 group relative"
+              >
                 <QRCodeSVG 
                   value={JSON.stringify({
                     app: 'MediMitra',
@@ -245,9 +253,15 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                   level="M"
                   includeMargin={false}
                 />
-              </div>
+                <div className="absolute inset-0 bg-black/10 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Maximize2 size={14} className="text-slate-900 bg-white/90 p-0.5 rounded" />
+                </div>
+              </button>
               <div className="text-[10px] text-slate-500 font-mono">
-                <span className="font-bold text-slate-800">ABDM VERIFIED RECORD</span><br />
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-slate-800">ABDM VERIFIED RECORD</span>
+                  <span className="no-print text-[8px] bg-cyan-100 text-cyan-800 font-bold px-1 rounded">Tap QR</span>
+                </div>
                 <span>TOKEN: #{patient.tokenNumber}</span>
               </div>
             </div>
@@ -263,6 +277,26 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           </div>
         </div>
       </div>
+
+      {/* Enlarged QR Code Modal */}
+      <QrZoomModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        value={JSON.stringify({
+          app: 'MediMitra',
+          type: 'VERIFIED_CLINICAL_CONSULTATION',
+          token: patient.tokenNumber,
+          patientName: patient.name,
+          abhaId: patient.abhaId,
+          doctor: patient.assignedDoctor,
+          diagnosis: notes.provisionalDiagnosis,
+          date: new Date().toISOString()
+        })}
+        title="Clinician Verified Consultation Pass"
+        tokenNumber={patient.tokenNumber}
+        patientName={patient.name}
+        subtitle={`${patient.department} • Assessed by ${patient.assignedDoctor}`}
+      />
     </div>
   );
 };
