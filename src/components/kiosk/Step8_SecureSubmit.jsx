@@ -69,7 +69,7 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
               {patientToken.hospitalName}
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              National Health Authority • Ayushman Bharat Digital Mission (ABDM)
+              Outpatient Case Preparation & Clinical Triage System
             </p>
           </div>
 

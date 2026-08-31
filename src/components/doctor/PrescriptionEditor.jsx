@@ -29,6 +29,7 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
   const [selectedTests, setSelectedTests] = useState([]);
   const [doctorAdvice, setDoctorAdvice] = useState('');
   const [followUp, setFollowUp] = useState('After 7 Days (OPD Review)');
+  const [allergyNotice, setAllergyNotice] = useState(null);
 
   // Drug entry fields
   const [selectedDrug, setSelectedDrug] = useState(commonHospitalDrugs[0].name);
@@ -63,24 +64,24 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
           setDiagnosis('Type 2 Diabetes Mellitus with Diabetic Peripheral Neuropathy');
           setSelectedIcd(['E11.9']);
           setPrescriptions([
-            { name: 'Tab. Metformin SR', strength: '500 mg', freq: '1-0-1 (After Meals)', duration: '30 days', instructions: 'Take with lunch and dinner' },
-            { name: 'Tab. Pantoprazole', strength: '40 mg', freq: '1-0-0 (Empty Stomach)', duration: '14 days', instructions: 'Before breakfast' }
+            { name: 'Tab. Metformin', strength: '500 mg', freq: '1-0-1 (After Food)', duration: '30 days', instructions: 'With meals' },
+            { name: 'Cap. Methylcobalamin', strength: '1500 mcg', freq: '0-1-0 (Afternoon)', duration: '30 days', instructions: 'Post-lunch' }
           ]);
-          setSelectedTests(['Glycated Hemoglobin (HbA1c)', 'Fasting & Post-Prandial Blood Sugar (FBS/PPBS)', 'Kidney Function Test (Serum Creatinine, Blood Urea, Electrolytes)']);
-          setDoctorAdvice('Strict diabetic diet (cut refined sugar and carbs). Diabetic foot care and regular blood sugar log.');
+          setSelectedTests(['Fasting Blood Sugar (FBS) & PPBS', 'HbA1c Glycated Hemoglobin', 'Urine Microalbumin / Creatinine Ratio']);
+          setDoctorAdvice('Strict glycemic control, daily diabetic foot inspection, moderate 30 min brisk walk.');
         } else {
-          setDiagnosis('Acute Viral Upper Respiratory Tract Infection / General Evaluation');
+          setDiagnosis('Acute Upper Respiratory Tract Infection (URTI) / Viral Rhinitis');
           setSelectedIcd(['J06.9']);
           setPrescriptions([
-            { name: 'Tab. Paracetamol', strength: '650 mg', freq: '1-0-1 (SOS/After Food)', duration: '5 days', instructions: 'For fever or body pain' },
-            { name: 'Tab. Cetirizine', strength: '10 mg', freq: '0-0-1 (Bedtime)', duration: '5 days', instructions: 'For cold symptoms' }
+            { name: 'Tab. Paracetamol', strength: '650 mg', freq: '1-0-1 (SOS / Fever)', duration: '5 days', instructions: 'Take after food' },
+            { name: 'Tab. Cetirizine', strength: '10 mg', freq: '0-0-1 (Night)', duration: '5 days', instructions: 'May cause drowsiness' }
           ]);
           setSelectedTests(['Complete Blood Count (CBC) with ESR']);
-          setDoctorAdvice('Adequate oral hydration, steam inhalation twice daily, warm saline gargles.');
+          setDoctorAdvice('Adequate hydration, warm saline gargles twice daily, steam inhalation, rest.');
         }
       }
     }
-  }, [patient?.id]);
+  }, [patient]);
 
   const handleToggleIcd = (code) => {
     setSelectedIcd((prev) =>
@@ -114,10 +115,11 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
       a.toLowerCase().includes('penicillin') || a.toLowerCase().includes('amoxicillin')
     );
     if (isPenicillinAllergic && selectedDrug.toLowerCase().includes('amoxicillin')) {
-      alert('⚠️ CONTRAINDICATION ALERT: Patient has a recorded severe allergy to Penicillin / Amoxicillin!');
+      setAllergyNotice('⚠️ CONTRAINDICATION ALERT: Patient has a recorded severe allergy to Penicillin / Amoxicillin!');
       return;
     }
 
+    setAllergyNotice(null);
     const newPrescription = {
       name: selectedDrug,
       strength,
@@ -281,6 +283,19 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
             </button>
           </div>
         </div>
+
+        {allergyNotice && (
+          <div className="p-3 bg-red-50 border border-red-300 text-red-900 rounded-xl text-xs font-bold flex items-center justify-between animate-fadeIn">
+            <span>{allergyNotice}</span>
+            <button
+              type="button"
+              onClick={() => setAllergyNotice(null)}
+              className="text-red-600 hover:text-red-900 text-xs underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Prescription Table */}
         {prescriptions.length > 0 && (

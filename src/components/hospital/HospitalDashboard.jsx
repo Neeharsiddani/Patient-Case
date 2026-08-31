@@ -101,7 +101,7 @@ export const HospitalDashboard = () => {
       refreshQueue();
       fetchStatsAndDoctors();
     } catch (err) {
-      alert(`Assignment notice: ${err.message}`);
+      console.warn(`Assignment notice: ${err.message}`);
     } finally {
       setAssignLoading(false);
     }
@@ -123,7 +123,7 @@ export const HospitalDashboard = () => {
       setNewDeptDesc('');
       fetchStatsAndDoctors();
     } catch (err) {
-      alert(`Error creating department: ${err.message}`);
+      console.warn(`Error creating department: ${err.message}`);
     }
   };
 

@@ -275,14 +275,7 @@ export class ApiService {
     try {
       return await this.request(`/patients${queryString}`);
     } catch {
-      const saved = localStorage.getItem('medikiosk_patients_v3');
-      if (saved) {
-        try {
-          const patients = JSON.parse(saved);
-          return { success: true, count: patients.length, patients };
-        } catch {}
-      }
-      return { success: true, count: 0, patients: [] };
+      return { success: false, count: 0, patients: [], error: 'Unable to reach clinical server' };
     }
   }
 

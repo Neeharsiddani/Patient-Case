@@ -119,21 +119,17 @@ export const PatientProvider = ({ children }) => {
     return null;
   });
 
-  // Persistent Patients Queue
-  const [patients, setPatients] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('medikiosk_patients_v2');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error('Error parsing stored patients:', e);
-      }
-    }
-    return initialPatients;
-  });
+  // In-Memory Patients Queue (Live synced with authorized hospital API)
+  const [patients, setPatients] = useState(initialPatients);
+
+  // Clean up any historical patient data from localStorage for clinical data security
+  useEffect(() => {
+    try {
+      localStorage.removeItem('medimitra_patients_v2');
+      localStorage.removeItem('medikiosk_patients_v2');
+      localStorage.removeItem('medikiosk_patients_v3');
+    } catch {}
+  }, []);
 
   // Active Patient for Doctor Consultation
   const [selectedPatientId, setSelectedPatientId] = useState('patient-101');
@@ -238,11 +234,6 @@ export const PatientProvider = ({ children }) => {
   useEffect(() => {
     fetchQueueAndHospitals();
   }, [fetchQueueAndHospitals]);
-
-  // Persist patients to localStorage for offline resilience
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-  }, [patients]);
 
   const t = translations[language] || translations.en;
 
