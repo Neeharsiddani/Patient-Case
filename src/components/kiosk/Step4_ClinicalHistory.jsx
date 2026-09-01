@@ -154,11 +154,14 @@ export const Step4_ClinicalHistory = () => {
   const questionsList = clinicalQuestionsData[selectedComplaintId] || clinicalQuestionsData.other || clinicalQuestionsData.chest_pain;
   const currentQuestion = questionsList[currentQIndex] || questionsList[0];
 
-  // Auto-evaluate red flags whenever answers change
+  // Auto-evaluate red flags and keep PatientContext kioskForm synchronized on ANY answer selection
   useEffect(() => {
     const { redFlags } = evaluateClinicalRedFlags(selectedComplaintId, answers);
     setActiveRedFlags(redFlags);
-  }, [answers, selectedComplaintId]);
+    if (answers && Object.keys(answers).length > 0) {
+      saveAndCommitHistory(answers);
+    }
+  }, [answers, selectedComplaintId, historyLang]);
 
   // Voice narration helper when a new question loads
   const speakCurrentQuestion = (qObj) => {
@@ -271,18 +274,18 @@ export const Step4_ClinicalHistory = () => {
   };
 
   // Convert answers to structured summary and commit to PatientContext
-  const saveAndCommitHistory = () => {
+  const saveAndCommitHistory = (currentAnswers = answers) => {
     const selectedComp = primaryComplaints.find((c) => c.id === selectedComplaintId) || primaryComplaints[0];
     const compTitle = selectedComp[historyLang] || selectedComp.en;
 
     // Build structured question-answer pairs
     const structuredPairs = questionsList.map((q) => {
-      const ansList = answers[q.id] || ['Not specified'];
+      const ansList = currentAnswers[q.id] || [];
       return {
         questionId: q.id,
         category: q.key,
         question: q[historyLang] || q.en,
-        answers: ansList
+        answers: ansList.length > 0 ? ansList : ['Not specified']
       };
     });
 
@@ -294,40 +297,47 @@ export const Step4_ClinicalHistory = () => {
     const extractedMeds = [];
 
     // Search answers for duration & conditions
-    Object.keys(answers).forEach((k) => {
-      const ansArr = answers[k] || [];
+    Object.keys(currentAnswers).forEach((k) => {
+      const ansArr = currentAnswers[k] || [];
       const text = ansArr.join(' ');
-      if (text.includes('1 hour') || text.includes('hours ago') || text.includes('Today')) {
+      if (text.includes('1 hour') || text.includes('hours ago') || text.includes('Today') || text.includes('आज') || text.includes('ఈ రోజు')) {
         extractedDuration = 'Started Today (< 6 hours)';
-      } else if (text.includes('2 to 3 days') || text.includes('1 to 2 days')) {
+      } else if (text.includes('2 to 3 days') || text.includes('1 to 2 days') || text.includes('दिन') || text.includes('రోజు')) {
         extractedDuration = '2 to 3 Days';
-      } else if (text.includes('week') || text.includes('weeks')) {
+      } else if (text.includes('week') || text.includes('weeks') || text.includes('हफ्ता') || text.includes('వారం')) {
         extractedDuration = '> 1 Week';
       }
 
       if (text.includes('1-3')) extractedPainScore = 2;
       if (text.includes('4-6')) extractedPainScore = 5;
       if (text.includes('7-8')) extractedPainScore = 8;
-      if (text.includes('9-10') || text.includes('Unbearable')) extractedPainScore = 9;
+      if (text.includes('9-10') || text.includes('Unbearable') || text.includes('असहनीय') || text.includes('భరించలేని')) extractedPainScore = 9;
 
-      if (text.includes('Diabetes') || text.includes('शुगर')) extractedPastConds.push('Type 2 Diabetes Mellitus');
-      if (text.includes('Blood Pressure') || text.includes('बीपी')) extractedPastConds.push('Essential Hypertension');
-      if (text.includes('Heart Attack') || text.includes('हार्ट अटैक')) extractedPastConds.push('Coronary Artery Disease (CAD)');
+      if (text.includes('Diabetes') || text.includes('शुगर') || text.includes('షుగర్')) extractedPastConds.push('Type 2 Diabetes Mellitus');
+      if (text.includes('Blood Pressure') || text.includes('बीपी') || text.includes('బీపీ')) extractedPastConds.push('Essential Hypertension');
+      if (text.includes('Heart Attack') || text.includes('हार्ट अटैक') || text.includes('హార్ట్ ఎటాక్')) extractedPastConds.push('Coronary Artery Disease (CAD)');
 
-      if (text.includes('Penicillin') || text.includes('पेनिसिलिन')) extractedAllergies.push('Penicillin / Amoxicillin');
-      if (text.includes('Painkillers') || text.includes('Diclofenac')) extractedAllergies.push('NSAIDs (Diclofenac / Ibuprofen)');
-      if (text.includes('Sulfa') || text.includes('सल्फा')) extractedAllergies.push('Sulfa Drugs');
+      if (text.includes('Penicillin') || text.includes('पेनिसिलिन') || text.includes('పెన్సిలిన్')) extractedAllergies.push('Penicillin / Amoxicillin');
+      if (text.includes('Painkillers') || text.includes('Diclofenac') || text.includes('డైక్లోఫెనాక్')) extractedAllergies.push('NSAIDs (Diclofenac / Ibuprofen)');
+      if (text.includes('Sulfa') || text.includes('सल्फा') || text.includes('సల్ఫా')) extractedAllergies.push('Sulfa Drugs');
 
-      if (text.includes('Blood Pressure tablets')) extractedMeds.push('Tab. Telmisartan 40mg (1-0-0)');
-      if (text.includes('Diabetes medicines')) extractedMeds.push('Tab. Metformin 500mg (1-0-1)');
-      if (text.includes('Blood thinners')) extractedMeds.push('Tab. Ecosprin 75mg (0-1-0)');
+      if (text.includes('Blood Pressure tablets') || text.includes('बीपी की गोलियां') || text.includes('బీపీ మాత్రలు')) extractedMeds.push('Tab. Telmisartan 40mg (1-0-0)');
+      if (text.includes('Diabetes medicines') || text.includes('डायबिटीज') || text.includes('షుగర్ మందులు')) extractedMeds.push('Tab. Metformin 500mg (1-0-1)');
+      if (text.includes('Blood thinners') || text.includes('खून पतला') || text.includes('రక్తం పల్చబడే')) extractedMeds.push('Tab. Ecosprin 75mg (0-1-0)');
     });
 
     const complaintSummary = kioskForm.reasonForVisit || compTitle;
 
     // Extract red flag titles
-    const { redFlags } = evaluateClinicalRedFlags(selectedComplaintId, answers);
-    const redFlagTitles = redFlags.map((rf) => rf[historyLang === 'hi' ? 'titleHi' : historyLang === 'te' ? 'titleTe' : 'titleEn'] || rf.titleEn);
+    const { redFlags } = evaluateClinicalRedFlags(selectedComplaintId, currentAnswers);
+    const redFlagTitles = redFlags.map((rf) => 
+      typeof rf === 'string' ? rf : (rf[historyLang === 'hi' ? 'titleHi' : historyLang === 'te' ? 'titleTe' : 'titleEn'] || rf.titleEn || rf.details)
+    );
+
+    setActiveRedFlags(redFlags);
+
+    const hasCritical = redFlags.some(r => r.level === 'CRITICAL');
+    const hasFlags = redFlagTitles.length > 0;
 
     setKioskForm((prev) => ({
       ...prev,
@@ -339,12 +349,12 @@ export const Step4_ClinicalHistory = () => {
       pastConditions: extractedPastConds.length > 0 ? extractedPastConds : prev.pastConditions,
       allergies: extractedAllergies.length > 0 ? extractedAllergies : (prev.allergies.length > 0 ? prev.allergies : ['No Known Drug Allergies (NKDA)']),
       currentMedications: extractedMeds.length > 0 ? extractedMeds : prev.currentMedications,
-      historyAnswers: answers,
+      historyAnswers: currentAnswers,
       structuredHistory: structuredPairs,
-      redFlags: redFlagTitles.length > 0 ? redFlagTitles : prev.redFlags,
-      triageLevel: redFlags.some(r => r.level === 'CRITICAL') ? 2 : (redFlags.length > 0 ? 3 : 4),
-      triageCategory: redFlags.some(r => r.level === 'CRITICAL') ? 'Emergent (Red Flag)' : (redFlags.length > 0 ? 'Urgent (Yellow)' : 'Routine (Green)'),
-      triageColor: redFlags.some(r => r.level === 'CRITICAL') ? 'red' : (redFlags.length > 0 ? 'yellow' : 'green')
+      redFlags: redFlagTitles,
+      triageLevel: hasCritical ? 1 : (hasFlags ? 2 : 4),
+      triageCategory: hasCritical ? 'Resuscitation / Immediate Priority' : (hasFlags ? 'High Clinical Priority (Red Flag)' : 'Routine (Green)'),
+      triageColor: (hasCritical || hasFlags) ? 'red' : 'green'
     }));
   };
 

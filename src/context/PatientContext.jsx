@@ -3,6 +3,7 @@ import { initialPatients } from '../data/initialPatients';
 import { translations } from '../data/translations';
 import { ApiService } from '../services/api';
 import { createInitialAyushState } from '../data/ayushClinicalFlows';
+import { evaluateClinicalRedFlags } from '../data/clinicalFlows';
 
 const PatientContext = createContext(null);
 
@@ -280,12 +281,42 @@ export const PatientProvider = ({ children }) => {
     const redFlags = [];
     let severityScore = 0;
 
-    const sys = Number(form.vitals.bpSystolic);
-    const dia = Number(form.vitals.bpDiastolic);
-    const spo2 = Number(form.vitals.spo2);
-    const pulse = Number(form.vitals.pulse);
-    const temp = Number(form.vitals.temp);
-    const bs = Number(form.vitals.bloodSugar);
+    // 1. Incorporate already identified clinical red flags from medical history
+    if (Array.isArray(form?.redFlags) && form.redFlags.length > 0) {
+      form.redFlags.forEach((rf) => {
+        const text = typeof rf === 'string' ? rf : (rf.titleEn || rf.title || String(rf));
+        if (text && !redFlags.includes(text)) {
+          redFlags.push(text);
+          severityScore += 4;
+        }
+      });
+    }
+
+    // 2. Also evaluate any medical history question answers directly
+    if (form?.historyAnswers && Object.keys(form.historyAnswers).length > 0) {
+      try {
+        const evaluated = evaluateClinicalRedFlags(form.selectedComplaintId || 'chest_pain', form.historyAnswers);
+        if (evaluated?.redFlags && evaluated.redFlags.length > 0) {
+          evaluated.redFlags.forEach((rf) => {
+            const text = typeof rf === 'string' ? rf : (rf.titleEn || rf.title || rf.details);
+            if (text && !redFlags.includes(text)) {
+              redFlags.push(text);
+              severityScore += (rf.level === 'CRITICAL' ? 5 : 3);
+            }
+          });
+        }
+        if (evaluated?.maxScore) severityScore += evaluated.maxScore;
+      } catch (err) {
+        console.warn('Error evaluating clinical red flags in calculateTriage:', err);
+      }
+    }
+
+    const sys = Number(form?.vitals?.bpSystolic);
+    const dia = Number(form?.vitals?.bpDiastolic);
+    const spo2 = Number(form?.vitals?.spo2);
+    const pulse = Number(form?.vitals?.pulse);
+    const temp = Number(form?.vitals?.temp);
+    const bs = Number(form?.vitals?.bloodSugar);
 
     if (sys >= 170 || dia >= 105) {
       redFlags.push(`Critical BP Alert: Hypertensive crisis level (${sys}/${dia} mmHg)`);
@@ -294,28 +325,28 @@ export const PatientProvider = ({ children }) => {
       severityScore += 2;
     }
 
-    if (spo2 <= 92) {
+    if (spo2 && spo2 <= 92) {
       redFlags.push(`Hypoxia Alert: Oxygen saturation low (${spo2}%)`);
       severityScore += 5;
-    } else if (spo2 <= 95) {
+    } else if (spo2 && spo2 <= 95) {
       severityScore += 2;
     }
 
-    if (pulse >= 120 || pulse <= 45) {
+    if (pulse && (pulse >= 120 || pulse <= 45)) {
       redFlags.push(`Arrhythmia Alert: Extreme pulse rate (${pulse} bpm)`);
       severityScore += 3;
     }
 
-    if (bs >= 250) {
+    if (bs && bs >= 250) {
       redFlags.push(`Hyperglycemia Alert: Random blood sugar very high (${bs} mg/dL)`);
       severityScore += 3;
-    } else if (bs <= 60) {
+    } else if (bs && bs <= 60) {
       redFlags.push(`Hypoglycemia Alert: Blood glucose critically low (${bs} mg/dL)`);
       severityScore += 4;
     }
 
     // Check Symptoms & Reason for Visit
-    const complaintsToCheck = [...(form.chiefComplaints || []), form.reasonForVisit || ''];
+    const complaintsToCheck = [...(form?.chiefComplaints || []), form?.reasonForVisit || ''];
     complaintsToCheck.forEach((comp) => {
       const lower = String(comp).toLowerCase();
       if (lower.includes('crushing chest') || lower.includes('radiating') || lower.includes('worst headache') || lower.includes('blood in') || lower.includes('syncope') || lower.includes('blackout') || lower.includes('heart attack')) {
@@ -329,12 +360,12 @@ export const PatientProvider = ({ children }) => {
       }
     });
 
-    if (form.painScore >= 8) {
+    if (form?.painScore >= 8) {
       severityScore += 3;
     }
 
     // Check Allergies
-    if (form.allergies.length > 0 && !form.allergies.includes('No Known Drug Allergies (NKDA)')) {
+    if (form?.allergies && form.allergies.length > 0 && !form.allergies.includes('No Known Drug Allergies (NKDA)')) {
       redFlags.push(`Drug Allergy Alert: Patient allergic to ${form.allergies.join(', ')}`);
     }
 
@@ -342,17 +373,17 @@ export const PatientProvider = ({ children }) => {
     let triageCategory = 'Routine / Standard (Green)';
     let triageColor = 'green';
 
-    if (severityScore >= 7 || redFlags.some(r => r.includes('Critical') || r.includes('Hypoxia') || r.includes('High Risk'))) {
+    if (severityScore >= 7 || redFlags.some(r => typeof r === 'string' && (r.toLowerCase().includes('critical') || r.toLowerCase().includes('hypoxia') || r.toLowerCase().includes('high risk') || r.toLowerCase().includes('emergency') || r.toLowerCase().includes('resuscitation') || r.toLowerCase().includes('immediate') || r.toLowerCase().includes('cardiac') || r.toLowerCase().includes('dengue') || r.toLowerCase().includes('stroke') || r.toLowerCase().includes('cauda equina') || r.toLowerCase().includes('anaphylaxis') || r.toLowerCase().includes('bleeding')))) {
       triageLevel = 1;
       triageCategory = 'Resuscitation / Immediate Priority';
       triageColor = 'red';
     } else if (severityScore >= 3 || redFlags.length > 0) {
-      triageLevel = 3;
-      triageCategory = 'Urgent (Yellow)';
-      triageColor = 'amber';
+      triageLevel = 2;
+      triageCategory = 'High Clinical Priority (Red Flag)';
+      triageColor = 'red';
     }
 
-    return { triageLevel, triageCategory, triageColor, redFlags };
+    return { triageLevel, triageCategory, triageColor, redFlags: Array.from(new Set(redFlags)) };
   };
 
   // Submit Kiosk Case to Selected Hospital & Department Queue

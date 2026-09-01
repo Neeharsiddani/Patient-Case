@@ -760,18 +760,87 @@ export const clinicalQuestionsData = {
 };
 
 // Red flag detection logic based on conversation answers
-export const evaluateClinicalRedFlags = (complaintId, answers) => {
+export const evaluateClinicalRedFlags = (complaintId, answers = {}) => {
   const redFlags = [];
   let maxScore = 0;
+  if (!answers || typeof answers !== 'object') {
+    return { redFlags, maxScore };
+  }
 
-  // 1. CHEST PAIN RULES
+  // 1. Direct Option-Level Red Flag Evaluation (Checks ALL selected questions and options)
+  const questions = clinicalQuestionsData[complaintId] || clinicalQuestionsData.chest_pain || [];
+  questions.forEach((q) => {
+    const selected = answers[q.id] || [];
+    if (!selected || selected.length === 0) return;
+    selected.forEach((ans) => {
+      if (!ans) return;
+      const matchedOpt = q.options?.find((opt) => 
+        opt.id === ans ||
+        opt.en === ans ||
+        opt.hi === ans ||
+        opt.te === ans ||
+        (typeof ans === 'string' && (
+          ans.toLowerCase().includes(opt.en.toLowerCase()) ||
+          (opt.hi && ans.includes(opt.hi)) ||
+          (opt.te && ans.includes(opt.te))
+        ))
+      );
+
+      if (matchedOpt && matchedOpt.redFlagScore && matchedOpt.redFlagScore >= 2) {
+        maxScore += matchedOpt.redFlagScore;
+        const isCrit = matchedOpt.redFlagScore >= 4;
+        const titleEn = `Clinical Red Flag: ${q.key} — ${matchedOpt.en}`;
+        const titleHi = `⚠️ नैदानिक चेतावनी: ${q.key} — ${matchedOpt.hi || matchedOpt.en}`;
+        const titleTe = `⚠️ క్లినికల్ ప్రమాద హెచ్చరిక: ${q.key} — ${matchedOpt.te || matchedOpt.en}`;
+        if (!redFlags.some(r => r.titleEn === titleEn)) {
+          redFlags.push({
+            level: isCrit ? 'CRITICAL' : 'URGENT',
+            titleEn,
+            titleHi,
+            titleTe,
+            details: `${q.en} Answered: ${matchedOpt.en}`
+          });
+        }
+      }
+    });
+  });
+
+  // 2. CHEST PAIN RULES
   if (complaintId === 'chest_pain') {
-    const hasBreathlessness = answers['cp_breathlessness']?.some(a => a.includes('severe') || a.includes('difficulty'));
-    const hasSweating = answers['cp_sweating']?.some(a => a.includes('cold sweats') || a.includes('sweating'));
-    const hasRadiation = answers['cp_radiation']?.some(a => a.includes('Left arm') || a.includes('Jaw'));
-    const isCrushing = answers['cp_character']?.some(a => a.includes('Crushing') || a.includes('squeezing'));
-    const isSevere = answers['cp_severity']?.some(a => a.includes('7-8') || a.includes('9-10'));
-    const hasHeartHistory = answers['cp_past_heart']?.some(a => a.includes('Heart Attack') || a.includes('Stent'));
+    const hasBreathlessness = answers['cp_breathlessness']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no breath') || lower.includes('नहीं') || lower.includes('లేదు')) return false;
+      return a === 'cp_br_1' || lower.includes('severe') || lower.includes('difficulty at rest') || a.includes('सांस फूल') || a.includes('ఆయాసం');
+    });
+
+    const hasSweating = answers['cp_sweating']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no sweat') || lower.includes('नहीं') || lower.includes('లేదు')) return false;
+      return a === 'cp_sw_1' || lower.includes('cold sweat') || lower.includes('profuse') || a.includes('ठंडा पसीना') || a.includes('చల్లని చెమటలు');
+    });
+
+    const hasRadiation = answers['cp_radiation']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no, does not') || lower.includes('नहीं, कहीं') || lower.includes('ఎక్కడికీ')) return false;
+      return a === 'cp_rad_1' || a === 'cp_rad_2' || lower.includes('left arm') || lower.includes('jaw') || a.includes('बाएं हाथ') || a.includes('ఎడమ చేయి');
+    });
+
+    const isCrushing = answers['cp_character']?.some(a => {
+      const lower = String(a).toLowerCase();
+      return a === 'cp_char_1' || lower.includes('crushing') || lower.includes('squeezing') || a.includes('भारी दबाव') || a.includes('పిండేస్తున్నట్లు');
+    });
+
+    const isSevere = answers['cp_severity']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('1-3') || lower.includes('mild') || lower.includes('हल्की') || lower.includes('స్వల్ప')) return false;
+      return a === 'cp_sev_3' || a === 'cp_sev_4' || lower.includes('7-8') || lower.includes('9-10') || lower.includes('unbearable') || a.includes('असहनीय') || a.includes('తీవ్రమైన');
+    });
+
+    const hasHeartHistory = answers['cp_past_heart']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no previous') || lower.includes('नहीं') || lower.includes('లేదు')) return false;
+      return a === 'cp_ph_1' || lower.includes('heart attack') || lower.includes('stent') || a.includes('हार्ट अटैक') || a.includes('హార్ట్ ఎటాక్');
+    });
 
     if ((hasBreathlessness || hasSweating) && (isCrushing || isSevere || hasRadiation)) {
       redFlags.push({
@@ -805,10 +874,18 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 2. FEVER RULES
+  // 3. FEVER RULES
   if (complaintId === 'fever') {
-    const hasWarningSigns = answers['fv_warning_signs']?.some(a => a.includes('bleeding') || a.includes('red skin spots') || a.includes('Break-bone'));
-    const hasSevereResp = answers['fv_respiratory']?.some(a => a.includes('severe breathing difficulty'));
+    const hasWarningSigns = answers['fv_warning_signs']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'fv_wn_1' || lower.includes('bleeding') || lower.includes('red skin spots') || lower.includes('break-bone') || a.includes('खून') || a.includes('రక్తం');
+    });
+    const hasSevereResp = answers['fv_respiratory']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no cough') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'fv_resp_1' || lower.includes('severe breathing') || a.includes('कठिनाई') || a.includes('తీవ్ర ఇబ్బంది');
+    });
 
     if (hasWarningSigns) {
       redFlags.push({
@@ -833,11 +910,22 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 3. HEADACHE RULES
+  // 4. HEADACHE RULES
   if (complaintId === 'headache') {
-    const isThunderclap = answers['ha_onset']?.some(a => a.includes('Thunderclap') || a.includes('worst headache'));
-    const hasStrokeSigns = answers['ha_neuro']?.some(a => a.includes('Stroke') || a.includes('weakness in arm') || a.includes('slurred speech'));
-    const hasMeningitisSigns = answers['ha_neuro']?.some(a => a.includes('stiff neck') || a.includes('light sensitivity'));
+    const isThunderclap = answers['ha_onset']?.some(a => {
+      const lower = String(a).toLowerCase();
+      return a === 'ha_on_1' || lower.includes('thunderclap') || lower.includes('worst headache') || a.includes('सबसे तेज') || a.includes('పిడుగు');
+    });
+    const hasStrokeSigns = answers['ha_neuro']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ha_neu_1' || lower.includes('stroke') || lower.includes('weakness in arm') || lower.includes('slurred speech') || a.includes('कमजोरी') || a.includes('చచ్చుబడటం');
+    });
+    const hasMeningitisSigns = answers['ha_neuro']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ha_neu_2' || lower.includes('stiff neck') || lower.includes('light sensitivity') || a.includes('गर्दन अकड़') || a.includes('మెడ బిగుతు');
+    });
 
     if (isThunderclap || hasStrokeSigns || hasMeningitisSigns) {
       redFlags.push({
@@ -851,11 +939,19 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 4. ABDOMINAL PAIN RULES
+  // 5. ABDOMINAL PAIN RULES
   if (complaintId === 'abdominal_pain') {
-    const isRightLower = answers['ab_location']?.some(a => a.includes('Right lower side'));
-    const hasGiBleed = answers['ab_red_flags']?.some(a => a.includes('vomiting blood') || a.includes('black tarry'));
-    const hasObstruction = answers['ab_red_flags']?.some(a => a.includes('unable to pass gas'));
+    const isRightLower = answers['ab_location']?.some(a => a === 'ab_loc_1' || String(a).toLowerCase().includes('right lower'));
+    const hasGiBleed = answers['ab_red_flags']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ab_rf_1' || lower.includes('vomiting blood') || lower.includes('black tarry') || a.includes('उल्टी में खून') || a.includes('రక్తం');
+    });
+    const hasObstruction = answers['ab_red_flags']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ab_rf_2' || lower.includes('unable to pass gas') || a.includes('गैस पास नहीं');
+    });
 
     if (hasGiBleed || hasObstruction) {
       redFlags.push({
@@ -878,10 +974,14 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 5. COUGH RULES
+  // 6. COUGH RULES
   if (complaintId === 'cough') {
-    const hasHemoptysis = answers['cg_blood_tb']?.some(a => a.includes('blood') || a.includes('Hemoptysis'));
-    const hasTbComplex = answers['cg_blood_tb']?.some(a => a.includes('TB Suspect')) || answers['cg_duration']?.some(a => a.includes('> 2 weeks'));
+    const hasHemoptysis = answers['cg_blood_tb']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('no blood') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'cg_tb_1' || lower.includes('blood') || lower.includes('hemoptysis') || a.includes('खून') || a.includes('రక్తం');
+    });
+    const hasTbComplex = answers['cg_blood_tb']?.some(a => a === 'cg_tb_2' || String(a).toLowerCase().includes('tb suspect')) || answers['cg_duration']?.some(a => a === 'cg_dur_4' || String(a).includes('> 2 weeks'));
 
     if (hasHemoptysis) {
       redFlags.push({
@@ -904,10 +1004,18 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 6. BACK PAIN RULES
+  // 7. BACK PAIN RULES
   if (complaintId === 'back_pain') {
-    const hasCaudaEquina = answers['bk_red_flags']?.some(a => a.includes('loss of urine') || a.includes('Cauda Equina'));
-    const hasFootDrop = answers['bk_red_flags']?.some(a => a.includes('foot drop'));
+    const hasCaudaEquina = answers['bk_red_flags']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'bk_rf_1' || lower.includes('loss of urine') || lower.includes('cauda equina') || a.includes('पेशाब/मल नियंत्रण') || a.includes('నియంత్రణ కోల్పోవడం');
+    });
+    const hasFootDrop = answers['bk_red_flags']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'bk_rf_2' || lower.includes('foot drop') || a.includes('लकवा') || a.includes('కాలు ఎత్తలేకపోవడం');
+    });
 
     if (hasCaudaEquina) {
       redFlags.push({
@@ -930,9 +1038,13 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 7. SKIN RASH RULES
+  // 8. SKIN RASH RULES
   if (complaintId === 'skin_rash') {
-    const hasAnaphylaxis = answers['sk_red_flags']?.some(a => a.includes('Anaphylaxis') || a.includes('throat tightness'));
+    const hasAnaphylaxis = answers['sk_red_flags']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'sk_rf_1' || lower.includes('anaphylaxis') || lower.includes('throat tightness') || a.includes('गले में सूजन') || a.includes('శ్వాసనాళాల వాపు');
+    });
     if (hasAnaphylaxis) {
       redFlags.push({
         level: 'CRITICAL',
@@ -945,11 +1057,23 @@ export const evaluateClinicalRedFlags = (complaintId, answers) => {
     }
   }
 
-  // 8. URINARY RULES
+  // 9. URINARY RULES
   if (complaintId === 'urinary_trouble') {
-    const hasGrossHematuria = answers['ur_symptoms']?.some(a => a.includes('blood in urine'));
-    const hasRetention = answers['ur_symptoms']?.some(a => a.includes('unable to pass urine'));
-    const hasUrosepsis = answers['ur_stone_fever']?.some(a => a.includes('High fever with shivering'));
+    const hasGrossHematuria = answers['ur_symptoms']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ur_sym_1' || lower.includes('blood in urine') || a.includes('खून आना') || a.includes('రక్తం');
+    });
+    const hasRetention = answers['ur_symptoms']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ur_sym_2' || lower.includes('unable to pass urine') || a.includes('पेशाब का रुकाव') || a.includes('మూత్రం నిలిచిపోవడం');
+    });
+    const hasUrosepsis = answers['ur_stone_fever']?.some(a => {
+      const lower = String(a).toLowerCase();
+      if (lower.includes('none') || lower.includes('नहीं') || lower.includes('లేవు')) return false;
+      return a === 'ur_sf_1' || lower.includes('high fever with shivering') || a.includes('तेज बुखार') || a.includes('చలితో జ్వరం');
+    });
 
     if (hasUrosepsis || hasRetention) {
       redFlags.push({
