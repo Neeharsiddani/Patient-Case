@@ -64,21 +64,7 @@ export const DoctorLoginScreen = ({ onBack, onLoginSuccess }) => {
     selectedHospitalId ? { id: selectedHospitalId, name: selectedHospitalName } : null
   );
 
-  // Quick staff credentials for testing demonstration
-  const demoStaffProfiles = [
-    { username: 'dr.sharma', password: 'Doctor@123', name: 'Dr. Rajesh Sharma, MD', dept: 'Cardiology & General Medicine', hospId: 'hosp-ggh-hyd', hospName: 'Government General Hospital (Osmania)' },
-    { username: 'dr.anand', password: 'Doctor@123', name: 'Dr. Anand Verma, MS', dept: 'Orthopedics', hospId: 'hosp-ggh-hyd', hospName: 'Government General Hospital (Osmania)' },
-    { username: 'dr.kiran', password: 'Doctor@123', name: 'Dr. Kiran Reddy, MD, DM', dept: 'Cardiology', hospId: 'hosp-apollo-hyd', hospName: 'Apollo Hospitals Jubilee Hills' },
-    { username: 'admin.ggh', password: 'Admin@123', name: 'GGH Administrator', dept: 'Administration', hospId: 'hosp-ggh-hyd', hospName: 'Government General Hospital (Osmania)' }
-  ];
 
-  const handleSelectDemoProfile = (profile) => {
-    setSelectedHospitalId(profile.hospId);
-    setSelectedHospitalName(profile.hospName);
-    setUsername(profile.username);
-    setPassword(profile.password);
-    setError(null);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -296,25 +282,7 @@ export const DoctorLoginScreen = ({ onBack, onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* Quick Staff Accounts Demo Helper */}
-          <div className="pt-4 border-t border-slate-100 space-y-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Quick Test Clinician Accounts:
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {demoStaffProfiles.map((p) => (
-                <button
-                  key={p.username}
-                  type="button"
-                  onClick={() => handleSelectDemoProfile(p)}
-                  className="p-2.5 bg-slate-50 hover:bg-cyan-50 border border-slate-200 rounded-xl text-left text-xs transition-colors group"
-                >
-                  <div className="font-bold text-slate-800 group-hover:text-cyan-900">{p.name}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{p.hospName} • {p.dept}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2">
             <span className="flex items-center gap-1">

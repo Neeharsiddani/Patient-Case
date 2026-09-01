@@ -39,49 +39,29 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
   const [instructions, setInstructions] = useState(commonHospitalDrugs[0].instructions);
 
   useEffect(() => {
-    if (patient) {
-      // Preload existing doctor notes or auto-suggest defaults based on triage
-      if (patient.doctorNotes && patient.doctorNotes.provisionalDiagnosis) {
-        setDiagnosis(patient.doctorNotes.provisionalDiagnosis);
-        setSelectedIcd(patient.doctorNotes.icd10 || []);
-        setPrescriptions(patient.doctorNotes.prescriptions || []);
-        setSelectedTests(patient.doctorNotes.investigations || []);
-        setDoctorAdvice(patient.doctorNotes.advice || '');
-        setFollowUp(patient.doctorNotes.followUp || 'After 7 Days');
-      } else {
-        // Smart clinical starter based on chief complaints
-        if (patient.triageLevel <= 2) {
-          setDiagnosis('Suspected Acute Coronary Syndrome (ACS) / Hypertensive Urgency');
-          setSelectedIcd(['I20.9', 'I10']);
-          setPrescriptions([
-            { name: 'Tab. Telmisartan', strength: '40 mg', freq: '1-0-0 (Morning)', duration: '30 days', instructions: 'Monitor BP daily' },
-            { name: 'Tab. Atorvastatin', strength: '40 mg', freq: '0-0-1 (Night)', duration: '30 days', instructions: 'Post-dinner' },
-            { name: 'Tab. Pantoprazole', strength: '40 mg', freq: '1-0-0 (Empty Stomach)', duration: '14 days', instructions: 'Before breakfast' }
-          ]);
-          setSelectedTests(['12-Lead Electrocardiogram (ECG)', 'Complete Blood Count (CBC) with ESR', 'Lipid Profile (Total Cholesterol, Triglycerides, LDL, HDL)', 'Kidney Function Test (Serum Creatinine, Blood Urea, Electrolytes)']);
-          setDoctorAdvice('Low salt & low fat diet. Immediate stat 12-lead ECG and troponin-I evaluation. Avoid strenuous physical exertion.');
-        } else if (patient.chiefComplaints?.some(c => c.toLowerCase().includes('diabetes') || c.toLowerCase().includes('neuropathy'))) {
-          setDiagnosis('Type 2 Diabetes Mellitus with Diabetic Peripheral Neuropathy');
-          setSelectedIcd(['E11.9']);
-          setPrescriptions([
-            { name: 'Tab. Metformin', strength: '500 mg', freq: '1-0-1 (After Food)', duration: '30 days', instructions: 'With meals' },
-            { name: 'Cap. Methylcobalamin', strength: '1500 mcg', freq: '0-1-0 (Afternoon)', duration: '30 days', instructions: 'Post-lunch' }
-          ]);
-          setSelectedTests(['Fasting Blood Sugar (FBS) & PPBS', 'HbA1c Glycated Hemoglobin', 'Urine Microalbumin / Creatinine Ratio']);
-          setDoctorAdvice('Strict glycemic control, daily diabetic foot inspection, moderate 30 min brisk walk.');
-        } else {
-          setDiagnosis('Acute Upper Respiratory Tract Infection (URTI) / Viral Rhinitis');
-          setSelectedIcd(['J06.9']);
-          setPrescriptions([
-            { name: 'Tab. Paracetamol', strength: '650 mg', freq: '1-0-1 (SOS / Fever)', duration: '5 days', instructions: 'Take after food' },
-            { name: 'Tab. Cetirizine', strength: '10 mg', freq: '0-0-1 (Night)', duration: '5 days', instructions: 'May cause drowsiness' }
-          ]);
-          setSelectedTests(['Complete Blood Count (CBC) with ESR']);
-          setDoctorAdvice('Adequate hydration, warm saline gargles twice daily, steam inhalation, rest.');
-        }
-      }
-    }
-  }, [patient]);
+    if (!patient) return;
+
+    // Load persisted clinician-created notes if present; otherwise, start completely empty.
+    const existingNotes = patient.doctorNotes || {};
+    const existingPrescriptions = Array.isArray(existingNotes.prescriptions) && existingNotes.prescriptions.length > 0
+      ? existingNotes.prescriptions
+      : (Array.isArray(patient.prescriptions) && patient.prescriptions.length > 0 ? patient.prescriptions : []);
+
+    const existingIcd = Array.isArray(existingNotes.icd10) && existingNotes.icd10.length > 0
+      ? existingNotes.icd10
+      : (Array.isArray(patient.icd10) ? patient.icd10 : []);
+
+    const existingTests = Array.isArray(existingNotes.investigations) && existingNotes.investigations.length > 0
+      ? existingNotes.investigations
+      : (Array.isArray(patient.investigations) ? patient.investigations : []);
+
+    setDiagnosis(existingNotes.provisionalDiagnosis || patient.provisionalDiagnosis || '');
+    setSelectedIcd(existingIcd);
+    setPrescriptions(existingPrescriptions);
+    setSelectedTests(existingTests);
+    setDoctorAdvice(existingNotes.advice || patient.doctorAdvice || '');
+    setFollowUp(existingNotes.followUp || patient.followUp || 'After 7 Days (OPD Review)');
+  }, [patient?.id]);
 
   const handleToggleIcd = (code) => {
     setSelectedIcd((prev) =>
@@ -107,28 +87,34 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
     }
   };
 
-  const handleAddDrug = () => {
-    if (!selectedDrug.trim()) return;
+  const handleAddDrug = (medication = null) => {
+    const drugToAdd = (medication && medication.name) ? {
+      name: medication.name,
+      strength: medication.strength || '',
+      freq: medication.freq || '1-0-1 (After Food)',
+      duration: medication.duration || '5 days',
+      instructions: medication.instructions || ''
+    } : {
+      name: selectedDrug?.trim() || '',
+      strength: strength?.trim() || '',
+      freq: freq?.trim() || '',
+      duration: duration?.trim() || '',
+      instructions: instructions?.trim() || ''
+    };
+
+    if (!drugToAdd.name) return;
 
     // Check allergy contraindication!
     const isPenicillinAllergic = patient?.allergies?.some((a) =>
       a.toLowerCase().includes('penicillin') || a.toLowerCase().includes('amoxicillin')
     );
-    if (isPenicillinAllergic && selectedDrug.toLowerCase().includes('amoxicillin')) {
+    if (isPenicillinAllergic && drugToAdd.name.toLowerCase().includes('amoxicillin')) {
       setAllergyNotice('⚠️ CONTRAINDICATION ALERT: Patient has a recorded severe allergy to Penicillin / Amoxicillin!');
       return;
     }
 
     setAllergyNotice(null);
-    const newPrescription = {
-      name: selectedDrug,
-      strength,
-      freq,
-      duration,
-      instructions
-    };
-
-    setPrescriptions((prev) => [...prev, newPrescription]);
+    setPrescriptions((prev) => [...prev, drugToAdd]);
   };
 
   const handleRemoveDrug = (index) => {
@@ -137,12 +123,12 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
 
   const handleSaveConsultation = (andPrint = false) => {
     const updatedNotes = {
-      provisionalDiagnosis: diagnosis,
+      provisionalDiagnosis: diagnosis.trim(),
       icd10: selectedIcd,
       prescriptions,
       investigations: selectedTests,
-      advice: doctorAdvice,
-      followUp
+      advice: doctorAdvice.trim(),
+      followUp: followUp.trim()
     };
 
     updateDoctorNotes(patient.id, updatedNotes, true);
@@ -274,13 +260,41 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
             />
             <button
               type="button"
-              onClick={handleAddDrug}
+              onClick={() => handleAddDrug()}
               style={{ backgroundColor: '#088395' }}
-              className="px-4 py-1.5 text-white font-bold text-xs rounded-xl flex items-center gap-1 shadow-sm hover:opacity-90 transition-all"
+              className="px-5 py-2 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:opacity-90 transition-all cursor-pointer"
             >
               <Plus size={16} />
-              <span>Add Rx</span>
+              <span>Add Medication</span>
             </button>
+          </div>
+        </div>
+
+        {/* Optional Hospital Formulary Quick-Add (Explicit Add button only) */}
+        <div className="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+              <Tag size={13} className="text-cyan-700" />
+              <span>Common Hospital Formulary Quick-Add:</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              Click "+ Add" to explicitly prescribe
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {commonHospitalDrugs.map((d) => (
+              <button
+                key={d.name}
+                type="button"
+                onClick={() => handleAddDrug(d)}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-cyan-50 hover:border-cyan-400 text-slate-800 text-[11px] font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-2xs group"
+              >
+                <span>{d.name} <span className="text-slate-500 font-normal">({d.strength})</span></span>
+                <span className="text-cyan-700 group-hover:text-cyan-800 font-extrabold flex items-center gap-0.5 text-[10px] bg-cyan-50 group-hover:bg-cyan-100 px-1.5 py-0.5 rounded-md border border-cyan-200 transition-colors">
+                  <Plus size={10} strokeWidth={3} /> Add
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -297,8 +311,18 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
           </div>
         )}
 
-        {/* Prescription Table */}
-        {prescriptions.length > 0 && (
+        {/* Prescription Table or Clean Empty State */}
+        {prescriptions.length === 0 ? (
+          <div className="p-6 sm:p-8 bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-2">
+            <div className="w-10 h-10 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+              <Pill size={22} />
+            </div>
+            <h5 className="text-xs font-bold text-slate-800">No Medications Prescribed Yet</h5>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed">
+              This consultation currently has 0 active medication orders. Select a drug from the formulary row above and click <strong>"Add Medication"</strong>, or click <strong>"+ Add"</strong> on any formulary item to prescribe.
+            </p>
+          </div>
+        ) : (
           <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
@@ -315,7 +339,7 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
                 {prescriptions.map((drug, index) => (
                   <tr key={index} className="hover:bg-slate-50 font-medium">
                     <td className="p-3 font-bold text-slate-400">{index + 1}</td>
-                    <td className="p-3 font-bold text-slate-900">{drug.name} <span className="text-cyan-700">({drug.strength})</span></td>
+                    <td className="p-3 font-bold text-slate-900">{drug.name} <span className="text-cyan-700 font-semibold">({drug.strength})</span></td>
                     <td className="p-3 text-slate-700 font-mono">{drug.freq}</td>
                     <td className="p-3 text-slate-700">{drug.duration}</td>
                     <td className="p-3 text-slate-500 text-[11px]">{drug.instructions}</td>
@@ -323,7 +347,8 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
                       <button
                         type="button"
                         onClick={() => handleRemoveDrug(index)}
-                        className="text-slate-400 hover:text-red-600 p-1"
+                        className="text-slate-400 hover:text-red-600 p-1 cursor-pointer transition-colors"
+                        title="Remove prescription"
                       >
                         <Trash2 size={14} />
                       </button>

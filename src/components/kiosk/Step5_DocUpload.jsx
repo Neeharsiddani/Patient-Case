@@ -61,12 +61,8 @@ export const Step5_DocUpload = () => {
     }));
   };
 
-  const handleSimulateCameraCapture = () => {
-    setIsCameraActive(true);
-    setTimeout(() => {
-      setIsCameraActive(false);
-      handleProcessAndAttach(standardClinicalDocuments[0]);
-    }, 1200);
+  const handleFlatbedCameraCapture = () => {
+    document.getElementById('flatbed-file-input')?.click();
   };
 
   const handleFileUpload = async (e) => {
@@ -205,87 +201,29 @@ export const Step5_DocUpload = () => {
         </div>
       </div>
 
-      {/* Medical Document Records Selection */}
-      <div className="bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 border border-cyan-200 rounded-3xl p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-cyan-900 font-bold text-sm">
-            <Sparkles size={18} className="text-cyan-600" />
-            <span>Or Choose Sample Clinical Document to Test OCR:</span>
-          </div>
+      {/* Hidden flatbed file input */}
+      <input
+        id="flatbed-file-input"
+        type="file"
+        accept="image/*,.pdf"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
 
-          {/* Filter Pills for 4 Doc Types */}
-          <div className="flex gap-1.5 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setActiveTypeFilter('ALL')}
-              style={{
-                backgroundColor: activeTypeFilter === 'ALL' ? '#088395' : '#ffffff',
-                color: activeTypeFilter === 'ALL' ? '#ffffff' : '#334155'
-              }}
-              className="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200"
-            >
-              All Types
-            </button>
-            {documentTypes.map((dt) => (
-              <button
-                key={dt.id}
-                type="button"
-                onClick={() => setActiveTypeFilter(dt.id)}
-                style={{
-                  backgroundColor: activeTypeFilter === dt.id ? '#088395' : '#ffffff',
-                  color: activeTypeFilter === dt.id ? '#ffffff' : '#334155'
-                }}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 whitespace-nowrap"
-              >
-                {dt.name}
-              </button>
-            ))}
-          </div>
+      {/* Supported Document Types Guidance */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-3">
+        <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+          <ShieldCheck size={18} className="text-cyan-700" />
+          <span>Supported Document Categories for Automated OCR Digitization:</span>
         </div>
 
-        {/* 4 Clinical Record Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {filteredPresets.map((doc) => {
-            const isAttached = kioskForm.uploadedDocs.some((d) => d.id === doc.id);
-            return (
-              <button
-                key={doc.id}
-                type="button"
-                onClick={() => handleProcessAndAttach(doc)}
-                style={{
-                  borderColor: isAttached ? '#088395' : '#cbd5e1',
-                  backgroundColor: isAttached ? '#ecfeff' : '#ffffff'
-                }}
-                className="p-4 rounded-2xl border-2 text-left transition-all hover:border-cyan-500 flex flex-col justify-between shadow-sm card-hover group"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
-                    <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700">{doc.typeName}</span>
-                    <span className="font-mono text-cyan-800 font-extrabold">{doc.year}</span>
-                  </div>
-                  <h4 className="text-xs font-extrabold text-slate-900 group-hover:text-cyan-800 leading-snug line-clamp-2">
-                    {doc.title}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
-                    {doc.hospital}
-                  </p>
-
-                  <div className="mt-2 text-[10px] font-bold text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100 line-clamp-2">
-                    Dx: {doc.diagnosis}
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
-                  <span className={isAttached ? 'text-cyan-800' : 'text-slate-600'}>
-                    {isAttached ? '✓ Attached & Digitized' : '+ Click to Digitize'}
-                  </span>
-                  <span className="text-[10px] text-cyan-700 bg-cyan-100 px-1.5 py-0.5 rounded">
-                    OCR {doc.ocrConfidence}%
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {documentTypes.map((dt) => (
+            <div key={dt.id} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-xs">
+              <h4 className="text-xs font-extrabold text-slate-900">{dt.name}</h4>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{dt.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -329,7 +267,7 @@ export const Step5_DocUpload = () => {
           </div>
           <button
             type="button"
-            onClick={handleSimulateCameraCapture}
+            onClick={handleFlatbedCameraCapture}
             disabled={isCameraActive}
             className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow"
           >

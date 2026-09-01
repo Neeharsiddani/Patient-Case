@@ -19,7 +19,9 @@ const AppContent = () => {
     handleUserLogout, 
     hospitals, 
     activeHospitalId,
+    setActiveHospitalId,
     kioskForm,
+    setKioskForm,
     kioskStep,
     setKioskStep
   } = usePatient();
@@ -113,6 +115,16 @@ const AppContent = () => {
 
   const handleSelectPatient = () => {
     setRole('kiosk');
+    if (setActiveHospitalId) setActiveHospitalId(null);
+    if (!kioskForm?.selectedHospitalId || kioskStep === 1) {
+      setKioskForm(prev => ({
+        ...prev,
+        selectedHospitalId: null,
+        selectedHospitalName: '',
+        hospital_id: null,
+        hospital_name: ''
+      }));
+    }
     setCurrentScreen('patient');
     const step = kioskStep || 1;
     window.history.pushState({ screen: 'patient', step }, '', getRouteUrl('patient', step));
@@ -147,16 +159,15 @@ const AppContent = () => {
 
   const handleLogout = () => {
     handleUserLogout();
+    if (setActiveHospitalId) setActiveHospitalId(null);
     setCurrentScreen('welcome');
     window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
   };
 
   // Selected hospital for patient workflow:
-  // ONLY display a hospital name if the patient has genuinely selected one!
-  const patientHospitalName = kioskForm?.selectedHospitalName || 
-    (kioskForm?.selectedHospitalId && hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name) ||
-    (activeHospitalId && hospitals.find(h => h.id === activeHospitalId)?.name) ||
-    null;
+  // ONLY derive from kioskForm (patient's genuine selection)!
+  // DO NOT use activeHospitalId for patient intake to prevent any doctor session leakage!
+  const patientHospitalName = (kioskForm?.selectedHospitalId && (kioskForm?.selectedHospitalName || hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name)) || null;
 
   // Selected hospital for staff workflow (Doctor / Admin):
   const staffHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId));
@@ -169,7 +180,7 @@ const AppContent = () => {
     : 'Hospital Clinical Workstation';
 
   const headerHospitalText = currentScreen === 'patient'
-    ? (patientHospitalName || 'Select a healthcare facility')
+    ? (patientHospitalName || 'Select Hospital')
     : currentScreen === 'doctor_login'
     ? (staffHospitalName || 'National Healthcare Facility Login')
     : (staffHospitalName || 'Authorized Healthcare Facility');
@@ -227,8 +238,8 @@ const AppContent = () => {
                 {(currentScreen === 'doctor_dashboard' || currentScreen === 'hospital_admin') && (
                   <div className="flex items-center gap-3">
                     <div className="hidden md:flex flex-col text-right">
-                      <span className="text-xs font-bold text-slate-900">{authenticatedUser?.fullName || 'Dr. Rajesh Sharma, MD'}</span>
-                      <span className="text-[10px] text-slate-500">{authenticatedUser?.department || 'Cardiology'}</span>
+                      <span className="text-xs font-bold text-slate-900">{authenticatedUser?.fullName || 'Attending Clinician'}</span>
+                      <span className="text-[10px] text-slate-500">{authenticatedUser?.department || 'Clinical Department'}</span>
                     </div>
 
                     <button

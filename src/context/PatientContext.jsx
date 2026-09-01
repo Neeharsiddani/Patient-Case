@@ -216,12 +216,14 @@ export const PatientProvider = ({ children }) => {
           setHospitals(hospRes.hospitals);
         }
 
-        // Fetch patients based on role & auth
-        const queueRes = await ApiService.getPatients();
-        if (queueRes?.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
-          setPatients(queueRes.patients);
-          if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
-            setSelectedPatientId(queueRes.patients[0].id);
+        // Fetch patients based on role & auth (only when authenticated)
+        if (ApiService.getAuthToken()) {
+          const queueRes = await ApiService.getPatients();
+          if (queueRes?.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
+            setPatients(queueRes.patients);
+            if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
+              setSelectedPatientId(queueRes.patients[0].id);
+            }
           }
         }
       } else {
@@ -272,6 +274,7 @@ export const PatientProvider = ({ children }) => {
   const handleUserLogout = () => {
     ApiService.logout();
     setAuthenticatedUser(null);
+    setActiveHospitalId(null);
     setRole('kiosk');
     fetchQueueAndHospitals();
   };
@@ -400,14 +403,18 @@ export const PatientProvider = ({ children }) => {
 
     const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
 
+    if (!kioskForm.selectedHospitalId) {
+      throw new Error('Please select a healthcare facility before submitting.');
+    }
+
     const newPatient = {
       id: newId,
       tokenNumber,
-      hospitalId: kioskForm.selectedHospitalId || 'hosp-ggh-hyd',
-      hospitalName: kioskForm.selectedHospitalName || 'Government General Hospital',
-      departmentId: kioskForm.selectedDepartmentId || 'dept-ggh-hyd-genmed',
-      department: kioskForm.selectedDepartmentName || 'General Medicine',
-      roomNumber: kioskForm.roomNumber || 'Room 104',
+      hospitalId: kioskForm.selectedHospitalId,
+      hospitalName: kioskForm.selectedHospitalName,
+      departmentId: kioskForm.selectedDepartmentId || kioskForm.department_id || 'dept-genmed',
+      department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
+      roomNumber: kioskForm.roomNumber || 'Room 101',
       assignedDoctor: kioskForm.assignedDoctor || 'Assigned OPD Clinician',
       reasonForVisit: kioskForm.reasonForVisit || primaryComplaintTitle,
       registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -421,44 +428,40 @@ export const PatientProvider = ({ children }) => {
       triageCategory,
       triageColor,
       
-      abhaId: kioskForm.abhaId || `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-      abhaAddress: kioskForm.abhaAddress || `${(kioskForm.name || 'patient').toLowerCase().replace(/\s+/g, '')}@abdm`,
+      abhaId: kioskForm.abhaId || null,
+      abhaAddress: kioskForm.abhaAddress || null,
       name: kioskForm.name || 'Walk-in Patient',
-      age: Number(kioskForm.age) || 42,
-      gender: kioskForm.gender || 'Male',
-      phone: kioskForm.phone || '+91 98765 00000',
-      address: kioskForm.address || 'District Health Jurisdiction',
+      age: Number(kioskForm.age) || null,
+      gender: kioskForm.gender || 'Unspecified',
+      phone: kioskForm.phone || '',
+      address: kioskForm.address || '',
       language: languagesMap[language] || 'English',
       
       // 10 Comprehensive Clinical Sections
       chiefComplaints: kioskForm.chiefComplaints.length > 0 ? kioskForm.chiefComplaints : [primaryComplaintTitle],
       hpi: {
-        onset: `Problem started ${kioskForm.duration || 'recently'}.`,
-        location: `${kioskForm.selectedRegion || 'General'} region.`,
+        onset: kioskForm.duration ? `Problem started ${kioskForm.duration}.` : 'Onset not specified.',
+        location: kioskForm.selectedRegion ? `${kioskForm.selectedRegion} region.` : 'General/Systemic.',
         character: `Patient described symptom as ${primaryComplaintTitle}.`,
-        severity: `${kioskForm.painScore || 5} / 10 on numeric pain rating scale.`,
+        severity: `${kioskForm.painScore || 0} / 10 on numeric pain rating scale.`,
         radiation: 'Recorded during conversational intake.',
-        aggravatingFactors: 'Daily activities and exertion.',
-        relievingFactors: 'Rest.',
-        associatedSymptoms: 'Recorded in conversation dialogue log.'
+        aggravatingFactors: kioskForm.historyAnswers?.aggravating || 'Not reported by patient.',
+        relievingFactors: kioskForm.historyAnswers?.relieving || 'Not reported by patient.',
+        associatedSymptoms: kioskForm.historyAnswers?.associated || 'Not reported by patient.'
       },
-      pastMedicalHistory: kioskForm.pastConditions.length > 0 ? kioskForm.pastConditions : ['No major chronic medical illness reported.'],
-      pastSurgicalHistory: ['No prior major surgeries recorded during kiosk intake.'],
-      currentMedications: kioskForm.currentMedications.length > 0 ? kioskForm.currentMedications : ['No regular prescription medications recorded.'],
+      pastMedicalHistory: kioskForm.pastConditions.length > 0 ? kioskForm.pastConditions : ['No chronic medical conditions reported by patient.'],
+      pastSurgicalHistory: ['No prior surgeries recorded during kiosk intake.'],
+      currentMedications: kioskForm.currentMedications.length > 0 ? kioskForm.currentMedications : ['No regular medications reported by patient.'],
       drugAllergies: kioskForm.allergies.length > 0 ? kioskForm.allergies : ['No Known Drug Allergies (NKDA)'],
-      familyHistory: 'Non-contributory during initial intake.',
-      personalHistory: 'Mixed diet, non-smoker, recorded during kiosk case-taking.',
+      familyHistory: 'Not recorded during kiosk intake.',
+      personalHistory: 'Not recorded during kiosk intake.',
       reviewOfSystems: {
         cardiovascular: 'Heart rate and BP recorded at kiosk.',
-        respiratory: 'SpO2 saturation monitored.',
-        gastrointestinal: 'No acute complaints noted.',
-        neurological: 'Alert and oriented x 3.',
-        musculoskeletal: 'Normal mobility.',
-        genitourinary: 'Normal.'
+        respiratory: 'SpO2 saturation monitored at kiosk.',
+        intakeNote: 'Clinical review of systems to be conducted by attending physician.'
       },
       previousInvestigations: {
         labs: [],
-        ecg: 'Recorded at consultation.',
         imaging: 'None attached.'
       },
 
@@ -477,7 +480,7 @@ export const PatientProvider = ({ children }) => {
       // AI Generated Draft for Doctor
       aiGeneratedDraft: {
         disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
-        subjectiveSummary: `${kioskForm.age || 42}-year-old ${kioskForm.gender || 'patient'} presenting at ${kioskForm.selectedHospitalName} (${kioskForm.selectedDepartmentName}) with ${primaryComplaintTitle} of ${kioskForm.duration || '2-3 days'} duration.`,
+        subjectiveSummary: `${kioskForm.age ? `${kioskForm.age}-year-old` : 'Adult'} ${kioskForm.gender || 'patient'} presenting at ${kioskForm.selectedHospitalName} (${kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General OPD'}) with ${primaryComplaintTitle}${kioskForm.duration ? ` of ${kioskForm.duration} duration` : ''}.`,
         objectiveSummary: `Vitals: BP ${kioskForm.vitals.bpSystolic}/${kioskForm.vitals.bpDiastolic} mmHg, HR ${kioskForm.vitals.pulse} bpm, SpO2 ${kioskForm.vitals.spo2}%, RBS ${kioskForm.vitals.bloodSugar} mg/dL.`,
         preliminaryRiskAssessment: `Triage Priority: ${triageCategory} (ESI Level ${triageLevel}).`,
         differentialDiagnosisDraft: [
@@ -532,7 +535,7 @@ export const PatientProvider = ({ children }) => {
         departmentId: newPatient.departmentId,
         department: newPatient.department,
         reasonForVisit: newPatient.reasonForVisit,
-        consentAgreed: kioskForm.consentAgreed || true,
+        consentAgreed: Boolean(kioskForm.consentAgreed),
         signatureData: kioskForm.signature,
         chiefComplaints: newPatient.chiefComplaints,
         duration: kioskForm.duration,

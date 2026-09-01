@@ -73,66 +73,26 @@ export class ApiService {
 
   // Staff & Doctor Authentication
   static async login(username, password) {
+    if (!username || !password) {
+      throw new Error('Username and password are required.');
+    }
     try {
       const data = await this.request('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: username.trim(), password })
       });
-      if (data.token) {
+      if (data?.token) {
         this.setAuthToken(data.token);
         if (data.user) {
           localStorage.setItem('medimitra_auth_user', JSON.stringify(data.user));
         }
       }
       return data;
-    } catch {
-      // Standalone/Offline Auth Fallback for testing & demonstration
-      const demoUsers = [
-        { id: 'user-doc-sharma', username: 'dr.sharma', fullName: 'Dr. Rajesh Sharma, MD', role: 'DOCTOR', department: 'Cardiology & General Medicine', hospitalId: 'hosp-ggh-hyd', hospitalName: 'Government General Hospital (Osmania)', licenseNumber: 'MCI-DEL-2015-84920' },
-        { id: 'user-doc-anand', username: 'dr.anand', fullName: 'Dr. Anand Verma, MS', role: 'DOCTOR', department: 'Orthopedics', hospitalId: 'hosp-ggh-hyd', hospitalName: 'Government General Hospital (Osmania)', licenseNumber: 'TG-MED-2018-49201' },
-        { id: 'user-doc-kiran', username: 'dr.kiran', fullName: 'Dr. Kiran Reddy, MD, DM', role: 'DOCTOR', department: 'Cardiology', hospitalId: 'hosp-apollo-hyd', hospitalName: 'Apollo Hospitals Jubilee Hills', licenseNumber: 'TG-MED-2012-99201' },
-        { id: 'user-admin-ggh', username: 'admin.ggh', fullName: 'GGH Administrator', role: 'HOSPITAL_ADMIN', department: 'Administration', hospitalId: 'hosp-ggh-hyd', hospitalName: 'Government General Hospital (Osmania)', licenseNumber: 'NHA-ADMIN-2024-001' }
-      ];
-
-      const match = demoUsers.find(u => u.username.toLowerCase() === (username || '').trim().toLowerCase());
-      if (match) {
-        const fallbackToken = `token-offline-${match.id}-${Date.now()}`;
-        this.setAuthToken(fallbackToken);
-        localStorage.setItem('medimitra_auth_user', JSON.stringify(match));
-        return { success: true, token: fallbackToken, user: match };
+    } catch (err) {
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.name === 'TypeError')) {
+        throw new Error('Unable to connect to the authentication server. Please try again.');
       }
-      throw new Error('Invalid credentials');
-    }
-  }
-
-  static async quickDoctorAuth(username = 'dr.sharma') {
-    try {
-      const data = await this.request('/auth/quick-doctor-auth', {
-        method: 'POST',
-        body: JSON.stringify({ username })
-      });
-      if (data.token) {
-        this.setAuthToken(data.token);
-        if (data.user) {
-          localStorage.setItem('medimitra_auth_user', JSON.stringify(data.user));
-        }
-      }
-      return data;
-    } catch {
-      const demoUser = {
-        id: 'user-doc-sharma',
-        username: 'dr.sharma',
-        fullName: 'Dr. Rajesh Sharma, MD',
-        role: 'DOCTOR',
-        department: 'Cardiology & General Medicine',
-        hospitalId: 'hosp-ggh-hyd',
-        hospitalName: 'Government General Hospital (Osmania)',
-        licenseNumber: 'MCI-DEL-2015-84920'
-      };
-      const token = `token-offline-${demoUser.id}-${Date.now()}`;
-      this.setAuthToken(token);
-      localStorage.setItem('medimitra_auth_user', JSON.stringify(demoUser));
-      return { success: true, token, user: demoUser };
+      throw err;
     }
   }
 
@@ -140,13 +100,8 @@ export class ApiService {
     try {
       return await this.request('/auth/me');
     } catch {
-      const saved = localStorage.getItem('medimitra_auth_user');
-      if (saved) {
-        try {
-          return { success: true, user: JSON.parse(saved) };
-        } catch {}
-      }
-      return { success: false };
+      this.clearAuthToken();
+      return { success: false, user: null };
     }
   }
 
@@ -305,80 +260,51 @@ export class ApiService {
 
   // Doctor Actions
   static async confirmSummary(patientId, doctorNotes, editedFields) {
-    try {
-      return await this.request('/doctor/confirm-summary', {
-        method: 'POST',
-        body: JSON.stringify({ patientId, doctorNotes, editedFields })
-      });
-    } catch {
-      return { success: true, message: 'Summary confirmed' };
-    }
+    return await this.request('/doctor/confirm-summary', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, doctorNotes, editedFields })
+    });
   }
 
   static async rejectSummary(patientId, reason) {
-    try {
-      return await this.request('/doctor/reject-summary', {
-        method: 'POST',
-        body: JSON.stringify({ patientId, reason })
-      });
-    } catch {
-      return { success: true, message: 'Summary rejected' };
-    }
+    return await this.request('/doctor/reject-summary', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, reason })
+    });
   }
 
   static async ePrescribe(prescriptionData) {
-    try {
-      return await this.request('/doctor/eprescribe', {
-        method: 'POST',
-        body: JSON.stringify(prescriptionData)
-      });
-    } catch {
-      return { success: true, prescriptionId: `rx-${Date.now()}`, message: 'Prescription recorded' };
-    }
+    return await this.request('/doctor/eprescribe', {
+      method: 'POST',
+      body: JSON.stringify(prescriptionData)
+    });
   }
 
   // Document Upload & OCR
   static async uploadDocument(file, patientId, docTypeHint) {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('patientId', patientId || 'temp-patient');
-      formData.append('docTypeHint', docTypeHint || 'prescription');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('patientId', patientId || 'temp-patient');
+    formData.append('docTypeHint', docTypeHint || 'prescription');
 
-      const token = this.getAuthToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const token = this.getAuthToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const response = await fetch(`${API_BASE_URL}/documents/upload`, {
-        method: 'POST',
-        headers,
-        body: formData
-      });
+    const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.message || 'Document upload failed');
-      }
-      return data;
-    } catch {
-      return {
-        success: true,
-        documentId: `doc-${Date.now()}`,
-        message: 'Document stored in local clinical cache'
-      };
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || 'Document upload failed');
     }
+    return data;
   }
 
   // ABDM FHIR R4 Bundle Export
   static async exportFhirBundle(patientId) {
-    try {
-      return await this.request(`/fhir/patient/${patientId}`);
-    } catch {
-      return {
-        resourceType: 'Bundle',
-        type: 'document',
-        id: `fhir-${patientId}`,
-        timestamp: new Date().toISOString()
-      };
-    }
+    return await this.request(`/fhir/patient/${patientId}`);
   }
 }

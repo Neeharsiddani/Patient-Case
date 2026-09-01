@@ -73,7 +73,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
 
           <div className="space-y-1 text-xs">
             <h4 className="text-sm font-extrabold text-slate-900">
-              {kioskForm.selectedHospitalName || 'Government General Hospital'}
+              {kioskForm.selectedHospitalName || 'Selected Healthcare Facility'}
             </h4>
             <p className="text-slate-500">
               Assigned Department: <strong className="text-slate-800">{kioskForm.assignedDepartment || 'General Medicine'}</strong>
@@ -100,19 +100,19 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="text-slate-400 block">Name:</span>
-              <span className="font-bold text-slate-900">{kioskForm.name || 'Ramesh Kumar'}</span>
+              <span className="font-bold text-slate-900">{kioskForm.name || 'Walk-in Patient'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Age / Gender:</span>
-              <span className="font-bold text-slate-900">{kioskForm.age || '54'} Y / {kioskForm.gender}</span>
+              <span className="font-bold text-slate-900">{kioskForm.age ? `${kioskForm.age} Y` : 'Not provided'} / {kioskForm.gender || 'Not specified'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Phone:</span>
-              <span className="font-bold text-slate-900">{kioskForm.phone || '+91 98765 43210'}</span>
+              <span className="font-bold text-slate-900">{kioskForm.phone || 'Not provided'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">ABHA ID:</span>
-              <span className="font-mono font-bold text-cyan-900">{kioskForm.abhaId || '91-8472-9182-3451'}</span>
+              <span className="font-mono font-bold text-cyan-900">{kioskForm.abhaId || 'None (Walk-in Registration)'}</span>
             </div>
           </div>
         </div>
@@ -135,12 +135,12 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
 
           <div className="space-y-2 text-xs">
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
-              {kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || 'General Outpatient Consultation'}
+              {kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || 'Outpatient Consultation'}
             </div>
 
             <div className="flex items-center gap-4 text-slate-600 font-medium">
-              <span>Duration: <strong>{kioskForm.duration || '2-3 Days'}</strong></span>
-              <span>Pain Rating: <strong className="text-cyan-900">{kioskForm.painScore || 5}/10</strong></span>
+              <span>Duration: <strong>{kioskForm.duration || 'Not specified'}</strong></span>
+              <span>Pain Rating: <strong className="text-cyan-900">{kioskForm.painScore ? `${kioskForm.painScore}/10` : 'Not reported'}</strong></span>
             </div>
           </div>
         </div>
@@ -191,14 +191,14 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">Past Conditions:</span>
               <span className="font-semibold text-slate-800">
-                {kioskForm.pastConditions.length > 0 ? kioskForm.pastConditions.join(', ') : 'Type 2 Diabetes Mellitus, Hypertension'}
+                {kioskForm.pastConditions.length > 0 ? kioskForm.pastConditions.join(', ') : 'None reported'}
               </span>
             </div>
 
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">Current Medications:</span>
               <span className="font-semibold text-slate-800">
-                {kioskForm.currentMedications.length > 0 ? kioskForm.currentMedications.join(', ') : 'Tab Metformin 500mg, Tab Telmisartan 40mg'}
+                {kioskForm.currentMedications.length > 0 ? kioskForm.currentMedications.join(', ') : 'None reported'}
               </span>
             </div>
           </div>
@@ -241,7 +241,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
               <span className="font-semibold text-slate-700">
                 {kioskForm.uploadedDocs.length > 0
                   ? `${kioskForm.uploadedDocs.length} Digital medical record(s) attached`
-                  : 'Previous prescription & lab investigation records attached'}
+                  : 'No documents attached'}
               </span>
             </div>
           </div>
@@ -268,42 +268,42 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Physical Frame (Prakriti):</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Medium / Athletic build'}
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Not assessed'}
                 </span>
               </div>
 
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Thermal Preference:</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Prefers Cool'}
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Not assessed'}
                 </span>
               </div>
 
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Digestive Fire (Agni):</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.additionalHistory?.agni || 'Samagni (Balanced)'}
+                  {kioskForm.ayushHistory?.additionalHistory?.agni || 'Not assessed'}
                 </span>
               </div>
 
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Bowel Habit (Koshtha):</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.additionalHistory?.koshtha || 'Madhyama Koshtha'}
+                  {kioskForm.ayushHistory?.additionalHistory?.koshtha || 'Not assessed'}
                 </span>
               </div>
 
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Tissue Vitality (Sara):</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Moderate / Good'}
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Not assessed'}
                 </span>
               </div>
 
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
                 <span className="text-[10px] text-slate-500 font-bold block">Mental Resilience (Sattva):</span>
                 <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Madhya Sattva'}
+                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Not assessed'}
                 </span>
               </div>
 
@@ -312,7 +312,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
                 <span className="font-semibold text-emerald-950">
                   {kioskForm.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.length > 0
                     ? kioskForm.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.join(', ')
-                    : 'Reported digestive and bodily heat symptoms'}
+                    : 'None reported'}
                 </span>
               </div>
             </div>

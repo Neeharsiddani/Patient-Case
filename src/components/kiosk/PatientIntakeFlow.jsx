@@ -1,11 +1,15 @@
 import React from 'react';
 import { 
   Building2, 
+  User,
+  Globe,
+  ShieldCheck,
   Activity, 
   Heart, 
   Leaf,
   ShieldAlert, 
   UploadCloud, 
+  Cpu,
   History, 
   CheckCheck, 
   Ticket, 
@@ -17,11 +21,15 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { Step1_HospitalSelect } from './Step1_HospitalSelect';
+import { Step1_Identification } from './Step1_Identification';
+import { Step2_Language } from './Step2_Language';
+import { Step3_Consent } from './Step3_Consent';
 import { Step2_ReasonForVisit } from './Step2_ReasonForVisit';
 import { Step4_ClinicalHistory } from './Step4_ClinicalHistory';
 import { Step4_AyushHistory } from './Step4_AyushHistory';
 import { Step4_RedFlagAlert } from './Step4_RedFlagAlert';
 import { Step5_DocUpload } from './Step5_DocUpload';
+import { Step6_OcrExtraction } from './Step6_OcrExtraction';
 import { Step6_MedicalTimeline } from './Step6_MedicalTimeline';
 import { Step7_ReviewInformation } from './Step7_ReviewInformation';
 import { Step8_SecureSubmit } from './Step8_SecureSubmit';
@@ -43,26 +51,34 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
     kioskForm.isAyushCase
   );
 
-  // Dynamic step configuration: Inserts AYUSH Step when AYUSH department is chosen
+  // Complete patient journey step sequence
   const steps = isAyush ? [
     { num: 1, title: 'Hospital', icon: Building2 },
-    { num: 2, title: 'Reason for Visit', icon: Activity },
-    { num: 3, title: 'Medical History', icon: Heart },
-    { num: 4, title: 'AYUSH Assessment', icon: Leaf },
-    { num: 5, title: 'Red Flags', icon: ShieldAlert },
-    { num: 6, title: 'Documents', icon: UploadCloud },
-    { num: 7, title: 'Timeline', icon: History },
-    { num: 8, title: 'Review', icon: CheckCheck },
-    { num: 9, title: 'Submit', icon: Ticket }
+    { num: 2, title: 'Identification', icon: User },
+    { num: 3, title: 'Language', icon: Globe },
+    { num: 4, title: 'Consent', icon: ShieldCheck },
+    { num: 5, title: 'Reason for Visit', icon: Activity },
+    { num: 6, title: 'Clinical History', icon: Heart },
+    { num: 7, title: 'AYUSH Assessment', icon: Leaf },
+    { num: 8, title: 'Red Flags', icon: ShieldAlert },
+    { num: 9, title: 'Documents', icon: UploadCloud },
+    { num: 10, title: 'Extraction', icon: Cpu },
+    { num: 11, title: 'Timeline', icon: History },
+    { num: 12, title: 'Review', icon: CheckCheck },
+    { num: 13, title: 'Token', icon: Ticket }
   ] : [
     { num: 1, title: 'Hospital', icon: Building2 },
-    { num: 2, title: 'Reason for Visit', icon: Activity },
-    { num: 3, title: 'Medical History', icon: Heart },
-    { num: 4, title: 'Red Flags', icon: ShieldAlert },
-    { num: 5, title: 'Documents', icon: UploadCloud },
-    { num: 6, title: 'Timeline', icon: History },
-    { num: 7, title: 'Review', icon: CheckCheck },
-    { num: 8, title: 'Submit', icon: Ticket }
+    { num: 2, title: 'Identification', icon: User },
+    { num: 3, title: 'Language', icon: Globe },
+    { num: 4, title: 'Consent', icon: ShieldCheck },
+    { num: 5, title: 'Reason for Visit', icon: Activity },
+    { num: 6, title: 'Clinical History', icon: Heart },
+    { num: 7, title: 'Red Flags', icon: ShieldAlert },
+    { num: 8, title: 'Documents', icon: UploadCloud },
+    { num: 9, title: 'Extraction', icon: Cpu },
+    { num: 10, title: 'Timeline', icon: History },
+    { num: 11, title: 'Review', icon: CheckCheck },
+    { num: 12, title: 'Token', icon: Ticket }
   ];
 
   const totalSteps = steps.length;
@@ -74,11 +90,29 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
       return Boolean(kioskForm.selectedHospitalId);
     }
     if (kioskStep === 2) {
+      // Step 2: Patient Identification - ABHA, phone, or name provided, or walkin
+      return Boolean(
+        (kioskForm.name && kioskForm.name.trim().length >= 2) ||
+        (kioskForm.abhaId && kioskForm.abhaId.length >= 10) ||
+        (kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10) ||
+        kioskForm.abhaStatus === 'WALKIN_NO_ABHA'
+      );
+    }
+    if (kioskStep === 3) {
+      // Step 3: Language
+      return true;
+    }
+    if (kioskStep === 4) {
+      // Step 4: Consent - Explicit consent required under DPDP Act 2023
+      return Boolean(kioskForm.consentAgreed);
+    }
+    if (kioskStep === 5) {
+      // Step 5: Reason for visit - Demographics & Reason
       const hasName = Boolean(kioskForm.name && kioskForm.name.trim().length >= 2);
       const hasAge = Boolean(kioskForm.age && Number(kioskForm.age) >= 1 && Number(kioskForm.age) <= 125);
       const hasGender = Boolean(kioskForm.gender);
       const hasPhone = Boolean(kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10);
-      const hasReason = Boolean(kioskForm.reasonForVisit && kioskForm.reasonForVisit.trim());
+      const hasReason = Boolean((kioskForm.reasonForVisit && kioskForm.reasonForVisit.trim()) || kioskForm.chiefComplaints?.length > 0);
       return hasName && hasAge && hasGender && hasPhone && hasReason;
     }
     return true;
@@ -142,7 +176,9 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 ? 'text-cyan-900 bg-cyan-50 border-cyan-200' 
                 : 'text-slate-600 bg-slate-100 border-slate-200'
             }`}>
-              🏥 {kioskForm.selectedHospitalName || 'Select Healthcare Facility'} • {kioskForm.assignedDepartment || 'General Medicine'}
+              {kioskForm.selectedHospitalName 
+                ? `🏥 ${kioskForm.selectedHospitalName} • ${kioskForm.assignedDepartment || 'General Medicine'}`
+                : '🏥 Select Hospital'}
             </span>
           </div>
         </div>
@@ -246,34 +282,47 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
         {/* Step 1: Hospital Select */}
         {kioskStep === 1 && <Step1_HospitalSelect />}
 
-        {/* Step 2: Reason for Visit & Identification */}
-        {kioskStep === 2 && <Step2_ReasonForVisit />}
+        {/* Step 2: Patient Identification */}
+        {kioskStep === 2 && <Step1_Identification />}
 
-        {/* Step 3: Medical History */}
-        {kioskStep === 3 && <Step4_ClinicalHistory />}
+        {/* Step 3: Language Selection */}
+        {kioskStep === 3 && <Step2_Language />}
 
-        {/* AYUSH Branch: Step 4 is AYUSH History if AYUSH mode, else Red Flags */}
-        {isAyush && kioskStep === 4 && <Step4_AyushHistory />}
+        {/* Step 4: Informed Consent */}
+        {kioskStep === 4 && <Step3_Consent />}
 
-        {/* Red Flags: Step 5 if AYUSH, else Step 4 */}
-        {((isAyush && kioskStep === 5) || (!isAyush && kioskStep === 4)) && <Step4_RedFlagAlert />}
+        {/* Step 5: Reason for Visit */}
+        {kioskStep === 5 && <Step2_ReasonForVisit />}
 
-        {/* Documents: Step 6 if AYUSH, else Step 5 */}
-        {((isAyush && kioskStep === 6) || (!isAyush && kioskStep === 5)) && <Step5_DocUpload />}
+        {/* Step 6: Clinical History */}
+        {kioskStep === 6 && <Step4_ClinicalHistory />}
 
-        {/* Medical Timeline: Step 7 if AYUSH, else Step 6 */}
-        {((isAyush && kioskStep === 7) || (!isAyush && kioskStep === 6)) && <Step6_MedicalTimeline />}
+        {/* AYUSH Branch: Step 7 is AYUSH History if AYUSH mode */}
+        {isAyush && kioskStep === 7 && <Step4_AyushHistory />}
 
-        {/* Review: Step 8 if AYUSH, else Step 7 */}
-        {((isAyush && kioskStep === 8) || (!isAyush && kioskStep === 7)) && (
+        {/* Red Flags: Step 8 if AYUSH, else Step 7 */}
+        {((isAyush && kioskStep === 8) || (!isAyush && kioskStep === 7)) && <Step4_RedFlagAlert />}
+
+        {/* Documents: Step 9 if AYUSH, else Step 8 */}
+        {((isAyush && kioskStep === 9) || (!isAyush && kioskStep === 8)) && <Step5_DocUpload />}
+
+        {/* OCR Extraction: Step 10 if AYUSH, else Step 9 */}
+        {((isAyush && kioskStep === 10) || (!isAyush && kioskStep === 9)) && <Step6_OcrExtraction />}
+
+        {/* Medical Timeline: Step 11 if AYUSH, else Step 10 */}
+        {((isAyush && kioskStep === 11) || (!isAyush && kioskStep === 10)) && <Step6_MedicalTimeline />}
+
+        {/* Review: Step 12 if AYUSH, else Step 11 */}
+        {((isAyush && kioskStep === 12) || (!isAyush && kioskStep === 11)) && (
           <Step7_ReviewInformation onJumpToStep={(s) => {
-            setKioskStep(s);
-            window.history.pushState({ screen: 'patient', step: s }, '', getRouteUrl('patient', s));
+            const mappedStep = s === 1 ? 1 : s === 2 ? 2 : s === 3 ? 6 : s === 4 ? (isAyush ? 7 : 6) : (isAyush ? 9 : 8);
+            setKioskStep(mappedStep);
+            window.history.pushState({ screen: 'patient', step: mappedStep }, '', getRouteUrl('patient', mappedStep));
           }} />
         )}
 
-        {/* Final Token Receipt: Step 9 if AYUSH, else Step 8 */}
-        {((isAyush && kioskStep === 9) || (!isAyush && kioskStep === 8)) && (
+        {/* Final Token Receipt: Step 13 if AYUSH, else Step 12 */}
+        {((isAyush && kioskStep === 13) || (!isAyush && kioskStep === 12)) && (
           <Step8_SecureSubmit onFinish={onBackToWelcome} />
         )}
 
@@ -295,11 +344,19 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 onClick={handleNext}
                 disabled={!canProceed()}
                 style={{
-                  backgroundColor: canProceed() ? (isAyush && kioskStep === 3 ? '#047857' : '#088395') : '#cbd5e1'
+                  backgroundColor: canProceed() ? (isAyush && kioskStep === 6 ? '#047857' : '#088395') : '#cbd5e1'
                 }}
                 className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
               >
-                <span>{isAyush && kioskStep === 3 ? 'Continue to AYUSH' : 'Continue'}</span>
+                <span>
+                  {kioskStep === 4 && !kioskForm.consentAgreed
+                    ? 'Consent Required to Proceed'
+                    : kioskStep === 1 && !kioskForm.selectedHospitalId
+                    ? 'Select a Healthcare Facility'
+                    : isAyush && kioskStep === 6
+                    ? 'Continue to AYUSH'
+                    : 'Continue'}
+                </span>
                 <ArrowRight size={18} />
               </button>
             ) : (

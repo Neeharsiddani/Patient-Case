@@ -4,6 +4,8 @@ import { generateFhirBundle } from '../services/fhirService.js';
 import { validateFhirBundle } from '../services/fhirValidator.js';
 import { recordAuditLog } from '../middleware/audit.js';
 
+import { requireAuth, requireRole } from '../middleware/auth.js';
+
 const router = express.Router();
 
 /**
@@ -63,7 +65,7 @@ async function getFullPatientRecord(patientId) {
  * GET /api/fhir/patient/:id
  * Exports complete patient record as an ABDM FHIR R4 JSON Document Bundle
  */
-router.get('/patient/:id', async (req, res, next) => {
+router.get('/patient/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const patientFull = await getFullPatientRecord(id);
@@ -74,12 +76,20 @@ router.get('/patient/:id', async (req, res, next) => {
       });
     }
 
+    if (req.user.hospital_id && patientFull.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to export FHIR records belonging to another healthcare facility.'
+      });
+    }
+
     const fhirBundle = generateFhirBundle(patientFull);
     const validation = validateFhirBundle(fhirBundle);
 
     await recordAuditLog({
-      userId: req.user?.id || 'SYSTEM_FHIR',
-      userRole: req.user?.role || 'DOCTOR',
+      userId: req.user.id,
+      userRole: req.user.role,
       hospitalId: patientFull.hospital_id,
       action: 'FHIR_BUNDLE_EXPORTED',
       resourceType: 'FHIR_BUNDLE',
@@ -101,7 +111,7 @@ router.get('/patient/:id', async (req, res, next) => {
  * GET /api/fhir/patient/:id/validate
  * Returns detailed validation report for a patient's FHIR R4 bundle
  */
-router.get('/patient/:id/validate', async (req, res, next) => {
+router.get('/patient/:id/validate', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const patientFull = await getFullPatientRecord(id);
@@ -109,6 +119,14 @@ router.get('/patient/:id/validate', async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: 'Patient Not Found'
+      });
+    }
+
+    if (req.user.hospital_id && patientFull.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to validate FHIR records belonging to another healthcare facility.'
       });
     }
 

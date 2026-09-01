@@ -290,7 +290,10 @@ async function runTests() {
         }
       ]
     };
-    const importRes = await makeRequest('/api/hospitals/import', { method: 'POST' }, importPayload);
+    const importRes = await makeRequest('/api/hospitals/import', { 
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` }
+    }, importPayload);
     assert.strictEqual(importRes.status, 200);
     assert.strictEqual(importRes.data.success, true);
     assert.ok(importRes.data.imported >= 1 || importRes.data.updated >= 1);

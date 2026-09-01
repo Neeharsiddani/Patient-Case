@@ -2,7 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { run, get, query } from '../db/database.js';
 import { recordAuditLog } from '../middleware/audit.js';
-import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -10,7 +10,7 @@ const router = express.Router();
  * POST /api/doctor/confirm-summary
  * Doctor confirms and signs the patient's clinical summary
  */
-router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
+router.post('/confirm-summary', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { patientId, doctorNotes, editedFields } = req.body;
 
@@ -22,12 +22,21 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
       });
     }
 
-    const patient = await get('SELECT id, name, status FROM patients WHERE id = ?', [patientId]);
+    const patient = await get('SELECT id, name, status, hospital_id FROM patients WHERE id = ?', [patientId]);
     if (!patient) {
       return res.status(404).json({
         success: false,
         error: 'Patient Not Found',
         message: `No patient found with ID ${patientId}.`
+      });
+    }
+
+    // Strict Cross-Hospital Authorization Check
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to verify clinical records belonging to another healthcare facility.'
       });
     }
 
@@ -40,8 +49,8 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
       minute: '2-digit'
     });
 
-    const doctorId = req.user ? req.user.id : 'dr-default-001';
-    const doctorName = req.user ? req.user.full_name : 'Dr. Rajesh Sharma, MD';
+    const doctorId = req.user.id;
+    const doctorName = req.user.full_name;
 
     // 1. Update patient status to 'History Verified'
     await run(`
@@ -93,11 +102,6 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
         params.push(JSON.stringify(editedFields.drugAllergies));
       }
 
-      if (updates.length > 0) {
-        params.push(patientId);
-        await run(`UPDATE clinical_histories SET ${updates.join(', ')} WHERE patient_id = ?`, params);
-      }
-
       // 3b. Update AYUSH / Dashavidha Pariksha if present in edited fields
       if (editedFields.ayushHistory || req.body.ayushHistory) {
         const ayushPayload = editedFields.ayushHistory || req.body.ayushHistory;
@@ -124,22 +128,35 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
       }
     }
 
-    // 4. Record Audit Log
+    // 4. Save doctor notes if provided
+    if (doctorNotes) {
+      await run(`
+        INSERT INTO doctor_notes (id, patient_id, doctor_id, provisional_diagnosis, advice, signed_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          advice = excluded.advice,
+          signed_at = CURRENT_TIMESTAMP
+      `, [uuidv4(), patientId, doctorId, 'Clinical History Verified', doctorNotes]);
+    }
+
+    // 5. Immutable Audit Log
     await recordAuditLog({
       userId: doctorId,
-      userRole: 'DOCTOR',
-      action: 'DOCTOR_CONFIRMED_SUMMARY',
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
+      action: 'DOCTOR_VERIFIED_SUMMARY',
       resourceType: 'PATIENT',
       resourceId: patientId,
-      details: { doctorName, verificationTimestamp },
+      details: { doctorName, editedFields: Object.keys(editedFields || {}) },
       ipAddress: req.ip || '127.0.0.1'
     });
 
     res.json({
       success: true,
-      message: 'Clinical summary confirmed and signed successfully',
+      message: 'Clinical summary verified and signed successfully',
       verificationStatus: 'History Verified',
-      verificationTimestamp
+      verificationTimestamp,
+      verifiedBy: doctorName
     });
   } catch (err) {
     next(err);
@@ -150,7 +167,7 @@ router.post('/confirm-summary', optionalAuth, async (req, res, next) => {
  * POST /api/doctor/reject-summary
  * Doctor rejects summary with a mandatory clinical reason
  */
-router.post('/reject-summary', optionalAuth, async (req, res, next) => {
+router.post('/reject-summary', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { patientId, reason } = req.body;
 
@@ -159,6 +176,24 @@ router.post('/reject-summary', optionalAuth, async (req, res, next) => {
         success: false,
         error: 'Missing Information',
         message: 'Patient ID and rejection reason are required.'
+      });
+    }
+
+    const patient = await get('SELECT id, name, hospital_id FROM patients WHERE id = ?', [patientId]);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found',
+        message: `No patient found with ID ${patientId}.`
+      });
+    }
+
+    // Strict Cross-Hospital Authorization Check
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to reject clinical records belonging to another healthcare facility.'
       });
     }
 
@@ -172,8 +207,9 @@ router.post('/reject-summary', optionalAuth, async (req, res, next) => {
     `, [reason, patientId]);
 
     await recordAuditLog({
-      userId: req.user ? req.user.id : 'DOCTOR_SESSION',
-      userRole: 'DOCTOR',
+      userId: req.user.id,
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
       action: 'DOCTOR_REJECTED_SUMMARY',
       resourceType: 'PATIENT',
       resourceId: patientId,
@@ -196,7 +232,7 @@ router.post('/reject-summary', optionalAuth, async (req, res, next) => {
  * POST /api/doctor/eprescribe
  * Save official doctor diagnosis, ICD-10 codes, prescriptions, and lab orders
  */
-router.post('/eprescribe', optionalAuth, async (req, res, next) => {
+router.post('/eprescribe', requireAuth, requireRole('DOCTOR', 'ADMIN'), async (req, res, next) => {
   try {
     const {
       patientId,
@@ -215,8 +251,26 @@ router.post('/eprescribe', optionalAuth, async (req, res, next) => {
       });
     }
 
+    const patient = await get('SELECT id, name, hospital_id FROM patients WHERE id = ?', [patientId]);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found',
+        message: `No patient found with ID ${patientId}.`
+      });
+    }
+
+    // Strict Cross-Hospital Authorization Check
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to prescribe for patients from another healthcare facility.'
+      });
+    }
+
     const noteId = uuidv4();
-    const doctorId = req.user ? req.user.id : 'dr-default-001';
+    const doctorId = req.user.id;
 
     // Insert or replace doctor notes
     await run(`
@@ -235,6 +289,7 @@ router.post('/eprescribe', optionalAuth, async (req, res, next) => {
     await recordAuditLog({
       userId: doctorId,
       userRole: 'DOCTOR',
+      hospitalId: req.user.hospital_id,
       action: 'DOCTOR_EPRESCRIBE_COMPLETED',
       resourceType: 'PATIENT',
       resourceId: patientId,

@@ -6,6 +6,7 @@ import { run, get, query } from '../db/database.js';
 import { upload } from '../middleware/upload.js';
 import { processMedicalDocument } from '../services/documentOcrService.js';
 import { recordAuditLog } from '../middleware/audit.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -108,7 +109,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
  * PATCH /api/documents/:id/verify
  * Doctor verifies and optionally edits extracted OCR entities
  */
-router.patch('/:id/verify', async (req, res, next) => {
+router.patch('/:id/verify', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { editedData, diagnosis, docDate } = req.body;
@@ -119,6 +120,16 @@ router.patch('/:id/verify', async (req, res, next) => {
         success: false,
         error: 'Document Not Found',
         message: `No document found with ID ${id}.`
+      });
+    }
+
+    // Verify hospital relationship through patient record
+    const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [doc.patient_id]);
+    if (patient && req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to verify documents from another healthcare facility.'
       });
     }
 
@@ -137,8 +148,9 @@ router.patch('/:id/verify', async (req, res, next) => {
     `, [updatedDiagnosis, updatedDate, JSON.stringify(updatedExtracted), id]);
 
     await recordAuditLog({
-      userId: req.user ? req.user.id : 'ATTENDING_DOCTOR',
-      userRole: 'DOCTOR',
+      userId: req.user.id,
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
       action: 'DOCUMENT_OCR_VERIFIED_BY_CLINICIAN',
       resourceType: 'DOCUMENT',
       resourceId: id,
@@ -164,11 +176,28 @@ router.patch('/:id/verify', async (req, res, next) => {
 
 /**
  * GET /api/documents/patient/:patientId
- * Get all documents for a patient
+ * Get all documents for a patient (hospital scoped)
  */
-router.get('/patient/:patientId', async (req, res, next) => {
+router.get('/patient/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { patientId } = req.params;
+
+    const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [patientId]);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found'
+      });
+    }
+
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view documents for a patient from another healthcare facility.'
+      });
+    }
+
     const documents = await query('SELECT * FROM documents WHERE patient_id = ? ORDER BY uploaded_at DESC', [patientId]);
     res.json({
       success: true,
@@ -196,9 +225,9 @@ router.get('/patient/:patientId', async (req, res, next) => {
 
 /**
  * GET /api/documents/download/:id
- * Securely stream document file to authorized clients
+ * Securely stream document file to authorized clients with hospital verification
  */
-router.get('/download/:id', async (req, res, next) => {
+router.get('/download/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const document = await get('SELECT * FROM documents WHERE id = ?', [id]);
@@ -206,6 +235,16 @@ router.get('/download/:id', async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: 'Document Not Found'
+      });
+    }
+
+    // Verify hospital relationship through patient record
+    const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [document.patient_id]);
+    if (patient && req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to download medical documents belonging to another healthcare facility.'
       });
     }
 
@@ -217,8 +256,9 @@ router.get('/download/:id', async (req, res, next) => {
     }
 
     await recordAuditLog({
-      userId: req.user ? req.user.id : 'KIOSK_VIEWER',
-      userRole: req.user ? req.user.role : 'PATIENT',
+      userId: req.user.id,
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
       action: 'DOCUMENT_VIEWED',
       resourceType: 'DOCUMENT',
       resourceId: id,

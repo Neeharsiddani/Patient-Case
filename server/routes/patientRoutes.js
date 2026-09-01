@@ -4,7 +4,7 @@ import { run, get, query } from '../db/database.js';
 import { evaluateClinicalTriage } from '../services/redFlagEngine.js';
 import { generateAssistiveSummary } from '../services/aiSummaryService.js';
 import { recordAuditLog } from '../middleware/audit.js';
-import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -67,8 +67,15 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
 
     // 2. Hospital and Department verification
     const hospital = await get('SELECT id, name FROM hospitals WHERE id = ?', [hospitalId]);
-    const validatedHospitalId = hospital ? hospital.id : 'hosp-ggh-hyd';
-    const validatedHospitalName = hospital ? hospital.name : (hospitalName || 'Government General Hospital');
+    if (!hospital) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Hospital',
+        message: 'A valid healthcare facility must be selected.'
+      });
+    }
+    const validatedHospitalId = hospital.id;
+    const validatedHospitalName = hospital.name;
 
     const dept = await get('SELECT id, name, room_number FROM departments WHERE id = ? AND hospital_id = ?', [departmentId, validatedHospitalId]);
     const validatedDeptId = dept ? dept.id : departmentId;
@@ -253,9 +260,18 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
  * Retrieve patient cases in the OPD queue with strict Role-Based Access Control
  * Hierarchy: Hospital -> Department -> Assigned/Authorized Cases
  */
-router.get('/', optionalAuth, async (req, res, next) => {
+router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { status, triage, search, hospitalId, departmentId, myAssignedOnly } = req.query;
+
+    // Reject attempt to access another hospital's patient list
+    if (hospitalId && req.user.hospital_id && hospitalId !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to query patient queues from another healthcare facility.'
+      });
+    }
 
     let sql = `
       SELECT 
@@ -278,45 +294,39 @@ router.get('/', optionalAuth, async (req, res, next) => {
     const params = [];
 
     // --- STRICT HEALTHCARE RBAC AUTHORIZATION ENFORCEMENT ---
-    if (req.user) {
-      if (req.user.role === 'DOCTOR') {
-        // Doctor can ONLY view patients in their assigned hospital
-        if (req.user.hospital_id) {
-          sql += ' AND p.hospital_id = ?';
-          params.push(req.user.hospital_id);
-        }
-
-        // Retrieve authorized departments for this doctor
-        const authorizedDepts = await query(
-          'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
-          [req.user.id]
-        );
-        const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
-
-        if (myAssignedOnly === 'true') {
-          sql += ' AND p.assigned_doctor_id = ?';
-          params.push(req.user.id);
-        } else if (authorizedDeptIds.length > 0) {
-          // Doctor sees cases in their authorized departments OR cases assigned directly to them
-          const placeholders = authorizedDeptIds.map(() => '?').join(', ');
-          sql += ` AND (p.department_id IN (${placeholders}) OR p.assigned_doctor_id = ?)`;
-          params.push(...authorizedDeptIds, req.user.id);
-        } else {
-          // If no departments mapped, only directly assigned cases
-          sql += ' AND p.assigned_doctor_id = ?';
-          params.push(req.user.id);
-        }
-      } else if (req.user.role === 'HOSPITAL_ADMIN') {
-        // Hospital admin can only see patients belonging to their hospital
-        if (req.user.hospital_id) {
-          sql += ' AND p.hospital_id = ?';
-          params.push(req.user.hospital_id);
-        }
+    if (req.user.role === 'DOCTOR') {
+      // Doctor can ONLY view patients in their assigned hospital
+      if (req.user.hospital_id) {
+        sql += ' AND p.hospital_id = ?';
+        params.push(req.user.hospital_id);
       }
-    } else if (hospitalId) {
-      // Unauthenticated query with explicit hospital filter (e.g. Kiosk mode or dev)
-      sql += ' AND p.hospital_id = ?';
-      params.push(hospitalId);
+
+      // Retrieve authorized departments for this doctor
+      const authorizedDepts = await query(
+        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        [req.user.id]
+      );
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+
+      if (myAssignedOnly === 'true') {
+        sql += ' AND p.assigned_doctor_id = ?';
+        params.push(req.user.id);
+      } else if (authorizedDeptIds.length > 0) {
+        // Doctor sees cases in their authorized departments OR cases assigned directly to them
+        const placeholders = authorizedDeptIds.map(() => '?').join(', ');
+        sql += ` AND (p.department_id IN (${placeholders}) OR p.assigned_doctor_id = ?)`;
+        params.push(...authorizedDeptIds, req.user.id);
+      } else {
+        // If no departments mapped, only directly assigned cases
+        sql += ' AND p.assigned_doctor_id = ?';
+        params.push(req.user.id);
+      }
+    } else if (req.user.role === 'HOSPITAL_ADMIN') {
+      // Hospital admin can only see patients belonging to their hospital
+      if (req.user.hospital_id) {
+        sql += ' AND p.hospital_id = ?';
+        params.push(req.user.hospital_id);
+      }
     }
 
     if (departmentId && departmentId !== 'all') {
@@ -435,7 +445,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
  * GET /api/patients/:id
  * Retrieve detailed patient record by ID with strict Permission & Consent verification
  */
-router.get('/:id', optionalAuth, async (req, res, next) => {
+router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const patient = await get('SELECT * FROM patients WHERE id = ?', [id]);
@@ -448,42 +458,40 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     }
 
     // --- STRICT PATIENT PRIVACY & ACCESS CONTROL CHECK ---
-    if (req.user) {
-      if (req.user.role === 'DOCTOR') {
-        // Verify hospital relationship
-        if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
-          return res.status(403).json({
-            success: false,
-            error: 'Forbidden Access',
-            message: 'You are not authorized to view patient records belonging to another healthcare facility.'
-          });
-        }
+    if (req.user.role === 'DOCTOR') {
+      // Verify hospital relationship
+      if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'You are not authorized to view patient records belonging to another healthcare facility.'
+        });
+      }
 
-        // Verify department authorization
-        const authorizedDepts = await query(
-          'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
-          [req.user.id]
-        );
-        const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+      // Verify department authorization
+      const authorizedDepts = await query(
+        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        [req.user.id]
+      );
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
 
-        const isAssigned = patient.assigned_doctor_id === req.user.id;
-        const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
+      const isAssigned = patient.assigned_doctor_id === req.user.id;
+      const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
 
-        if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
-          return res.status(403).json({
-            success: false,
-            error: 'Forbidden Access',
-            message: 'You are not authorized to view cases outside your registered clinical departments.'
-          });
-        }
-      } else if (req.user.role === 'HOSPITAL_ADMIN') {
-        if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
-          return res.status(403).json({
-            success: false,
-            error: 'Forbidden Access',
-            message: 'Hospital Administrators can only access records from their registered facility.'
-          });
-        }
+      if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'You are not authorized to view cases outside your registered clinical departments.'
+        });
+      }
+    } else if (req.user.role === 'HOSPITAL_ADMIN') {
+      if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'Hospital Administrators can only access records from their registered facility.'
+        });
       }
     }
 

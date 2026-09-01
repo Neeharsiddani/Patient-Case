@@ -6,14 +6,19 @@ const router = express.Router();
 
 /**
  * GET /api/audit-logs
- * Hospital administrators & authorized doctors view immutable audit trails
+ * Hospital administrators & authorized admins view immutable audit trails
  */
-router.get('/', async (req, res, next) => {
+router.get('/', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { limit = 50, offset = 0, action, resourceType } = req.query;
 
     let sql = 'SELECT * FROM audit_logs WHERE 1=1';
     const params = [];
+
+    if (req.user.role === 'HOSPITAL_ADMIN' && req.user.hospital_id) {
+      sql += ' AND hospital_id = ?';
+      params.push(req.user.hospital_id);
+    }
 
     if (action) {
       sql += ' AND action = ?';

@@ -2,11 +2,10 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { get, query } from '../db/database.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, getJwtSecret } from '../middleware/auth.js';
 import { recordAuditLog } from '../middleware/audit.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'medimitra_secure_healthcare_jwt_key_2026';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 /**
@@ -53,6 +52,7 @@ const buildUserProfile = async (user) => {
 /**
  * POST /api/auth/login
  * Staff / Doctor / Hospital Admin Login
+ * Verifies credentials server-side via bcrypt against SQLite users table.
  */
 router.post('/login', async (req, res, next) => {
   try {
@@ -74,6 +74,14 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
+    if (user.status !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        error: 'Account Inactive',
+        message: 'This user account is inactive or disabled.'
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({
@@ -85,6 +93,7 @@ router.post('/login', async (req, res, next) => {
 
     const userProfile = await buildUserProfile(user);
 
+    const secret = getJwtSecret();
     const token = jwt.sign(
       {
         id: user.id,
@@ -93,7 +102,7 @@ router.post('/login', async (req, res, next) => {
         name: user.full_name,
         hospital_id: user.hospital_id
       },
-      JWT_SECRET,
+      secret,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
@@ -107,46 +116,6 @@ router.post('/login', async (req, res, next) => {
       details: { username: user.username, role: user.role, hospital: userProfile.hospitalName },
       ipAddress: req.ip || '127.0.0.1'
     });
-
-    res.json({
-      success: true,
-      token,
-      user: userProfile
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * POST /api/auth/quick-doctor-auth
- * Fast hospital workstation PIN/account selector for doctor session
- */
-router.post('/quick-doctor-auth', async (req, res, next) => {
-  try {
-    const { username = 'dr.sharma' } = req.body;
-    const user = await get('SELECT * FROM users WHERE username = ?', [username]);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'Staff Not Found',
-        message: 'Staff record not found.'
-      });
-    }
-
-    const userProfile = await buildUserProfile(user);
-
-    const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        name: user.full_name,
-        hospital_id: user.hospital_id
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
 
     res.json({
       success: true,

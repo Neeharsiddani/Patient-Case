@@ -145,7 +145,7 @@ export const Step1_HospitalSelect = () => {
       hospital_id: hosp.id,
       hospital_name: hosp.name,
       assignedDepartment: hosp.departments?.[0]?.name || 'General Medicine',
-      department_id: hosp.departments?.[0]?.id || `dept-${hosp.id}-genmed`
+      department_id: hosp.departments?.[0]?.id || `dept-${hosp.id.startsWith('hosp-') ? hosp.id.slice(5) : hosp.id}-genmed`
     }));
 
     // Automatically direct to next page (Step 2: Reason for Visit)

@@ -26,55 +26,9 @@ export const Step1_Identification = () => {
   const [qrParseSuccess, setQrParseSuccess] = useState(false);
   const [gatewayNotice, setGatewayNotice] = useState(null);
 
-  const quickProfiles = [
-    {
-      name: 'Ramesh Kumar Verma',
-      age: '54',
-      gender: 'Male',
-      phone: '9876543210',
-      abhaId: '91-8472-9182-3451',
-      abhaAddress: 'ramesh.verma@abdm',
-      address: 'Sector 4, Rohini, New Delhi',
-      abhaStatus: 'ABHA_ENTERED_UNVERIFIED'
-    },
-    {
-      name: 'Sunita Sharma',
-      age: '48',
-      gender: 'Female',
-      phone: '9412378901',
-      abhaId: '91-3321-4456-7890',
-      abhaAddress: 'sunita.sharma@abdm',
-      address: 'Karol Bagh, New Delhi',
-      abhaStatus: 'ABHA_ENTERED_UNVERIFIED'
-    },
-    {
-      name: 'Mohammad Irfan',
-      age: '32',
-      gender: 'Male',
-      phone: '9711234567',
-      abhaId: '91-5544-7788-9900',
-      abhaAddress: 'm.irfan@abdm',
-      address: 'Chawri Bazar, Old Delhi',
-      abhaStatus: 'ABHA_ENTERED_UNVERIFIED'
-    },
-    {
-      name: 'Ananya Ghosh',
-      age: '24',
-      gender: 'Female',
-      phone: '9810123456',
-      abhaId: '91-1122-3344-5566',
-      abhaAddress: 'ananya.ghosh@abdm',
-      address: 'Salt Lake / New Delhi',
-      abhaStatus: 'ABHA_ENTERED_UNVERIFIED'
-    }
-  ];
-
-  const handleSelectProfile = (profile) => {
-    setKioskForm((prev) => ({
-      ...prev,
-      ...profile
-    }));
-  };
+  // Validate ABHA format: 14 digits (hyphenated or plain) or PHR address (user@abdm)
+  const abhaInput = (kioskForm.abhaId || kioskForm.abhaAddress || '').trim();
+  const isValidAbhaFormat = !abhaInput || /^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4}|[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)$/.test(abhaInput);
 
   /**
    * Real ABDM QR Code Payload Parser
@@ -129,19 +83,6 @@ export const Step1_Identification = () => {
     }
   };
 
-  const handleSimulateSampleQr = () => {
-    const samplePayload = JSON.stringify({
-      hidn: "91-8472-9182-3451",
-      hid: "ramesh.verma@abdm",
-      name: "Ramesh Kumar Verma",
-      gender: "M",
-      dob: "15/08/1970",
-      address: "Sector 4, Rohini, New Delhi",
-      mobile: "9876543210"
-    });
-    setQrRawInput(samplePayload);
-    parseAbdmQrCode(samplePayload);
-  };
 
   const handleCheckAbdmGateway = async () => {
     try {
@@ -208,31 +149,6 @@ export const Step1_Identification = () => {
         </div>
       )}
 
-      {/* Quick Patient Selection Cards */}
-      <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-3xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-cyan-900 font-bold text-xs">
-            <Sparkles size={16} className="text-cyan-600" />
-            <span>Quick Patient Profiles:</span>
-          </div>
-          <span className="text-[10px] text-slate-500 italic">Select to test clinical workflows</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {quickProfiles.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              onClick={() => handleSelectProfile(p)}
-              className="px-3.5 py-2.5 bg-white hover:bg-cyan-600 hover:text-white border border-cyan-300 rounded-2xl text-left text-xs font-medium transition-all shadow-sm flex flex-col group card-hover cursor-pointer"
-            >
-              <span className="font-extrabold text-slate-900 group-hover:text-white truncate">{p.name}</span>
-              <span className="text-slate-400 group-hover:text-cyan-100 text-[11px] font-mono mt-0.5">{p.abhaId}</span>
-              <span className="text-cyan-700 group-hover:text-white text-[10px] font-semibold mt-1">{p.age} Y • {p.gender}</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Identification Mode Tabs */}
       <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
@@ -313,6 +229,11 @@ export const Step1_Identification = () => {
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-1">Format: 91-XXXX-XXXX-XXXX (14-Digit ABHA ID) or username@abdm</p>
+              {!isValidAbhaFormat && abhaInput.length > 0 && (
+                <p className="text-xs text-red-600 font-bold mt-1">
+                  ⚠️ Invalid ABHA format. ABHA must be a 14-digit number (e.g. 91-8472-9182-3451) or a valid PHR address (e.g. name@abdm).
+                </p>
+              )}
             </div>
 
             <div>
@@ -412,16 +333,6 @@ export const Step1_Identification = () => {
               />
             </div>
 
-            <div className="flex justify-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleSimulateSampleQr}
-                style={{ backgroundColor: '#088395' }}
-                className="px-4 py-2 text-white font-bold rounded-xl text-xs hover:opacity-90 transition-all shadow-sm cursor-pointer"
-              >
-                Simulate Scan Sample ABHA Card
-              </button>
-            </div>
 
             {qrParseSuccess && (
               <div className="p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center justify-center gap-1.5 animate-fadeIn">

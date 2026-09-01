@@ -1,11 +1,26 @@
 import jwt from 'jsonwebtoken';
 import { get } from '../db/database.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'medimitra_secure_healthcare_jwt_key_2026';
+/**
+ * Returns JWT Secret.
+ * In production: FAIL CLOSED if JWT_SECRET environment variable is absent or empty.
+ * In development: Allowed only with explicit local development testing key.
+ */
+export const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production. Server failing closed.');
+    }
+    return 'dev_insecure_jwt_secret_only_for_local_development_testing_39824';
+  }
+  return secret.trim();
+};
 
 /**
  * Authentication Middleware
  * Extracts and verifies Bearer JWT token from Authorization header.
+ * Enforces token expiration, secret validity, and active user verification.
  */
 export const requireAuth = async (req, res, next) => {
   try {
@@ -19,15 +34,28 @@ export const requireAuth = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!token || token.trim() === '') {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication Required',
+        message: 'Missing session token.'
+      });
+    }
 
-    // Verify user exists in database
-    const user = await get('SELECT id, username, role, full_name, email, department FROM users WHERE id = ?', [decoded.id]);
-    if (!user) {
+    const secret = getJwtSecret();
+    const decoded = jwt.verify(token, secret);
+
+    // Verify user exists and is active in database (fetching hospital_id for RBAC)
+    const user = await get(
+      'SELECT id, username, role, full_name, email, department, hospital_id, status FROM users WHERE id = ?',
+      [decoded.id]
+    );
+
+    if (!user || user.status !== 'ACTIVE') {
       return res.status(401).json({
         success: false,
         error: 'Invalid Token',
-        message: 'The user account associated with this session token no longer exists.'
+        message: 'The user account associated with this session token no longer exists or is inactive.'
       });
     }
 
@@ -51,7 +79,7 @@ export const requireAuth = async (req, res, next) => {
 
 /**
  * Role-Based Access Control Middleware (RBAC)
- * @param  {...string} allowedRoles List of roles permitted to access the route ('DOCTOR', 'ADMIN', 'PATIENT')
+ * @param  {...string} allowedRoles List of roles permitted to access the route ('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
  */
 export const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
@@ -85,10 +113,16 @@ export const optionalAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET);
-      const user = await get('SELECT id, username, role, full_name, email, department FROM users WHERE id = ?', [decoded.id]);
-      if (user) {
-        req.user = user;
+      if (token && token.trim()) {
+        const secret = getJwtSecret();
+        const decoded = jwt.verify(token, secret);
+        const user = await get(
+          'SELECT id, username, role, full_name, email, department, hospital_id, status FROM users WHERE id = ?',
+          [decoded.id]
+        );
+        if (user && user.status === 'ACTIVE') {
+          req.user = user;
+        }
       }
     }
   } catch {

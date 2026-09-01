@@ -35,27 +35,22 @@ export const Step6_OcrExtraction = () => {
   const [activeTab, setActiveTab] = useState('extracted_data'); // 'extracted_data' | 'timeline' | 'raw_preview'
   const [isProcessingScan, setIsProcessingScan] = useState(true);
 
-  // Initialize uploaded docs if none attached yet
+  // Initialize uploaded docs if present
   useEffect(() => {
-    if (!kioskForm.uploadedDocs || kioskForm.uploadedDocs.length === 0) {
-      const defaultDocs = [standardClinicalDocuments[0], standardClinicalDocuments[1]];
-      setKioskForm((prev) => ({
-        ...prev,
-        uploadedDocs: defaultDocs
-      }));
-      setSelectedDocId(defaultDocs[0].id);
-    } else {
+    if (kioskForm.uploadedDocs && kioskForm.uploadedDocs.length > 0) {
       setSelectedDocId(kioskForm.uploadedDocs[0].id);
+    } else {
+      setSelectedDocId(null);
     }
 
     const timer = setTimeout(() => {
       setIsProcessingScan(false);
-    }, 1200);
+    }, 600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [kioskForm.uploadedDocs]);
 
   const documents = kioskForm.uploadedDocs || [];
-  const currentDoc = documents.find((d) => d.id === selectedDocId) || documents[0];
+  const currentDoc = documents.find((d) => d.id === selectedDocId) || documents[0] || null;
   const timeline = generateMedicalTimeline(documents);
 
   const handleUpdateMedicine = (docId, medIndex, field, value) => {
@@ -163,6 +158,21 @@ export const Step6_OcrExtraction = () => {
           </button>
         </div>
       </div>
+
+      {/* Empty State when no documents uploaded */}
+      {documents.length === 0 && (
+        <div className="bg-white p-8 sm:p-12 rounded-3xl border border-slate-200 text-center space-y-4 shadow-sm">
+          <div className="w-16 h-16 bg-cyan-50 text-cyan-700 rounded-2xl flex items-center justify-center mx-auto">
+            <FileText size={32} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800">No Medical Documents Attached</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+              No medical records were uploaded during the document capture step. If you have past prescriptions, lab reports, or discharge summaries, you can return to the upload step, or continue to review and submit your consultation details.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* VIEW 1: EXTRACTED STRUCTURED MEDICAL DATA */}
       {activeTab === 'extracted_data' && currentDoc && (

@@ -17,60 +17,78 @@ import { AudioPrompt } from '../common/AudioPrompt';
 export const Step6_MedicalTimeline = () => {
   const { kioskForm } = usePatient();
 
-  // Dynamic chronological timeline synthesis
-  const timelineEvents = [
-    {
-      year: '2022',
-      date: '14 Oct 2022',
-      title: 'Type 2 Diabetes Mellitus Diagnosed',
-      category: 'Chronic Condition',
-      facility: 'Primary Health Centre',
-      details: 'Fasting Blood Sugar 168 mg/dL. Initiated Tab. Metformin 500mg.',
-      icon: Activity,
-      color: 'blue'
-    },
-    {
-      year: '2023',
-      date: '20 May 2023',
-      title: 'Annual Blood & Lipid Profile Investigation',
-      category: 'Diagnostic Lab',
-      facility: 'Diagnostic Laboratory',
-      details: 'HbA1c: 7.4%, Serum Cholesterol: 218 mg/dL. Added Tab. Atorvastatin.',
-      icon: FileText,
-      color: 'purple'
-    },
-    {
-      year: '2024',
-      date: '08 Dec 2024',
-      title: 'Laparoscopic Procedure / Hospital Admission',
-      category: 'Hospitalization',
-      facility: 'Civil Hospital',
-      details: 'Uncomplicated laparoscopic appendectomy. Uneventful recovery.',
-      icon: Building2,
-      color: 'amber'
-    },
-    {
-      year: '2025',
-      date: '15 Sep 2025',
-      title: 'OPD Prescription & Drug Allergy Recorded',
-      category: 'Prescription & Allergy',
-      facility: 'Community Health Centre',
-      details: 'Documented Penicillin allergy (Skin rash reaction). Tab Telmisartan 40mg prescribed for BP.',
-      icon: Pill,
-      color: 'red'
-    },
-    {
+  // Dynamic chronological timeline synthesized strictly from patient data & genuine uploaded records
+  const timelineEvents = React.useMemo(() => {
+    const events = [];
+
+    // 1. Current Active Consultation (Top Event)
+    events.push({
       year: '2026',
       date: 'Today (Active Consultation)',
       title: `${kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || 'Outpatient Consultation'}`,
       category: 'Current Clinical Intake',
-      facility: `${kioskForm.selectedHospitalName || 'Government General Hospital'}`,
+      facility: `${kioskForm.selectedHospitalName || 'Selected Healthcare Facility'}`,
       details: `Vitals: BP ${kioskForm.vitals.bpSystolic}/${kioskForm.vitals.bpDiastolic} mmHg, Pulse ${kioskForm.vitals.pulse} bpm, SpO2 ${kioskForm.vitals.spo2}%.`,
       icon: Heart,
       color: 'cyan',
-      isCurrent: true
+      isCurrent: true,
+      verified: false
+    });
+
+    // 2. Genuine Uploaded Medical Documents
+    if (kioskForm.uploadedDocs && kioskForm.uploadedDocs.length > 0) {
+      kioskForm.uploadedDocs.forEach((doc) => {
+        events.push({
+          year: doc.year || (doc.date ? doc.date.split(/[\/\-\.]/)[2] : 'Recent'),
+          date: doc.date || 'Digitized Document',
+          title: doc.title,
+          category: doc.typeName || doc.type || 'Medical Record',
+          facility: doc.hospital || doc.hospitalName || 'Healthcare Facility',
+          details: doc.diagnosis ? `Impression/Diagnosis: ${doc.diagnosis}` : (doc.rawOcrText ? doc.rawOcrText.slice(0, 120) + '...' : 'Digitized clinical record.'),
+          icon: doc.type === 'prescription' ? Pill : doc.type === 'lab_report' ? FileText : Building2,
+          color: doc.type === 'prescription' ? 'blue' : 'amber',
+          isCurrent: false,
+          verified: doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
+        });
+      });
     }
-  ];
+
+    // 3. Patient-Reported Past Conditions
+    if (kioskForm.pastConditions && kioskForm.pastConditions.length > 0) {
+      kioskForm.pastConditions.forEach((cond) => {
+        events.push({
+          year: 'History',
+          date: 'Patient Reported',
+          title: `Pre-existing Condition: ${cond}`,
+          category: 'Medical History',
+          facility: 'Patient Reported at Intake',
+          details: `Patient noted ongoing or previous diagnosis of ${cond}.`,
+          icon: Activity,
+          color: 'purple',
+          isCurrent: false,
+          verified: false
+        });
+      });
+    }
+
+    // 4. Patient-Reported Known Allergies
+    if (kioskForm.allergies && kioskForm.allergies.length > 0) {
+      events.push({
+        year: 'Allergy',
+        date: 'Patient Reported',
+        title: `Documented Allergies: ${kioskForm.allergies.join(', ')}`,
+        category: 'Allergy Record',
+        facility: 'Patient Reported at Intake',
+        details: 'Adverse reactions noted for clinical care team safety.',
+        icon: Pill,
+        color: 'red',
+        isCurrent: false,
+        verified: false
+      });
+    }
+
+    return events;
+  }, [kioskForm]);
 
   return (
     <div className="space-y-6">
@@ -145,8 +163,20 @@ export const Step6_MedicalTimeline = () => {
 
                   <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
                     <span>Recorded Facility: <strong className="text-slate-700">{evt.facility}</strong></span>
-                    <span className="text-emerald-700 font-bold flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Verified Record
+                    <span>
+                      {evt.isCurrent ? (
+                        <span className="text-cyan-700 font-bold flex items-center gap-1">
+                          <Clock size={12} /> Active Case
+                        </span>
+                      ) : evt.verified ? (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Verified Record
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-bold flex items-center gap-1">
+                          <AlertCircle size={12} /> Unverified Intake Record
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>

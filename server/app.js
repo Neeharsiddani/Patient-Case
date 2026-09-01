@@ -29,22 +29,26 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// 2. CORS Configuration
+// 2. CORS Configuration with Strict Origin Allow-List
+const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
+  'https://neeharsiddani.github.io',
   process.env.CLIENT_URL
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or Postman)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Permissive in dev, restrictable via ENV
+    // Allow non-browser requests with no origin (e.g. server-to-server, unit tests, curl)
+    if (!origin) {
+      return callback(null, true);
     }
+    if (allowedOrigins.includes(origin) || (!isProduction && origin.startsWith('http://localhost:'))) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Blocked by CORS policy: Origin '${origin}' is not authorized.`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

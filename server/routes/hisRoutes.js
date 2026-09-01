@@ -2,6 +2,7 @@ import express from 'express';
 import { get, query } from '../db/database.js';
 import { hisAdapterService } from '../services/hisAdapterService.js';
 import { recordAuditLog } from '../middleware/audit.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -9,9 +10,18 @@ const router = express.Router();
  * GET /api/his/status/:hospitalId
  * Check HIS configuration for a specific hospital
  */
-router.get('/status/:hospitalId', async (req, res, next) => {
+router.get('/status/:hospitalId', requireAuth, requireRole('HOSPITAL_ADMIN', 'DOCTOR', 'ADMIN'), async (req, res, next) => {
   try {
     const { hospitalId } = req.params;
+
+    if (req.user.hospital_id && req.user.hospital_id !== hospitalId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view HIS configuration for another healthcare facility.'
+      });
+    }
+
     const config = await hisAdapterService.getHospitalHisConfig(hospitalId);
     if (!config) {
       return res.status(404).json({
@@ -32,7 +42,7 @@ router.get('/status/:hospitalId', async (req, res, next) => {
  * POST /api/his/dispatch/:patientId
  * Dispatch a patient's FHIR R4 Bundle to the hospital's HIS/EMR
  */
-router.post('/dispatch/:patientId', async (req, res, next) => {
+router.post('/dispatch/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { patientId } = req.params;
     const patient = await get('SELECT * FROM patients WHERE id = ?', [patientId]);
@@ -40,6 +50,14 @@ router.post('/dispatch/:patientId', async (req, res, next) => {
       return res.status(404).json({
         success: false,
         error: 'Patient Not Found'
+      });
+    }
+
+    if (req.user.hospital_id && req.user.hospital_id !== patient.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to dispatch patient records belonging to another healthcare facility.'
       });
     }
 
@@ -62,8 +80,8 @@ router.post('/dispatch/:patientId', async (req, res, next) => {
     const result = await hisAdapterService.dispatchPatientRecordToHis(patientFull);
 
     await recordAuditLog({
-      userId: req.user?.id || 'DOCTOR_DISPATCH',
-      userRole: req.user?.role || 'DOCTOR',
+      userId: req.user.id,
+      userRole: req.user.role,
       hospitalId: patient.hospital_id,
       action: 'HIS_DISPATCH_ATTEMPT',
       resourceType: 'HOSPITAL_HIS',

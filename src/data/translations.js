@@ -4,7 +4,12 @@ export const languages = [
   { code: 'te', name: 'Telugu', native: 'తెలుగు', flag: '🇮🇳', voiceLang: 'te-IN' },
   { code: 'ta', name: 'Tamil', native: 'தமிழ்', flag: '🇮🇳', voiceLang: 'ta-IN' },
   { code: 'mr', name: 'Marathi', native: 'मराठी', flag: '🇮🇳', voiceLang: 'mr-IN' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা', flag: '🇮🇳', voiceLang: 'bn-IN' }
+  { code: 'bn', name: 'Bengali', native: 'বাংলা', flag: '🇮🇳', voiceLang: 'bn-IN' },
+  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી', flag: '🇮🇳', voiceLang: 'gu-IN' },
+  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', flag: '🇮🇳', voiceLang: 'kn-IN' },
+  { code: 'ml', name: 'Malayalam', native: 'മലയാളം', flag: '🇮🇳', voiceLang: 'ml-IN' },
+  { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ', flag: '🇮🇳', voiceLang: 'pa-IN' },
+  { code: 'ur', name: 'Urdu', native: 'اردو', flag: '🇮🇳', voiceLang: 'ur-IN' }
 ];
 
 export const translations = {
@@ -613,3 +618,9 @@ export const translations = {
     newPatientBtn: 'অন্য রোগী যোগ করুন'
   }
 };
+
+translations.gu = { ...translations.en };
+translations.kn = { ...translations.en };
+translations.ml = { ...translations.en };
+translations.pa = { ...translations.en };
+translations.ur = { ...translations.en };

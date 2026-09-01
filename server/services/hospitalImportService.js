@@ -73,8 +73,12 @@ export const HospitalImportService = {
         ];
 
         const activeHospId = existing ? existing.id : hospId;
+        const deptPrefix = activeHospId.startsWith('hosp-') ? activeHospId.slice(5) : activeHospId;
+        if (options.overwrite) {
+          await run('DELETE FROM departments WHERE hospital_id = ? AND id LIKE "dept-hosp-%"', [activeHospId]);
+        }
         for (const dept of departments) {
-          const deptId = `dept-${activeHospId}-${dept.code.toLowerCase()}`;
+          const deptId = dept.id || `dept-${deptPrefix}-${dept.code.toLowerCase()}`;
           const existingDept = await get('SELECT id FROM departments WHERE id = ?', [deptId]);
           if (!existingDept) {
             await run(`

@@ -46,10 +46,7 @@ export const Header = () => {
   const [showAbhaModal, setShowAbhaModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const patientHospitalName = kioskForm?.selectedHospitalName || 
-    (kioskForm?.selectedHospitalId && hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name) ||
-    (activeHospitalId && hospitals.find(h => h.id === activeHospitalId)?.name) ||
-    null;
+  const patientHospitalName = (kioskForm?.selectedHospitalId && (kioskForm?.selectedHospitalName || hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name)) || null;
 
   const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId));
 
@@ -100,7 +97,7 @@ export const Header = () => {
             </span>
             <p className="text-xs text-slate-600 font-bold mt-0.5">
               {role === 'kiosk' 
-                ? (patientHospitalName || 'Select a healthcare facility')
+                ? (patientHospitalName || 'Select Hospital')
                 : (currentHospital?.name || 'Authorized Healthcare Facility')}
             </p>
           </div>

@@ -24,17 +24,17 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
   const [showQrModal, setShowQrModal] = useState(false);
 
   const patientToken = kioskForm.generatedToken || {
-    tokenNumber: 'MED-101',
-    roomNumber: 'Room 104',
-    department: kioskForm.assignedDepartment || 'General Medicine',
-    assignedDoctor: 'Dr. Rajesh Sharma, MD',
+    tokenNumber: `OPD-${Date.now().toString().slice(-4)}`,
+    roomNumber: kioskForm.roomNumber || 'Room 101',
+    department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
+    assignedDoctor: kioskForm.assignedDoctor || 'Attending Medical Officer',
     registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     waitTime: '15-20 mins',
-    name: kioskForm.name || 'Ramesh Kumar',
-    age: kioskForm.age || 54,
-    gender: kioskForm.gender || 'Male',
-    abhaId: kioskForm.abhaId || '91-8472-9182-3451',
-    hospitalName: kioskForm.selectedHospitalName || 'Government General Hospital'
+    name: kioskForm.name || 'Walk-in Patient',
+    age: kioskForm.age || 'Not provided',
+    gender: kioskForm.gender || 'Not specified',
+    abhaId: kioskForm.abhaId || 'None (Walk-in)',
+    hospitalName: kioskForm.selectedHospitalName || 'Selected Healthcare Facility'
   };
 
   // Real verifiable clinical consultation token payload
@@ -69,7 +69,7 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         </div>
 
         <h2 className="text-2xl font-extrabold text-emerald-950 font-heading">
-          Your information has been securely submitted to {kioskForm.selectedHospitalName || 'Government General Hospital'}.
+          Your information has been securely submitted to {kioskForm.selectedHospitalName || 'your selected healthcare facility'}.
         </h2>
 
         <p className="text-sm text-emerald-800 font-medium max-w-lg mx-auto leading-relaxed">
