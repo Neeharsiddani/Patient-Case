@@ -41,7 +41,7 @@ export const Step4_HospitalSelect = () => {
     }, 120);
   };
 
-  const currentHospital = hospitals.find(h => h.id === kioskForm.selectedHospitalId) || hospitals[0];
+  const currentHospital = hospitals.find(h => h.id === kioskForm.selectedHospitalId) || null;
 
   return (
     <div className="space-y-6">

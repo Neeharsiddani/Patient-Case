@@ -18,8 +18,18 @@ import { TriageBadge } from '../common/TriageBadge';
 export const Step4_RedFlagAlert = () => {
   const { kioskForm, setKioskForm, calculateTriage, speakText } = usePatient();
 
-  const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
-  const isHighPriority = triageLevel <= 2 || redFlags.length > 0;
+  const triage = calculateTriage(kioskForm);
+  const combinedFlags = Array.from(new Set([
+    ...(Array.isArray(kioskForm.redFlags) ? kioskForm.redFlags : []),
+    ...(Array.isArray(triage.redFlags) ? triage.redFlags : [])
+  ])).map(f => typeof f === 'string' ? f : (f.titleEn || f.title || String(f)));
+
+  const effectiveTriageLevel = (combinedFlags.length > 0 || (kioskForm.triageLevel && kioskForm.triageLevel <= 2)) 
+    ? Math.min(triage.triageLevel, kioskForm.triageLevel || 2) 
+    : triage.triageLevel;
+
+  const isHighPriority = effectiveTriageLevel <= 2 || combinedFlags.length > 0;
+  const redFlags = combinedFlags;
 
   return (
     <div className="space-y-6">

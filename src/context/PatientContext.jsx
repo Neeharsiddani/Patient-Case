@@ -559,6 +559,7 @@ export const PatientProvider = ({ children }) => {
 
   // Reset Kiosk Form for new patient
   const resetKiosk = () => {
+    setActiveHospitalId(null);
     setKioskStep(1);
     setKioskForm({
       abhaId: '',

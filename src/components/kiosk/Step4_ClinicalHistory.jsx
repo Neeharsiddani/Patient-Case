@@ -188,18 +188,24 @@ export const Step4_ClinicalHistory = () => {
     if (!currentQuestion) return;
     const optionText = option[historyLang] || option.en;
 
-    setAnswers((prev) => {
-      const currentList = prev[currentQuestion.id] || [];
-      if (currentQuestion.type === 'multi') {
-        const exists = currentList.includes(optionText);
-        const updated = exists
-          ? currentList.filter((item) => item !== optionText)
-          : [...currentList, optionText];
-        return { ...prev, [currentQuestion.id]: updated };
-      } else {
-        return { ...prev, [currentQuestion.id]: [optionText] };
-      }
-    });
+    const currentList = answers[currentQuestion.id] || [];
+    let updatedForQuestion;
+    if (currentQuestion.type === 'multi') {
+      const exists = currentList.includes(optionText);
+      updatedForQuestion = exists
+        ? currentList.filter((item) => item !== optionText)
+        : [...currentList, optionText];
+    } else {
+      updatedForQuestion = [optionText];
+    }
+
+    const updatedAnswers = {
+      ...answers,
+      [currentQuestion.id]: updatedForQuestion
+    };
+
+    setAnswers(updatedAnswers);
+    saveAndCommitHistory(updatedAnswers);
 
     // If single choice, advance automatically after short delay
     if (currentQuestion.type !== 'multi') {
@@ -224,27 +230,28 @@ export const Step4_ClinicalHistory = () => {
     // Match spoken text against question options
     const matchResult = matchSpokenTextToOptions(spokenTranscript, currentQuestion.options, historyLang);
     
-    setAnswers((prev) => {
-      const existing = prev[currentQuestion.id] || [];
-      let updatedAnswers = [...existing];
+    const existing = answers[currentQuestion.id] || [];
+    let updatedForQuestion = [...existing];
 
-      if (matchResult.matchedOption) {
-        const optText = matchResult.matchedOption[historyLang] || matchResult.matchedOption.en;
-        if (!updatedAnswers.includes(optText)) {
-          updatedAnswers = currentQuestion.type === 'multi' ? [...updatedAnswers, optText] : [optText];
-        }
-      } else {
-        // Store verbatim spoken transcript
-        if (!updatedAnswers.includes(spokenTranscript)) {
-          updatedAnswers = currentQuestion.type === 'multi' ? [...updatedAnswers, spokenTranscript] : [spokenTranscript];
-        }
+    if (matchResult.matchedOption) {
+      const optText = matchResult.matchedOption[historyLang] || matchResult.matchedOption.en;
+      if (!updatedForQuestion.includes(optText)) {
+        updatedForQuestion = currentQuestion.type === 'multi' ? [...updatedForQuestion, optText] : [optText];
       }
+    } else {
+      // Store verbatim spoken transcript
+      if (!updatedForQuestion.includes(spokenTranscript)) {
+        updatedForQuestion = currentQuestion.type === 'multi' ? [...updatedForQuestion, spokenTranscript] : [spokenTranscript];
+      }
+    }
 
-      return {
-        ...prev,
-        [currentQuestion.id]: updatedAnswers
-      };
-    });
+    const updatedAnswers = {
+      ...answers,
+      [currentQuestion.id]: updatedForQuestion
+    };
+
+    setAnswers(updatedAnswers);
+    saveAndCommitHistory(updatedAnswers);
 
     if (shouldAdvance) {
       setTimeout(() => {

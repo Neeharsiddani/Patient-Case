@@ -39,13 +39,19 @@ export const Header = () => {
     handleUserLogin,
     handleUserLogout,
     activeHospitalId,
+    kioskForm,
     hospitals
   } = usePatient();
 
   const [showAbhaModal, setShowAbhaModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
+  const patientHospitalName = kioskForm?.selectedHospitalName || 
+    (kioskForm?.selectedHospitalId && hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name) ||
+    (activeHospitalId && hospitals.find(h => h.id === activeHospitalId)?.name) ||
+    null;
+
+  const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId));
 
   const handleRoleSelect = (targetRole) => {
     if (targetRole === 'kiosk') {
@@ -93,7 +99,9 @@ export const Header = () => {
               ABDM Clinical Intake
             </span>
             <p className="text-xs text-slate-600 font-bold mt-0.5">
-              {currentHospital?.name || t.hospitalName}
+              {role === 'kiosk' 
+                ? (patientHospitalName || 'Select a healthcare facility')
+                : (currentHospital?.name || 'Authorized Healthcare Facility')}
             </p>
           </div>
         </div>

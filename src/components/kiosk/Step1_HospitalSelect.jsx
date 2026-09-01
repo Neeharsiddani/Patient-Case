@@ -51,7 +51,7 @@ const FEATURED_LOCALITIES = [
 ];
 
 export const Step1_HospitalSelect = () => {
-  const { kioskForm, setKioskForm, setKioskStep, t } = usePatient();
+  const { kioskForm, setKioskForm, setKioskStep, setActiveHospitalId, t } = usePatient();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedState, setSelectedState] = useState('All States');
@@ -137,6 +137,7 @@ export const Step1_HospitalSelect = () => {
   };
 
   const handleSelectHospital = (hosp) => {
+    if (setActiveHospitalId) setActiveHospitalId(hosp.id);
     setKioskForm(prev => ({
       ...prev,
       selectedHospitalId: hosp.id,

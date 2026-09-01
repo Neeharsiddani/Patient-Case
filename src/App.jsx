@@ -19,6 +19,7 @@ const AppContent = () => {
     handleUserLogout, 
     hospitals, 
     activeHospitalId,
+    kioskForm,
     kioskStep,
     setKioskStep
   } = usePatient();
@@ -150,7 +151,30 @@ const AppContent = () => {
     window.history.pushState({ screen: 'welcome', step: 1 }, '', getRouteUrl('welcome', 1));
   };
 
-  const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
+  // Selected hospital for patient workflow:
+  // ONLY display a hospital name if the patient has genuinely selected one!
+  const patientHospitalName = kioskForm?.selectedHospitalName || 
+    (kioskForm?.selectedHospitalId && hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name) ||
+    (activeHospitalId && hospitals.find(h => h.id === activeHospitalId)?.name) ||
+    null;
+
+  // Selected hospital for staff workflow (Doctor / Admin):
+  const staffHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId));
+  const staffHospitalName = staffHospital?.name || authenticatedUser?.hospitalName || null;
+
+  const headerBadge = currentScreen === 'patient'
+    ? 'Patient Intake'
+    : currentScreen === 'doctor_login'
+    ? 'Hospital Authentication'
+    : 'Hospital Clinical Workstation';
+
+  const headerHospitalText = currentScreen === 'patient'
+    ? (patientHospitalName || 'Select a healthcare facility')
+    : currentScreen === 'doctor_login'
+    ? (staffHospitalName || 'National Healthcare Facility Login')
+    : (staffHospitalName || 'Authorized Healthcare Facility');
+
+  const isHospitalPlaceholder = currentScreen === 'patient' && !patientHospitalName;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
@@ -160,22 +184,29 @@ const AppContent = () => {
           <header className="no-print sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
             {/* Main Header Bar */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <button
                   type="button"
                   onClick={() => setCurrentScreen('welcome')}
-                  className="hover:opacity-85 transition-opacity"
+                  className="hover:opacity-85 transition-opacity flex-shrink-0"
                   title="Return to Welcome Screen"
                 >
                   <MediMitraLogo size="md" showText={true} />
                 </button>
 
-                <div className="hidden sm:block border-l border-slate-200 pl-3">
-                  <span className="bg-cyan-100 text-cyan-800 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-cyan-300">
-                    {currentScreen === 'patient' ? 'Patient Intake' : currentScreen === 'doctor_login' ? 'Hospital Authentication' : 'Hospital Clinical Workstation'}
+                <div className="border-l border-slate-200 pl-2.5 sm:pl-3 min-w-0">
+                  <span className="bg-cyan-100 text-cyan-800 text-[9px] sm:text-[10px] uppercase font-bold px-1.5 sm:px-2 py-0.5 rounded-full border border-cyan-300 inline-block tracking-wide">
+                    {headerBadge}
                   </span>
-                  <p className="text-xs text-slate-700 font-extrabold mt-0.5">
-                    {currentHospital?.name}
+                  <p 
+                    id="header-hospital-name"
+                    className={`text-[11px] sm:text-xs mt-0.5 truncate max-w-[150px] xs:max-w-[200px] sm:max-w-xs md:max-w-md ${
+                      isHospitalPlaceholder 
+                        ? 'text-slate-500 font-semibold italic' 
+                        : 'text-slate-800 font-extrabold'
+                    }`}
+                  >
+                    {headerHospitalText}
                   </p>
                 </div>
               </div>
