@@ -170,7 +170,7 @@ export const Step4_AyushHistory = () => {
       </div>
 
       {/* Tab Stepper */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -178,7 +178,7 @@ export const Step4_AyushHistory = () => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${
+              className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border flex-shrink-0 min-h-[42px] flex items-center justify-center ${
                 isActive
                   ? 'bg-emerald-800 text-white border-emerald-800 shadow-sm'
                   : 'bg-slate-50 text-slate-700 hover:bg-emerald-50 border-slate-200'

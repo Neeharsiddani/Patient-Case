@@ -81,7 +81,7 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
       <div 
         id="printable-opd-slip"
         ref={slipRef} 
-        className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-slate-300 shadow-md space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none"
+        className="bg-white p-4 sm:p-8 rounded-3xl border-2 border-slate-300 shadow-md space-y-5 sm:space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none w-full"
       >
         {/* Slip Header */}
         <div className="flex items-center justify-between border-b-2 border-dashed border-slate-300 pb-4">
@@ -105,8 +105,8 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
           </div>
         </div>
 
-        {/* Slip Details Grid */}
-        <div className="grid grid-cols-2 gap-4 text-xs">
+        {/* Slip Details Grid (1 col on mobile, 2 cols on tablet/desktop) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs">
           <div>
             <span className="text-slate-400 block font-semibold">Patient Name:</span>
             <span className="font-extrabold text-slate-900 text-sm">{patientToken.name}</span>
@@ -139,7 +139,7 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         </div>
 
         {/* QR Code & Clinical Verification Bar */}
-        <div className="flex items-center justify-between pt-4 border-t-2 border-dashed border-slate-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t-2 border-dashed border-slate-300">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -167,7 +167,7 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
             </div>
           </div>
 
-          <div className="text-right">
+          <div className="sm:text-right">
             <TriageBadge level={kioskForm.triageLevel || 3} category={kioskForm.triageCategory || 'Urgent (Yellow)'} color={kioskForm.triageColor || 'amber'} size="sm" />
           </div>
         </div>

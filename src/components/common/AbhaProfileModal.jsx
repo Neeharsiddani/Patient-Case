@@ -28,12 +28,12 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
   const historyCompleted = Boolean(patient.chiefComplaints && patient.chiefComplaints.length > 0);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden relative my-8 flex flex-col border border-slate-200">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden relative my-auto max-h-[92vh] flex flex-col border border-slate-200">
         {/* Top Header */}
-        <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cyan-600 flex items-center justify-center text-white font-black text-xs">
+            <div className="w-8 h-8 rounded-xl bg-cyan-600 flex items-center justify-center text-white font-black text-xs flex-shrink-0">
               AB
             </div>
             <div>
@@ -54,23 +54,23 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Verification Standards Banner */}
-        <div className="bg-cyan-50 border-b border-cyan-200 px-5 py-2 text-[11px] text-cyan-900 flex items-center justify-between">
+        <div className="bg-cyan-50 border-b border-cyan-200 px-4 sm:px-5 py-2 text-[11px] text-cyan-900 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-1.5 font-medium">
             <Info size={14} className="text-cyan-700 flex-shrink-0" />
             <span>ABDM Digital Health Card — Formatted for ABDM M1/M2/M3 Standards</span>
           </div>
-          <span className="font-bold text-cyan-800">FHIR R4 Standard</span>
+          <span className="font-bold text-cyan-800 hidden sm:inline">FHIR R4 Standard</span>
         </div>
 
         {/* ABHA Card Surface */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
           {/* Card Body */}
           <div 
             style={{ background: 'linear-gradient(135deg, #0A4D68 0%, #088395 100%)' }}

@@ -89,8 +89,8 @@ export const Step6_MedicalTimeline = () => {
       </div>
 
       {/* Timeline Stream */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm relative">
-        <div className="relative border-l-2 border-slate-200 ml-4 sm:ml-6 pl-6 sm:pl-8 space-y-8">
+      <div className="bg-white p-4 sm:p-8 rounded-3xl border border-slate-200 shadow-sm relative">
+        <div className="relative border-l-2 border-slate-200 ml-3 sm:ml-6 pl-4 sm:pl-8 space-y-6 sm:space-y-8">
           {timelineEvents.map((evt, idx) => {
             const IconComp = evt.icon;
             const isLast = idx === timelineEvents.length - 1;
@@ -103,11 +103,11 @@ export const Step6_MedicalTimeline = () => {
                     backgroundColor: evt.isCurrent ? '#088395' : '#ffffff',
                     borderColor: evt.isCurrent ? '#088395' : '#94a3b8'
                   }}
-                  className={`absolute -left-[35px] sm:-left-[43px] top-1 w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
+                  className={`absolute -left-[29px] sm:-left-[43px] top-1 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
                     evt.isCurrent ? 'ring-4 ring-cyan-500/20 text-white' : 'text-slate-600'
                   }`}
                 >
-                  <IconComp size={15} />
+                  <IconComp size={14} />
                 </div>
 
                 {/* Event Card */}

@@ -21,13 +21,13 @@ export const QrZoomModal = ({
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200 relative transform transition-all animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-3xl max-w-sm w-full p-4 sm:p-6 text-center space-y-3.5 shadow-2xl border border-slate-200 relative transform transition-all animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
+          className="absolute top-3.5 right-3.5 p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer"
           aria-label="Close QR preview"
         >
           <X size={18} />
@@ -40,7 +40,7 @@ export const QrZoomModal = ({
             <span>{title}</span>
           </div>
           {tokenNumber && (
-            <h3 className="text-2xl font-black font-mono text-slate-900 mt-2">
+            <h3 className="text-2xl font-black font-mono text-slate-900 mt-1">
               #{tokenNumber}
             </h3>
           )}
@@ -57,11 +57,11 @@ export const QrZoomModal = ({
         </div>
 
         {/* Large Enlarged Scannable QR Code */}
-        <div className="bg-slate-50 p-5 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center mx-auto shadow-inner">
-          <div className="bg-white p-3 rounded-xl shadow-md">
+        <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center mx-auto shadow-inner">
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl shadow-md">
             <QRCodeSVG 
               value={rawValue} 
-              size={230}
+              size={200}
               level="H"
               includeMargin={false}
             />

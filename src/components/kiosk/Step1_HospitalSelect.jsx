@@ -259,13 +259,13 @@ export const Step1_HospitalSelect = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Primary Auto-Detect GPS Button */}
             <button
               type="button"
               onClick={handleAutoDetectGPS}
               disabled={locating}
-              className="px-4 py-2.5 bg-gradient-to-r from-cyan-700 to-cyan-800 hover:from-cyan-800 hover:to-cyan-900 text-white font-bold rounded-2xl text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-98"
+              className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] bg-gradient-to-r from-cyan-700 to-cyan-800 hover:from-cyan-800 hover:to-cyan-900 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-98"
             >
               {locating ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={16} />}
               <span>{locating ? 'Detecting Area...' : '📍 Auto-Detect Hospitals Near Me'}</span>
@@ -594,7 +594,7 @@ export const Step1_HospitalSelect = () => {
 
       {/* Pagination Controls (Only when not showing All) */}
       {pageSize !== 'all' && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center sm:text-left">
           <div className="text-xs text-slate-600 font-semibold">
             Page <strong className="text-slate-900">{pagination.page}</strong> of <strong className="text-slate-900">{pagination.totalPages}</strong> ({pagination.total} facilities)
           </div>
@@ -604,7 +604,7 @@ export const Step1_HospitalSelect = () => {
               type="button"
               onClick={() => handlePageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-xl text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-xl text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed min-h-[38px]"
             >
               <ChevronLeft size={16} />
               <span>Previous</span>
@@ -614,7 +614,7 @@ export const Step1_HospitalSelect = () => {
               type="button"
               onClick={() => handlePageChange(pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages}
-              className="p-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-xl text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded-xl text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed min-h-[38px]"
             >
               <span>Next</span>
               <ChevronRight size={16} />

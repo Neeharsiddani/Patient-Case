@@ -147,8 +147,43 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
           </div>
         </div>
 
-        {/* Dynamic Stepper */}
-        <div className="overflow-x-auto pb-1">
+        {/* Mobile Step Progress Card (<640px) */}
+        <div className="block sm:hidden space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div 
+                style={{ backgroundColor: isAyush && steps[kioskStep - 1]?.title.includes('AYUSH') ? '#047857' : '#088395' }}
+                className="w-7 h-7 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-xs"
+              >
+                {kioskStep}
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Step {kioskStep} of {totalSteps}
+                </span>
+                <h4 className="text-sm font-extrabold text-slate-900 leading-tight">
+                  {steps[kioskStep - 1]?.title || 'Clinical Intake'}
+                </h4>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-cyan-800 font-mono bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
+              {Math.round((kioskStep / totalSteps) * 100)}%
+            </span>
+          </div>
+
+          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+            <div 
+              style={{ 
+                width: `${(kioskStep / totalSteps) * 100}%`,
+                backgroundColor: isAyush && steps[kioskStep - 1]?.title.includes('AYUSH') ? '#047857' : '#088395'
+              }}
+              className="h-full transition-all duration-300"
+            />
+          </div>
+        </div>
+
+        {/* Desktop Dynamic Horizontal Stepper (>=640px - 100% Preserved) */}
+        <div className="hidden sm:block overflow-x-auto pb-1">
           <div className="flex items-center justify-between min-w-[700px] gap-2">
             {steps.map((s, idx) => {
               const isDone = kioskStep > s.num;
@@ -207,7 +242,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
       </div>
 
       {/* Main Step Body Card */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-3xl p-4 sm:p-8 border border-slate-200 shadow-sm">
         {/* Step 1: Hospital Select */}
         {kioskStep === 1 && <Step1_HospitalSelect />}
 
@@ -242,13 +277,13 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
           <Step8_SecureSubmit onFinish={onBackToWelcome} />
         )}
 
-        {/* Wizard Bottom Navigation Buttons */}
+        {/* Wizard Bottom Navigation Buttons (Responsive Touch Targets) */}
         {kioskStep < finishStepNum && (
-          <div className="no-print flex items-center justify-between gap-4 pt-8 mt-8 border-t border-slate-200">
+          <div className="no-print flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 sm:pt-8 mt-6 sm:mt-8 border-t border-slate-200">
             <button
               type="button"
               onClick={handleBack}
-              className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-6 py-3.5 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <ArrowLeft size={18} />
               <span>{kioskStep === 1 ? 'Cancel' : 'Previous Step'}</span>
@@ -262,9 +297,9 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 style={{
                   backgroundColor: canProceed() ? (isAyush && kioskStep === 3 ? '#047857' : '#088395') : '#cbd5e1'
                 }}
-                className="px-8 py-3.5 text-white font-bold rounded-2xl text-sm transition-all flex items-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
               >
-                <span>{isAyush && kioskStep === 3 ? 'Continue to AYUSH Assessment' : 'Continue'}</span>
+                <span>{isAyush && kioskStep === 3 ? 'Continue to AYUSH' : 'Continue'}</span>
                 <ArrowRight size={18} />
               </button>
             ) : (
@@ -272,7 +307,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 type="button"
                 onClick={handleNext}
                 style={{ backgroundColor: '#0f2b48' }}
-                className="px-9 py-3.5 text-white font-bold rounded-2xl text-sm transition-all flex items-center gap-2 hover:opacity-90 shadow-md cursor-pointer"
+                className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-90 shadow-md cursor-pointer text-center"
               >
                 <span>Submit to {kioskForm.selectedHospitalName || 'Hospital'}</span>
                 <ArrowRight size={18} />

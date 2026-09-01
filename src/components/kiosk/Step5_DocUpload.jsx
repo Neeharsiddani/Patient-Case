@@ -69,11 +69,13 @@ export const Step5_DocUpload = () => {
     }, 1200);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const file = files[0];
-      handleProcessAndAttach(file);
+      for (let i = 0; i < files.length; i++) {
+        await handleProcessAndAttach(files[i]);
+      }
+      e.target.value = '';
     }
   };
 
@@ -131,12 +133,84 @@ export const Step5_DocUpload = () => {
         </div>
       )}
 
+      {/* Mobile-Specific Direct Capture & Upload Card (<md screens) */}
+      <div className="block md:hidden bg-white p-5 rounded-3xl border-2 border-cyan-300 shadow-sm space-y-4">
+        <div>
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-md border border-cyan-200">
+            Mobile Document Upload
+          </span>
+          <h3 className="text-base font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+            <Camera className="text-cyan-700" size={18} />
+            <span>Upload or Photograph Prescription / Report</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Photograph your paper prescription directly or select previous lab reports from your phone.
+          </p>
+        </div>
+
+        {/* Hidden inputs for Camera, Gallery, and PDF */}
+        <input
+          type="file"
+          id="mobile-camera-capture"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <input
+          type="file"
+          id="mobile-gallery-upload"
+          multiple
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        <input
+          type="file"
+          id="mobile-pdf-upload"
+          multiple
+          accept=".pdf,application/pdf"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+
+        {/* 3 Large Mobile Action Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button
+            type="button"
+            onClick={() => document.getElementById('mobile-camera-capture')?.click()}
+            className="p-3.5 min-h-[48px] bg-cyan-700 hover:bg-cyan-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98 cursor-pointer"
+          >
+            <Camera size={18} />
+            <span>Take Photo (Camera)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => document.getElementById('mobile-gallery-upload')?.click()}
+            className="p-3.5 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-300 active:scale-98 cursor-pointer"
+          >
+            <UploadCloud size={18} className="text-cyan-700" />
+            <span>Upload from Device</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => document.getElementById('mobile-pdf-upload')?.click()}
+            className="p-3.5 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-300 active:scale-98 cursor-pointer"
+          >
+            <FileText size={18} className="text-cyan-700" />
+            <span>Choose PDF File</span>
+          </button>
+        </div>
+      </div>
+
       {/* Medical Document Records Selection */}
       <div className="bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 border border-cyan-200 rounded-3xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-cyan-900 font-bold text-sm">
             <Sparkles size={18} className="text-cyan-600" />
-            <span>Select Medical Document to Digitize & Build Timeline:</span>
+            <span>Or Choose Sample Clinical Document to Test OCR:</span>
           </div>
 
           {/* Filter Pills for 4 Doc Types */}
@@ -215,8 +289,8 @@ export const Step5_DocUpload = () => {
         </div>
       </div>
 
-      {/* Upload Zone & Camera Scanner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Desktop Upload Zone & Flatbed Camera Scanner (>=md screens - 100% Preserved) */}
+      <div className="hidden md:grid md:grid-cols-2 gap-4">
         {/* Drag & Drop File Upload */}
         <label className="border-2 border-dashed border-slate-300 hover:border-cyan-500 bg-white p-8 rounded-3xl flex flex-col items-center justify-center text-center cursor-pointer transition-all group card-hover shadow-sm">
           <input
