@@ -30,7 +30,9 @@ router.get('/', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMIN'), async (req,
       params.push(resourceType);
     }
 
-    sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+    const tableInfo = await query("PRAGMA table_info(audit_logs)");
+    const timeCol = tableInfo.some(c => c.name === 'timestamp') ? 'timestamp' : 'created_at';
+    sql += ` ORDER BY ${timeCol} DESC LIMIT ? OFFSET ?`;
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
     const logs = await query(sql, params);
@@ -40,7 +42,7 @@ router.get('/', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMIN'), async (req,
       count: logs.length,
       logs: logs.map(l => ({
         id: l.id,
-        timestamp: l.timestamp,
+        timestamp: l.timestamp || l.created_at,
         userId: l.user_id,
         userRole: l.user_role,
         action: l.action,

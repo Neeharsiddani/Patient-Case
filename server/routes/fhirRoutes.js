@@ -154,8 +154,15 @@ router.get('/patient/:id/validate', requireAuth, requireRole('DOCTOR', 'HOSPITAL
  * POST /api/fhir/validate
  * Validates any arbitrary FHIR bundle JSON payload
  */
-router.post('/validate', (req, res) => {
+router.post('/validate', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), (req, res) => {
   const bundle = req.body;
+  if (!bundle || typeof bundle !== 'object') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid Payload',
+      message: 'A valid FHIR R4 Bundle JSON object is required.'
+    });
+  }
   const validation = validateFhirBundle(bundle);
   res.json({
     success: true,

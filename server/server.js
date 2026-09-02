@@ -5,7 +5,8 @@ import { app } from './app.js';
 import { seedDatabase } from './db/seed.js';
 import { db } from './db/database.js';
 
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
 async function startServer() {
   try {
@@ -13,11 +14,11 @@ async function startServer() {
     await seedDatabase();
 
     // 2. Start Express HTTP Server
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, HOST, () => {
       console.log(`=======================================================`);
       console.log(`🏥 MediMitra Clinical Backend Server Running`);
-      console.log(`📡 URL: http://localhost:${PORT}`);
-      console.log(`🩺 Health: http://localhost:${PORT}/api/health`);
+      console.log(`📡 URL: http://${HOST}:${PORT}`);
+      console.log(`🩺 Health: http://${HOST}:${PORT}/api/health`);
       console.log(`🔒 Security: Helmet enabled, JWT RBAC, SQLite WAL`);
       console.log(`=======================================================`);
     });

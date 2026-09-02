@@ -32,6 +32,8 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 
     const docId = uuidv4();
 
+    const safeOriginalName = file.sanitizedOriginalName || path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+
     // 2. Persist Document Record in Database
     await run(`
       INSERT INTO documents (
@@ -42,7 +44,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
     `, [
       docId,
       patientId,
-      file.originalname,
+      safeOriginalName,
       file.filename,
       file.path,
       file.mimetype,
@@ -68,7 +70,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
       resourceType: 'DOCUMENT',
       resourceId: docId,
       details: {
-        filename: file.originalname,
+        filename: safeOriginalName,
         docType: extractionResult.docType,
         ocrConfidence: extractionResult.ocrConfidence,
         requiresReview: extractionResult.requiresManualReview
@@ -82,7 +84,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
       document: {
         id: docId,
         patientId,
-        originalFilename: file.originalname,
+        originalFilename: safeOriginalName,
         storedFilename: file.filename,
         docType: extractionResult.docType,
         category: extractionResult.category,
@@ -248,12 +250,27 @@ router.get('/download/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN',
       });
     }
 
-    if (!fs.existsSync(document.file_path)) {
+    const uploadDir = process.env.UPLOAD_DIR || path.resolve(path.dirname(document.file_path));
+    const resolvedPath = path.resolve(document.file_path);
+    const resolvedUploadDir = path.resolve(uploadDir);
+
+    // Strict path traversal containment check
+    if (!resolvedPath.startsWith(resolvedUploadDir)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'Path traversal attempt detected and blocked.'
+      });
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
       return res.status(404).json({
         success: false,
         error: 'File Missing on Disk'
       });
     }
+
+    const safeFilename = path.basename(document.original_filename).replace(/[^a-zA-Z0-9._-]/g, '_');
 
     await recordAuditLog({
       userId: req.user.id,
@@ -262,14 +279,71 @@ router.get('/download/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN',
       action: 'DOCUMENT_VIEWED',
       resourceType: 'DOCUMENT',
       resourceId: id,
-      details: { originalFilename: document.original_filename },
+      details: { originalFilename: safeFilename },
       ipAddress: req.ip || '127.0.0.1'
     });
 
     res.setHeader('Content-Type', document.mime_type);
-    res.setHeader('Content-Disposition', `inline; filename="${document.original_filename}"`);
-    const fileStream = fs.createReadStream(document.file_path);
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+    const fileStream = fs.createReadStream(resolvedPath);
     fileStream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/documents/:id
+ * Delete a medical document record with strict hospital authorization
+ */
+router.delete('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const document = await get('SELECT * FROM documents WHERE id = ?', [id]);
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        error: 'Document Not Found'
+      });
+    }
+
+    // Verify hospital relationship through patient record
+    const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [document.patient_id]);
+    if (patient && req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to delete documents belonging to another healthcare facility.'
+      });
+    }
+
+    // Safely remove file from disk if present in upload directory
+    if (document.file_path && fs.existsSync(document.file_path)) {
+      try {
+        fs.unlinkSync(document.file_path);
+      } catch (unlinkErr) {
+        console.warn('Document unlink warning:', unlinkErr.message);
+      }
+    }
+
+    // Delete record from database
+    await run('DELETE FROM documents WHERE id = ?', [id]);
+
+    await recordAuditLog({
+      userId: req.user.id,
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
+      action: 'DOCUMENT_DELETED',
+      resourceType: 'DOCUMENT',
+      resourceId: id,
+      details: { originalFilename: document.original_filename, patientId: document.patient_id },
+      ipAddress: req.ip || '127.0.0.1'
+    });
+
+    res.json({
+      success: true,
+      message: 'Medical document deleted successfully'
+    });
   } catch (err) {
     next(err);
   }

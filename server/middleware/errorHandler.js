@@ -6,7 +6,7 @@ export const errorHandler = (err, req, res, next) => {
   // Log server-side with sanitized context
   console.error(`[${new Date().toISOString()}] ❌ Request Error (${req.method} ${req.originalUrl}):`, err.message);
 
-  if (err.name === 'MulterError') {
+  if (err.name === 'MulterError' || err.name === 'UploadValidationError' || err.statusCode === 400) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
@@ -16,7 +16,7 @@ export const errorHandler = (err, req, res, next) => {
     }
     return res.status(400).json({
       success: false,
-      error: 'Upload Error',
+      error: 'Invalid File',
       message: err.message
     });
   }

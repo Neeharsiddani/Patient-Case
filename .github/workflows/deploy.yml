@@ -38,6 +38,10 @@ jobs:
         run: npm ci
 
       - name: Build project
+        env:
+          GITHUB_PAGES: 'true'
+          VITE_BASE_PATH: /Patient-Case/
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL || '' }}
         run: npm run build
 
       - name: Setup Pages

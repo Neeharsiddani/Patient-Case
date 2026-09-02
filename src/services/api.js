@@ -2,8 +2,8 @@
  * MediMitra API Client & Network Service Layer
  * 
  * Provides authenticated HTTP communication with the MediMitra clinical backend.
- * Features cloud-native serverless integration, resilient offline fallbacks,
- * and unified healthcare access control across all mobile and desktop devices.
+ * Uses environment-driven configuration for standalone Express API hosting,
+ * with strict zero-mock fail-closed guarantees across all mobile and desktop devices.
  */
 
 import { HospitalDirectoryEngine } from './hospitalDirectoryEngine.js';
@@ -12,8 +12,8 @@ import { HospitalDirectoryEngine } from './hospitalDirectoryEngine.js';
  * Resolves the API Base URL in an environment-driven manner:
  * 1. Explicit environment variable (VITE_API_BASE_URL or VITE_API_URL).
  * 2. Static host detection: If deployed to GitHub Pages (*.github.io) without VITE_API_BASE_URL,
- *    returns null to indicate that an external backend is required.
- * 3. Same-origin '/api' path (for Netlify functions via netlify.toml redirect, or local Vite dev proxy).
+ *    returns null to indicate that the separate Express backend URL is required.
+ * 3. Same-origin '/api' path (for local Vite dev proxy, or custom reverse proxy to standalone backend).
  */
 export const getApiBaseUrl = () => {
   // 1. Explicit environment configuration
@@ -34,7 +34,7 @@ export const getApiBaseUrl = () => {
     }
   }
 
-  // 3. Same-origin /api path (Netlify functions via netlify.toml redirect, or local Vite dev proxy)
+  // 3. Same-origin /api path (local Vite dev proxy or custom reverse proxy)
   return '/api';
 };
 
@@ -196,24 +196,11 @@ export class ApiService {
   }
 
   static async getHospitalDoctors(hospitalId) {
-    try {
-      const res = await this.request(`/hospitals/${hospitalId}/doctors`);
-      if (res?.success) return res;
-      throw new Error('Doctors lookup failed');
-    } catch {
-      const doctors = await HospitalDirectoryEngine.getHospitalDoctors(hospitalId);
-      return { success: true, hospitalId, count: doctors.length, doctors };
-    }
+    return await this.request(`/hospitals/${hospitalId}/doctors`);
   }
 
   static async getHospitalStats(hospitalId) {
-    try {
-      const res = await this.request(`/hospitals/${hospitalId}/stats`);
-      if (res?.success) return res;
-      throw new Error('Stats lookup failed');
-    } catch {
-      return { success: true, ...(await HospitalDirectoryEngine.getHospitalStats(hospitalId)) };
-    }
+    return await this.request(`/hospitals/${hospitalId}/stats`);
   }
 
   static async assignDoctorToCase(hospitalId, patientId, doctorId) {
@@ -317,8 +304,19 @@ export class ApiService {
     return await this.request(`/documents/patient/${patientId}`);
   }
 
-  // ABDM FHIR R4 Bundle Export
+  // ABDM FHIR R4 Bundle Export & Validation
   static async exportFhirBundle(patientId) {
     return await this.request(`/fhir/patient/${patientId}`);
+  }
+
+  static async validateFhirBundle(patientId) {
+    return await this.request(`/fhir/patient/${patientId}/validate`);
+  }
+
+  // Hospital HIS Integration Dispatch
+  static async dispatchHis(patientId) {
+    return await this.request(`/his/dispatch/${patientId}`, {
+      method: 'POST'
+    });
   }
 }

@@ -17,6 +17,7 @@ import {
   Sparkles,
   FileCheck2
 } from 'lucide-react';
+import { usePatient } from '../../context/PatientContext';
 import { PatientQueue } from './PatientQueue';
 import { RedFlagAlerts } from './RedFlagAlerts';
 import { ClinicalSummary } from './ClinicalSummary';
@@ -296,19 +297,23 @@ export const DoctorDashboard = () => {
 
       {/* Printable OPD Slip Modal */}
       {showPrintModal && selectedPatient && (
-        <PrintableOpdSlip 
-          patient={selectedPatient} 
-          onClose={() => setShowPrintModal(false)} 
-        />
+        <React.Suspense fallback={null}>
+          <PrintableOpdSlip 
+            patient={selectedPatient} 
+            onClose={() => setShowPrintModal(false)} 
+          />
+        </React.Suspense>
       )}
 
       {/* ABDM FHIR R4 Bundle Modal */}
       {showFhirModal && selectedPatient && (
-        <FhirBundleModal
-          patient={selectedPatient}
-          isOpen={showFhirModal}
-          onClose={() => setShowFhirModal(false)}
-        />
+        <React.Suspense fallback={null}>
+          <FhirBundleModal
+            patient={selectedPatient}
+            isOpen={showFhirModal}
+            onClose={() => setShowFhirModal(false)}
+          />
+        </React.Suspense>
       )}
     </div>
   );

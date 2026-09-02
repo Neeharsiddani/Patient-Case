@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Building2, 
   User,
@@ -16,8 +16,9 @@ import {
   ArrowLeft, 
   ArrowRight, 
   Check, 
-  Lock,
-  RotateCcw
+  Lock, 
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { Step1_HospitalSelect } from './Step1_HospitalSelect';
@@ -40,6 +41,7 @@ import { getRouteUrl } from '../../utils/navigation';
 
 export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const { kioskStep, setKioskStep, kioskForm, submitKioskCase } = usePatient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAyush = Boolean(
     kioskForm.assignedDepartment?.toLowerCase().includes('ayush') ||
@@ -119,13 +121,18 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   };
 
   const handleNext = async () => {
-    if (!canProceed()) return;
+    if (!canProceed() || isSubmitting) return;
 
     if (kioskStep === reviewStepNum) {
-      await submitKioskCase();
-      setKioskStep(finishStepNum);
-      window.history.pushState({ screen: 'patient', step: finishStepNum }, '', getRouteUrl('patient', finishStepNum));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setIsSubmitting(true);
+      try {
+        await submitKioskCase();
+        setKioskStep(finishStepNum);
+        window.history.pushState({ screen: 'patient', step: finishStepNum }, '', getRouteUrl('patient', finishStepNum));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setIsSubmitting(false);
+      }
     } else if (kioskStep < finishStepNum) {
       const nextStep = kioskStep + 1;
       setKioskStep(nextStep);
@@ -363,11 +370,21 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
               <button
                 type="button"
                 onClick={handleNext}
+                disabled={isSubmitting}
                 style={{ backgroundColor: '#0f2b48' }}
-                className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-90 shadow-md cursor-pointer text-center"
+                className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-90 shadow-md cursor-pointer text-center disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>Submit to {kioskForm.selectedHospitalName || 'Hospital'}</span>
-                <ArrowRight size={18} />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-white" />
+                    <span>Submitting to {kioskForm.selectedHospitalName || 'Hospital'}...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit to {kioskForm.selectedHospitalName || 'Hospital'}</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
               </button>
             )}
           </div>

@@ -21,7 +21,29 @@ import { QrZoomModal } from './QrZoomModal';
 
 export const AbhaProfileModal = ({ patient, onClose }) => {
   const [showQrModal, setShowQrModal] = useState(false);
-  if (!patient) return null;
+
+  if (!patient) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white max-w-md w-full p-6 rounded-3xl shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-12 h-12 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 mx-auto flex items-center justify-center">
+            <ShieldCheck size={26} />
+          </div>
+          <h3 className="text-base font-extrabold text-slate-900">No Patient Record Selected</h3>
+          <p className="text-xs text-slate-500">
+            Please select a patient from the clinical queue or complete patient intake to inspect their ABDM ABHA health profile.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isConsentGranted = patient.consentAgreed || patient.consentStatus === 'Granted' || patient.verificationStatus === 'History Verified';
   const docsCount = patient.documents?.length || 0;

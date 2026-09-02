@@ -26,54 +26,61 @@
 
 ---
 
-## 🚀 Deployment & API Architecture
+## 🚀 Production Deployment Architecture
 
-MediMitra separates static frontend presentation from authenticated backend services.
+MediMitra strictly separates static frontend presentation from authenticated backend clinical services.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                       Frontend Hosting                      │
+│                 Frontend: GitHub Pages                      │
 │                                                             │
-│  Option A: Netlify (Root Domain / SPA)                      │
-│  - Assets served from root domain                           │
-│  - Routes /api/* requests via netlify.toml redirects        │
-│                                                             │
-│  Option B: GitHub Pages (Static Hosting)                    │
-│  - Pure client-side static bundle (/Patient-Case/ subpath)  │
-│  - Requires external backend via VITE_API_BASE_URL          │
+│  - Static Single-Page Application (React + Vite)            │
+│  - Hosted on GitHub Pages (/Patient-Case/ subpath)          │
+│  - Pure client-side static bundle (no server execution)     │
+│  - Communicates with backend via VITE_API_BASE_URL          │
 └──────────────────────────────┬──────────────────────────────┘
                                │
-                      HTTPS / JSON API
+                      HTTPS / JSON API (CORS)
                                │
 ┌──────────────────────────────▼──────────────────────────────┐
-│                    Backend Hosting Options                  │
+│             Backend: Standalone Express Server              │
 │                                                             │
-│  Dedicated Node.js / Express Server (Recommended)           │
-│  - Hosted on Render, Railway, AWS ECS, Fly.io, or VPS       │
-│  - Persistent SQLite database or PostgreSQL adapter         │
-│  - Real bcrypt authentication, JWT sessions & OCR engine    │
-│                                                             │
-│  Netlify Functions (Serverless API)                         │
-│  - Suitable for stateless API workflows                     │
-│  - Note: Local SQLite is ephemeral in serverless lambda     │
+│  - Independent Node.js / Express backend                    │
+│  - Hosted on dedicated VM or container (e.g., AWS EC2,      │
+│    DigitalOcean, Railway, Render, Fly.io, or on-premise)    │
+│  - Persistent SQLite database (WAL mode) or PostgreSQL      │
+│  - Encrypted bcrypt authentication, JWT sessions, OCR engine│
+│  - Enforces fail-closed multi-hospital tenant isolation     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+> [!IMPORTANT]
+> **GitHub Pages Frontend-Only Invariant**:  
+> GitHub Pages is a static file host and **cannot execute Node.js or Express**. The backend must be run as a separate, reachable service. If `VITE_API_BASE_URL` is omitted on GitHub Pages, the frontend informs the user that backend configuration is required instead of falling back to synthetic data.
+
+### Storage & Persistence Requirements
+
+- **Database Persistence**: The backend uses SQLite (`server/data/medimitra.db`). A **persistent filesystem volume** or dedicated VM disk is required to retain clinical records across restarts.
+- **Document Storage**: Uploaded medical records (`server/uploads/`) reside on disk and require persistent block storage or an S3-compatible object storage volume.
+
 ### Environment Variables
 
-#### Backend (`server/.env`):
-| Variable | Description | Example / Required |
+#### Backend (`server/.env` or Host Environment):
+| Variable | Description | Example / Requirement |
 | :--- | :--- | :--- |
-| `PORT` | Server listening port | `5000` |
-| `NODE_ENV` | Environment mode (`production` / `development`) | `production` |
-| `JWT_SECRET` | Secret key for signing clinician auth tokens | **Required in production** |
-| `ALLOWED_ORIGINS` | Comma-separated allowed frontend origins for CORS | `https://medimitra.netlify.app,https://neeharsiddani.github.io` |
+| `PORT` | HTTP port for Express server | `5000` (default) |
+| `HOST` | Bind address for network interface | `0.0.0.0` |
+| `NODE_ENV` | Runtime environment | `production` / `development` |
+| `JWT_SECRET` | Cryptographic secret for clinician tokens | **Mandatory in production** (fails closed if missing) |
+| `ALLOWED_ORIGINS` | Comma-separated allowed frontend origins for CORS | `https://neeharsiddani.github.io,http://localhost:3000` |
+| `DATABASE_PATH` | Path to SQLite database file | `server/data/medimitra.db` (optional override) |
+| `UPLOAD_DIR` | Directory for uploaded medical records | `server/uploads` (optional override) |
 
-#### Frontend Build (`.env` or Deployment Settings):
-| Variable | Description | Default |
+#### Frontend Build (`.env` or GitHub Actions Secrets/Variables):
+| Variable | Description | Example / Requirement |
 | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | Full URL of the deployed Express backend | `'/api'` (relative) |
-| `VITE_BASE_PATH` | Base URL path for static asset loading | `'/'` (or `'/Patient-Case/'` on GitHub Pages) |
+| `VITE_API_BASE_URL` | Absolute URL of the standalone Express backend | `https://api.medimitra.yourdomain.org` |
+| `VITE_BASE_PATH` | Base path for GitHub Pages asset routing | `/Patient-Case/` (default on GitHub Pages) |
 
 ---
 

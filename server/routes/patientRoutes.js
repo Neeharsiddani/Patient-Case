@@ -563,4 +563,52 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
   }
 });
 
+/**
+ * DELETE /api/patients/:id
+ * Authorized hospital administrators can delete patient records
+ * Enforces strict hospital tenant isolation and records immutable audit log
+ */
+router.delete('/:id', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const patient = await get('SELECT id, name, hospital_id FROM patients WHERE id = ?', [id]);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found',
+        message: `No patient record found for ID '${id}'.`
+      });
+    }
+
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to delete patient records belonging to another healthcare facility.'
+      });
+    }
+
+    // Cascading delete patient record (foreign keys clean up vitals, red flags, summaries, notes, etc.)
+    await run('DELETE FROM patients WHERE id = ?', [id]);
+
+    await recordAuditLog({
+      userId: req.user.id,
+      userRole: req.user.role,
+      hospitalId: req.user.hospital_id,
+      action: 'PATIENT_RECORD_DELETED',
+      resourceType: 'PATIENT',
+      resourceId: id,
+      details: { patientName: patient.name, hospitalId: patient.hospital_id },
+      ipAddress: req.ip || '127.0.0.1'
+    });
+
+    res.json({
+      success: true,
+      message: `Patient record for '${patient.name}' successfully deleted.`
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

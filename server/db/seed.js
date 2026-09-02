@@ -168,9 +168,11 @@ export const seedDatabase = async () => {
     }
   }
 
-  // 4. Seed Initial Patients & Routed Consultation Cases
+  // 4. Seed Initial Patients & Routed Consultation Cases (Development & Test Environments ONLY)
+  // Strict Security Rule: Never seed demo patients into a production database.
+  const isProduction = process.env.NODE_ENV === 'production';
   const patientCount = await get('SELECT COUNT(*) as count FROM patients');
-  if (patientCount && patientCount.count === 0) {
+  if (!isProduction && patientCount && patientCount.count === 0) {
     const defaultPatients = [
       {
         id: 'patient-101',

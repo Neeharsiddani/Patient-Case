@@ -30,6 +30,7 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
   const [doctorAdvice, setDoctorAdvice] = useState('');
   const [followUp, setFollowUp] = useState('After 7 Days (OPD Review)');
   const [allergyNotice, setAllergyNotice] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Drug entry fields
   const [selectedDrug, setSelectedDrug] = useState(commonHospitalDrugs[0].name);
@@ -133,8 +134,11 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
 
     updateDoctorNotes(patient.id, updatedNotes, true);
 
-    if (onSaveAndPrint) {
+    if (andPrint && onSaveAndPrint) {
       onSaveAndPrint();
+    } else {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3500);
     }
   };
 
@@ -427,6 +431,13 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
           </div>
         </div>
       </div>
+
+      {saveSuccess && (
+        <div className="bg-emerald-50 border-2 border-emerald-300 text-emerald-900 p-4 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-sm animate-in fade-in">
+          <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0" />
+          <span>Consultation note and e-prescription successfully saved to patient medical record!</span>
+        </div>
+      )}
 
       {/* Bottom Save / Print Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-slate-900 text-white rounded-3xl shadow-xl">

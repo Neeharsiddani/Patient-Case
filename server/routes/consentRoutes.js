@@ -29,8 +29,18 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    // Authoritative verification: Resolve patient from database to prevent consent spoofing
     const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [patientId]);
-    const hospitalId = patient?.hospital_id || req.body.hospitalId || 'hosp-ggh-hyd';
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found',
+        message: `Cannot record consent: No patient record found for ID '${patientId}'.`
+      });
+    }
+
+    // Enforce authentic hospital ownership from patient record, never trusting client parameters
+    const hospitalId = patient.hospital_id;
 
     const consentId = uuidv4();
     await run(`

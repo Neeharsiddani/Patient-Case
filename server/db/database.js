@@ -263,7 +263,7 @@ export const initDb = async () => {
       hospital_name TEXT,
       doctor_name TEXT,
       diagnosis TEXT,
-      ocr_confidence INTEGER DEFAULT 95,
+      ocr_confidence INTEGER DEFAULT NULL,
       raw_ocr_text TEXT, -- Complete raw extracted OCR text stream
       extracted_data TEXT, -- JSON object
       verification_status TEXT DEFAULT 'MACHINE_EXTRACTED_UNVERIFIED',

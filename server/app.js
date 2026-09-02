@@ -74,6 +74,34 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// 3b. Dedicated Authentication Brute-Force Protection
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'test' ? 200 : 30, // 30 login attempts per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too Many Login Attempts',
+    message: 'Too many login attempts from this IP address. Please wait 15 minutes before retrying.'
+  }
+});
+app.use('/api/auth/login', authLimiter);
+
+// 3c. Dedicated Document Upload Rate Limiting
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'test' ? 300 : 60, // 60 document uploads per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Upload Rate Limit Exceeded',
+    message: 'Too many document uploads from this IP. Please wait before uploading more files.'
+  }
+});
+app.use('/api/documents/upload', uploadLimiter);
+
 // 4. Request Body Parsers
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -87,6 +115,7 @@ app.use('/api/doctor', doctorRoutes);
 app.use('/api/consent', consentRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/audit', auditRoutes);
 app.use('/api/fhir', fhirRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/abdm', abdmRoutes);

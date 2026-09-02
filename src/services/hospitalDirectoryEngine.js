@@ -191,29 +191,22 @@ export const HospitalDirectoryEngine = {
   },
 
   async getHospitalDoctors(hospitalId) {
-    const hosp = await this.getHospitalById(hospitalId);
-    const hospName = hosp?.name || 'Healthcare Facility';
-    return [
-      { id: `doc-${hospitalId}-1`, username: 'dr.sharma', full_name: 'Dr. Rajesh Sharma, MD', department: 'Cardiology & General Medicine', hospital_id: hospitalId, hospital_name: hospName, license_number: 'MCI-DEL-2015-84920' },
-      { id: `doc-${hospitalId}-2`, username: 'dr.anand', full_name: 'Dr. Anand Verma, MS', department: 'Orthopedics', hospital_id: hospitalId, hospital_name: hospName, license_number: 'TG-MED-2018-49201' },
-      { id: `doc-${hospitalId}-3`, username: 'dr.priya', full_name: 'Dr. Priya Nair, MBBS, DNB', department: 'Pediatrics', hospital_id: hospitalId, hospital_name: hospName, license_number: 'KA-DOC-2020-19482' },
-      { id: `doc-${hospitalId}-4`, username: 'dr.kiran', full_name: 'Dr. Kiran Reddy, MD, DM', department: 'Cardiology', hospital_id: hospitalId, hospital_name: hospName, license_number: 'TG-MED-2012-99201' }
-    ];
+    return [];
   },
 
   async getHospitalStats(hospitalId) {
     const hosp = await this.getHospitalById(hospitalId);
     return {
       hospitalId,
-      hospitalName: hosp?.name || 'Government General Hospital',
+      hospitalName: hosp?.name || 'Healthcare Facility',
       stats: {
-        totalQueue: 24,
-        waitingCount: 14,
-        inConsultationCount: 4,
-        completedCount: 6,
-        avgWaitTime: '18 mins',
-        highTriageCount: 3,
-        activeDoctors: 8
+        totalQueue: 0,
+        waitingCount: 0,
+        inConsultationCount: 0,
+        completedCount: 0,
+        avgWaitTime: '0 mins',
+        highTriageCount: 0,
+        activeDoctors: 0
       }
     };
   }

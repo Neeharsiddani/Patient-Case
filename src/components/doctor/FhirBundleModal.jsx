@@ -34,17 +34,11 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
 
     const fetchFhirData = async () => {
       try {
-        const bundleRes = await fetch(`/api/fhir/patient/${patient.id}`);
-        if (bundleRes.ok) {
-          const bundleJson = await bundleRes.json();
-          if (isMounted) setFhirBundle(bundleJson);
-        }
+        const bundleJson = await ApiService.exportFhirBundle(patient.id);
+        if (isMounted && bundleJson) setFhirBundle(bundleJson);
 
-        const valRes = await fetch(`/api/fhir/patient/${patient.id}/validate`);
-        if (valRes.ok) {
-          const valJson = await valRes.json();
-          if (isMounted) setValidationReport(valJson.validation);
-        }
+        const valJson = await ApiService.validateFhirBundle(patient.id);
+        if (isMounted && valJson) setValidationReport(valJson.validation || valJson);
       } catch (err) {
         console.warn('FHIR fetch notice:', err.message);
       } finally {
@@ -83,8 +77,7 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
     setDispatching(true);
     setHisDispatchResult(null);
     try {
-      const res = await fetch(`/api/his/dispatch/${patient.id}`, { method: 'POST' });
-      const data = await res.json();
+      const data = await ApiService.dispatchHis(patient.id);
       setHisDispatchResult(data);
     } catch (err) {
       setHisDispatchResult({

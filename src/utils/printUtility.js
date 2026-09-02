@@ -42,13 +42,15 @@ export const printElement = (elementOrHtml, title = 'MediMitra OPD Consultation 
     styleTags += el.outerHTML;
   });
 
+  const safeTitle = String(title || 'MediMitra OPD Consultation Slip').replace(/[<>"']/g, '');
+
   doc.open();
   doc.write(`
     <!DOCTYPE html>
     <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>${title}</title>
+        <title>${safeTitle}</title>
         ${styleTags}
         <style>
           @page {
