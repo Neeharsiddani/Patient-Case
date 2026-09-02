@@ -8,11 +8,35 @@
 
 import { HospitalDirectoryEngine } from './hospitalDirectoryEngine.js';
 
-// Use relative API path by default in production; can be overridden via VITE_API_URL
-const API_BASE_URL = 
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
-  (typeof process !== 'undefined' && process.env && process.env.VITE_API_URL) ||
-  '/api';
+/**
+ * Resolves the API Base URL in an environment-driven manner:
+ * 1. Explicit environment variable (VITE_API_BASE_URL or VITE_API_URL).
+ * 2. Static host detection: If deployed to GitHub Pages (*.github.io) without VITE_API_BASE_URL,
+ *    returns null to indicate that an external backend is required.
+ * 3. Same-origin '/api' path (for Netlify functions via netlify.toml redirect, or local Vite dev proxy).
+ */
+export const getApiBaseUrl = () => {
+  // 1. Explicit environment configuration
+  const envUrl = 
+    (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL)) ||
+    (typeof process !== 'undefined' && process.env && (process.env.VITE_API_BASE_URL || process.env.VITE_API_URL));
+
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  // 2. Client-side static host check
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname || '';
+    // GitHub Pages static hosting detection (e.g. *.github.io)
+    if (hostname.endsWith('github.io')) {
+      return null;
+    }
+  }
+
+  // 3. Same-origin /api path (Netlify functions via netlify.toml redirect, or local Vite dev proxy)
+  return '/api';
+};
 
 export class ApiService {
   static getAuthToken() {
@@ -33,7 +57,13 @@ export class ApiService {
   }
 
   static async request(endpoint, options = {}) {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const baseUrl = getApiBaseUrl();
+    if (baseUrl === null) {
+      throw new Error('Backend API is not configured for this static deployment. Please set VITE_API_BASE_URL in your deployment settings.');
+    }
+
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${cleanEndpoint}`;
     const token = this.getAuthToken();
 
     const headers = {
@@ -56,7 +86,6 @@ export class ApiService {
 
       return data;
     } catch (err) {
-      // In production, warn cleanly without crashing application flows
       console.warn(`[MediMitra API] Network request to ${endpoint} failed:`, err.message);
       throw err;
     }
@@ -64,11 +93,7 @@ export class ApiService {
 
   // System Health Check
   static async checkHealth() {
-    try {
-      return await this.request('/health');
-    } catch {
-      return { status: 'HEALTHY', database: 'CLIENT_FALLBACK_ONLINE', note: 'Running resilient directory service' };
-    }
+    return await this.request('/health');
   }
 
   // Staff & Doctor Authentication
@@ -142,7 +167,7 @@ export class ApiService {
       throw new Error('Empty hospital directory from API');
     } catch (err) {
       // Resilient fallback to Authoritative National Hospital Engine
-      return HospitalDirectoryEngine.queryHospitals(normalizedFilters);
+      return await HospitalDirectoryEngine.queryHospitals(normalizedFilters);
     }
   }
 
@@ -152,7 +177,7 @@ export class ApiService {
       if (res?.success) return res;
       throw new Error('Hospital lookup failed');
     } catch {
-      const hospital = HospitalDirectoryEngine.getHospitalById(id);
+      const hospital = await HospitalDirectoryEngine.getHospitalById(id);
       return { success: !!hospital, hospital };
     }
   }
@@ -165,7 +190,7 @@ export class ApiService {
       }
       throw new Error('Departments lookup failed');
     } catch {
-      const departments = HospitalDirectoryEngine.getHospitalDepartments(hospitalId);
+      const departments = await HospitalDirectoryEngine.getHospitalDepartments(hospitalId);
       return { success: true, hospitalId, count: departments.length, departments };
     }
   }
@@ -176,7 +201,7 @@ export class ApiService {
       if (res?.success) return res;
       throw new Error('Doctors lookup failed');
     } catch {
-      const doctors = HospitalDirectoryEngine.getHospitalDoctors(hospitalId);
+      const doctors = await HospitalDirectoryEngine.getHospitalDoctors(hospitalId);
       return { success: true, hospitalId, count: doctors.length, doctors };
     }
   }
@@ -187,19 +212,15 @@ export class ApiService {
       if (res?.success) return res;
       throw new Error('Stats lookup failed');
     } catch {
-      return { success: true, ...HospitalDirectoryEngine.getHospitalStats(hospitalId) };
+      return { success: true, ...(await HospitalDirectoryEngine.getHospitalStats(hospitalId)) };
     }
   }
 
   static async assignDoctorToCase(hospitalId, patientId, doctorId) {
-    try {
-      return await this.request(`/hospitals/${hospitalId}/assign-doctor`, {
-        method: 'POST',
-        body: JSON.stringify({ patientId, doctorId })
-      });
-    } catch {
-      return { success: true, message: 'Doctor assigned successfully' };
-    }
+    return await this.request(`/hospitals/${hospitalId}/assign-doctor`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, doctorId })
+    });
   }
 
   static async createDepartment(hospitalId, deptData) {
@@ -227,11 +248,7 @@ export class ApiService {
     if (filters.myAssignedOnly) params.append('myAssignedOnly', 'true');
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
-    try {
-      return await this.request(`/patients${queryString}`);
-    } catch {
-      return { success: false, count: 0, patients: [], error: 'Unable to reach clinical server' };
-    }
+    return await this.request(`/patients${queryString}`);
   }
 
   static async getPatientById(id) {
@@ -239,23 +256,10 @@ export class ApiService {
   }
 
   static async submitPatientIntake(intakeData) {
-    try {
-      return await this.request('/patients/intake', {
-        method: 'POST',
-        body: JSON.stringify(intakeData)
-      });
-    } catch {
-      const tokenNumber = `A-${Math.floor(100 + Math.random() * 900)}`;
-      return {
-        success: true,
-        patientId: `patient-${Date.now()}`,
-        tokenNumber,
-        roomNumber: intakeData.roomNumber || 'Room 101',
-        assignedDoctor: intakeData.assignedDoctor || 'Assigned OPD Clinician',
-        assignedDepartment: intakeData.assignedDepartment || 'General Medicine',
-        waitTime: '15 mins'
-      };
-    }
+    return await this.request('/patients/intake', {
+      method: 'POST',
+      body: JSON.stringify(intakeData)
+    });
   }
 
   // Doctor Actions
@@ -282,6 +286,11 @@ export class ApiService {
 
   // Document Upload & OCR
   static async uploadDocument(file, patientId, docTypeHint) {
+    const baseUrl = getApiBaseUrl();
+    if (baseUrl === null) {
+      throw new Error('Backend API is not configured for this static deployment. Please set VITE_API_BASE_URL in your deployment settings.');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('patientId', patientId || 'temp-patient');
@@ -290,17 +299,22 @@ export class ApiService {
     const token = this.getAuthToken();
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+    const response = await fetch(`${baseUrl}/documents/upload`, {
       method: 'POST',
       headers,
       body: formData
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(data?.message || 'Document upload failed');
     }
     return data;
+  }
+
+  // Patient Digitized Documents Retrieval (Hospital & Patient Scoped)
+  static async getPatientDocuments(patientId) {
+    return await this.request(`/documents/patient/${patientId}`);
   }
 
   // ABDM FHIR R4 Bundle Export

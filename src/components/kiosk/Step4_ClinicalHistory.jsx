@@ -328,9 +328,9 @@ export const Step4_ClinicalHistory = () => {
       if (text.includes('Painkillers') || text.includes('Diclofenac') || text.includes('డైక్లోఫెనాక్')) extractedAllergies.push('NSAIDs (Diclofenac / Ibuprofen)');
       if (text.includes('Sulfa') || text.includes('सल्फा') || text.includes('సల్ఫా')) extractedAllergies.push('Sulfa Drugs');
 
-      if (text.includes('Blood Pressure tablets') || text.includes('बीपी की गोलियां') || text.includes('బీపీ మాత్రలు')) extractedMeds.push('Tab. Telmisartan 40mg (1-0-0)');
-      if (text.includes('Diabetes medicines') || text.includes('डायबिटीज') || text.includes('షుగర్ మందులు')) extractedMeds.push('Tab. Metformin 500mg (1-0-1)');
-      if (text.includes('Blood thinners') || text.includes('खून पतला') || text.includes('రక్తం పల్చబడే')) extractedMeds.push('Tab. Ecosprin 75mg (0-1-0)');
+      if (text.includes('Blood Pressure tablets') || text.includes('बीपी की गोलियां') || text.includes('బీపీ మాత్రలు')) extractedMeds.push('Antihypertensive Medication (Patient-reported)');
+      if (text.includes('Diabetes medicines') || text.includes('डायबिटीज') || text.includes('షుగర్ మందులు')) extractedMeds.push('Oral Antidiabetic Medication (Patient-reported)');
+      if (text.includes('Blood thinners') || text.includes('खून पतला') || text.includes('రక్తం పల్చబడే')) extractedMeds.push('Antiplatelet / Blood Thinner (Patient-reported)');
     });
 
     const complaintSummary = kioskForm.reasonForVisit || compTitle;

@@ -31,12 +31,17 @@ app.use(helmet({
 
 // 2. CORS Configuration with Strict Origin Allow-List
 const isProduction = process.env.NODE_ENV === 'production';
+const envOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGIN || process.env.CLIENT_URL || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'https://neeharsiddani.github.io',
-  process.env.CLIENT_URL
+  ...envOrigins
 ].filter(Boolean);
 
 app.use(cors({

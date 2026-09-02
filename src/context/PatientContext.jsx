@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { initialPatients } from '../data/initialPatients';
 import { translations } from '../data/translations';
 import { ApiService } from '../services/api';
 import { createInitialAyushState } from '../data/ayushClinicalFlows';
@@ -121,7 +120,9 @@ export const PatientProvider = ({ children }) => {
   });
 
   // In-Memory Patients Queue (Live synced with authorized hospital API)
-  const [patients, setPatients] = useState(initialPatients);
+  const [patients, setPatients] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueError, setQueueError] = useState(null);
 
   // Clean up any historical patient data from localStorage for clinical data security
   useEffect(() => {
@@ -133,7 +134,7 @@ export const PatientProvider = ({ children }) => {
   }, []);
 
   // Active Patient for Doctor Consultation
-  const [selectedPatientId, setSelectedPatientId] = useState('patient-101');
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
 
   // Kiosk In-Progress Patient State (10 Steps)
   const [kioskStep, setKioskStep] = useState(1);
@@ -178,16 +179,16 @@ export const PatientProvider = ({ children }) => {
     historyAnswers: {},
     structuredHistory: [],
     vitals: {
-      bpSystolic: 120,
-      bpDiastolic: 80,
-      pulse: 72,
-      spo2: 98,
-      temp: 98.4,
-      respiratoryRate: 18,
-      bloodSugar: 110,
-      weight: 65,
-      height: 165,
-      bmi: 23.9
+      bpSystolic: '',
+      bpDiastolic: '',
+      pulse: '',
+      spo2: '',
+      temp: '',
+      respiratoryRate: '',
+      bloodSugar: '',
+      weight: '',
+      height: '',
+      bmi: ''
     },
     uploadedDocs: [],
     activeOcrDoc: null,
@@ -205,6 +206,8 @@ export const PatientProvider = ({ children }) => {
 
   // Load Hospitals and Patient Queue from Backend Server
   const fetchQueueAndHospitals = useCallback(async () => {
+    setQueueLoading(true);
+    setQueueError(null);
     try {
       const health = await ApiService.checkHealth();
       if (health && health.status === 'HEALTHY') {
@@ -218,19 +221,39 @@ export const PatientProvider = ({ children }) => {
 
         // Fetch patients based on role & auth (only when authenticated)
         if (ApiService.getAuthToken()) {
-          const queueRes = await ApiService.getPatients();
-          if (queueRes?.success && Array.isArray(queueRes.patients) && queueRes.patients.length > 0) {
-            setPatients(queueRes.patients);
-            if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
-              setSelectedPatientId(queueRes.patients[0].id);
+          try {
+            const queueRes = await ApiService.getPatients();
+            if (queueRes?.success && Array.isArray(queueRes.patients)) {
+              setPatients(queueRes.patients);
+              if (queueRes.patients.length > 0) {
+                if (!queueRes.patients.some(p => p.id === selectedPatientId)) {
+                  setSelectedPatientId(queueRes.patients[0].id);
+                }
+              } else {
+                setSelectedPatientId(null);
+              }
+            } else {
+              setPatients([]);
+              setSelectedPatientId(null);
             }
+          } catch (err) {
+            console.error('Failed to load patient queue:', err);
+            setQueueError(err.message || 'Unable to load clinical queue.');
+            setPatients([]);
+            setSelectedPatientId(null);
           }
+        } else {
+          setPatients([]);
+          setSelectedPatientId(null);
         }
       } else {
         setServerOnline(false);
       }
-    } catch {
+    } catch (err) {
       setServerOnline(false);
+      setQueueError(err.message || 'Server connection error');
+    } finally {
+      setQueueLoading(false);
     }
   }, [selectedPatientId]);
 
@@ -262,6 +285,9 @@ export const PatientProvider = ({ children }) => {
     if (user.hospitalId) {
       setActiveHospitalId(user.hospitalId);
     }
+    // Clear previously selected patient from old session before loading new queue
+    setSelectedPatientId(null);
+    setPatients([]);
     if (user.role === 'DOCTOR') {
       setRole('doctor');
     } else if (user.role === 'HOSPITAL_ADMIN' || user.role === 'ADMIN') {
@@ -275,6 +301,8 @@ export const PatientProvider = ({ children }) => {
     ApiService.logout();
     setAuthenticatedUser(null);
     setActiveHospitalId(null);
+    setPatients([]);
+    setSelectedPatientId(null);
     setRole('kiosk');
     fetchQueueAndHospitals();
   };
@@ -595,16 +623,16 @@ export const PatientProvider = ({ children }) => {
       historyAnswers: {},
       structuredHistory: [],
       vitals: {
-        bpSystolic: 120,
-        bpDiastolic: 80,
-        pulse: 72,
-        spo2: 98,
-        temp: 98.4,
-        respiratoryRate: 18,
-        bloodSugar: 110,
-        weight: 65,
-        height: 165,
-        bmi: 23.9
+        bpSystolic: '',
+        bpDiastolic: '',
+        pulse: '',
+        spo2: '',
+        temp: '',
+        respiratoryRate: '',
+        bloodSugar: '',
+        weight: '',
+        height: '',
+        bmi: ''
       },
       uploadedDocs: [],
       activeOcrDoc: null,
@@ -725,7 +753,28 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
-  const selectedPatient = patients.find((p) => p.id === selectedPatientId) || patients[0];
+  const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
+
+  // Strict Fail-Closed Hospital Scoping for Doctor / Staff Context
+  const hospitalScopedPatients = patients.filter((p) => {
+    if (!currentHospitalId) return false;
+    const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
+    return typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+  });
+
+  const selectedPatient = hospitalScopedPatients.find((p) => p.id === selectedPatientId) || null;
+
+  // Automatically clear or update selected patient when hospital switches or queue updates
+  useEffect(() => {
+    if (!currentHospitalId) {
+      if (selectedPatientId !== null) setSelectedPatientId(null);
+    } else if (selectedPatientId) {
+      const existsInActiveHospital = hospitalScopedPatients.some(p => p.id === selectedPatientId);
+      if (!existsInActiveHospital) {
+        setSelectedPatientId(hospitalScopedPatients.length > 0 ? hospitalScopedPatients[0].id : null);
+      }
+    }
+  }, [currentHospitalId, hospitalScopedPatients, selectedPatientId]);
 
   return (
     <PatientContext.Provider
@@ -744,6 +793,9 @@ export const PatientProvider = ({ children }) => {
         handleUserLogout,
         patients,
         setPatients,
+        hospitalScopedPatients,
+        queueLoading,
+        queueError,
         selectedPatientId,
         setSelectedPatientId,
         selectedPatient,

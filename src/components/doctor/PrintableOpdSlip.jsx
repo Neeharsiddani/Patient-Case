@@ -14,12 +14,14 @@ import { usePatient } from '../../context/PatientContext';
 import { printElement } from '../../utils/printUtility';
 import { QrZoomModal } from '../common/QrZoomModal';
 
+import { resolveHospitalName } from '../../utils/hospitalResolver';
+
 export const PrintableOpdSlip = ({ patient, onClose }) => {
-  const { t } = usePatient();
   const slipRef = useRef(null);
   const [showQrModal, setShowQrModal] = useState(false);
   if (!patient) return null;
 
+  const hospitalName = resolveHospitalName(patient);
   const notes = patient.doctorNotes || {};
 
   const handlePrint = () => {
@@ -70,7 +72,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                   Government of India • Ministry of Health & Family Welfare
                 </p>
                 <h1 className="text-xl font-extrabold text-slate-900">
-                  {t.hospitalName}
+                  {hospitalName}
                 </h1>
                 <p className="text-xs text-slate-600 font-semibold mt-0.5">
                   Ayushman Bharat Digital Mission (ABDM) • Outpatient Department (OPD)
@@ -245,6 +247,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                     token: patient.tokenNumber,
                     patientName: patient.name,
                     abhaId: patient.abhaId,
+                    hospital: hospitalName,
                     doctor: patient.assignedDoctor,
                     diagnosis: notes.provisionalDiagnosis,
                     date: new Date().toISOString()
@@ -288,6 +291,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           token: patient.tokenNumber,
           patientName: patient.name,
           abhaId: patient.abhaId,
+          hospital: hospitalName,
           doctor: patient.assignedDoctor,
           diagnosis: notes.provisionalDiagnosis,
           date: new Date().toISOString()
@@ -295,7 +299,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
         title="Clinician Verified Consultation Pass"
         tokenNumber={patient.tokenNumber}
         patientName={patient.name}
-        subtitle={`${patient.department} • Assessed by ${patient.assignedDoctor}`}
+        subtitle={`${hospitalName} • ${patient.department} • Assessed by ${patient.assignedDoctor}`}
       />
     </div>
   );

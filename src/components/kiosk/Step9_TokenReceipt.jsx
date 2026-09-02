@@ -24,17 +24,17 @@ export const Step9_TokenReceipt = () => {
   const [showQrModal, setShowQrModal] = useState(false);
 
   const tokenData = kioskForm.generatedToken || {
-    tokenNumber: 'MED-108',
-    roomNumber: 'Room 104',
-    assignedDoctor: 'Dr. Rajesh Sharma, MD (Med)',
-    department: 'General Medicine & Cardiology',
-    waitTime: '15 mins',
-    name: kioskForm.name || 'Ramesh Kumar Verma',
-    abhaId: kioskForm.abhaId || '91-8472-9182-3451',
-    triageLevel: kioskForm.triageLevel || 2,
-    triageCategory: kioskForm.triageCategory || 'Emergent (Red Flag)',
-    triageColor: kioskForm.triageColor || 'red',
-    id: 'PAT-101'
+    tokenNumber: kioskForm.generatedToken?.tokenNumber || 'Token pending generation',
+    roomNumber: kioskForm.roomNumber || 'Room pending assignment',
+    assignedDoctor: kioskForm.assignedDoctor || 'Assigned on arrival',
+    department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General OPD',
+    waitTime: 'Calculated on arrival',
+    name: kioskForm.name || 'Patient Name Not Recorded',
+    abhaId: kioskForm.abhaId || 'Walk-in (No ABHA)',
+    triageLevel: kioskForm.triageLevel || 4,
+    triageCategory: kioskForm.triageCategory || 'Routine / Standard',
+    triageColor: kioskForm.triageColor || 'green',
+    id: null
   };
 
   const handlePrint = () => {
@@ -81,7 +81,7 @@ export const Step9_TokenReceipt = () => {
             Government of India • National Health Authority
           </p>
           <h3 className="text-base font-extrabold mt-0.5">
-            {t.hospitalName}
+            {tokenData.hospitalName || tokenData.hospital_name || kioskForm.selectedHospitalName || 'Hospital not recorded'}
           </h3>
           <p className="text-[11px] text-cyan-100 mt-0.5">
             ABDM Smart Outpatient Intake Token Pass

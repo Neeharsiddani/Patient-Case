@@ -117,7 +117,7 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Patient: <strong className="text-white">{patient?.name}</strong> • Hospital: <strong className="text-cyan-200">{patient?.hospital_name || patient?.hospitalName || 'GGH Hyderabad'}</strong>
+                Patient: <strong className="text-white">{patient?.name}</strong> • Hospital: <strong className="text-cyan-200">{patient?.hospital_name || patient?.hospitalName || 'Hospital not recorded'}</strong>
               </p>
             </div>
           </div>

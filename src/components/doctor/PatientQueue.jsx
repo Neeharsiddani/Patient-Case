@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
+import { isPatientInHospital } from '../../utils/hospitalResolver';
+
+export { isPatientInHospital };
 
 export const PatientQueue = () => {
   const { 
@@ -24,27 +27,28 @@ export const PatientQueue = () => {
     selectedPatientId, 
     setSelectedPatientId,
     authenticatedUser,
-    activeHospitalId
+    activeHospitalId,
+    queueLoading,
+    queueError,
+    refreshQueue
   } = usePatient();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('ALL');
   const [activeFilterTab, setActiveFilterTab] = useState('ALL'); // 'ALL' | 'WAITING' | 'RED_FLAG' | 'ASSIGNED_TO_ME' | 'VERIFIED'
 
-  const currentHospId = authenticatedUser?.hospitalId || activeHospitalId || 'hosp-ggh-hyd';
+  const currentHospId = authenticatedUser?.hospitalId || activeHospitalId || null;
+
+  // 1. Strict Fail-Closed Hospital Isolation
+  const hospitalScopedPatients = patients.filter((p) => isPatientInHospital(p, currentHospId));
 
   // Get distinct departments from doctor's authorized departments or patient list
   const authorizedDepts = authenticatedUser?.authorizedDepartments || [];
   const distinctDepts = authorizedDepts.length > 0 
     ? authorizedDepts 
-    : [...new Set(patients.map(p => p.department))].map(d => ({ id: d, name: d }));
+    : [...new Set(hospitalScopedPatients.map(p => p.department).filter(Boolean))].map(d => ({ id: d, name: d }));
 
-  const filteredPatients = patients.filter((p) => {
-    // 1. Hospital Scope
-    if (p.hospitalId && p.hospitalId !== currentHospId) {
-      return false;
-    }
-
+  const filteredPatients = hospitalScopedPatients.filter((p) => {
     // 2. Department Filter
     if (filterDept !== 'ALL') {
       const matchDept = p.departmentId === filterDept || p.department === filterDept;
@@ -52,14 +56,17 @@ export const PatientQueue = () => {
     }
 
     // 3. Search Filter
-    const matchSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.tokenNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.abhaId && p.abhaId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.reasonForVisit && p.reasonForVisit.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      p.department.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase().trim();
+    if (q) {
+      const matchSearch =
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.tokenNumber && p.tokenNumber.toLowerCase().includes(q)) ||
+        (p.abhaId && p.abhaId.toLowerCase().includes(q)) ||
+        (p.reasonForVisit && p.reasonForVisit.toLowerCase().includes(q)) ||
+        (p.department && p.department.toLowerCase().includes(q));
 
-    if (!matchSearch) return false;
+      if (!matchSearch) return false;
+    }
 
     // 4. Quick Category Filters
     if (activeFilterTab === 'WAITING') {
@@ -148,9 +155,33 @@ export const PatientQueue = () => {
 
       {/* Patient Cards List */}
       <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2 space-y-1.5">
-        {filteredPatients.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            No patient cases match current hospital and department filters.
+        {queueLoading ? (
+          <div className="p-8 text-center text-slate-500 text-xs space-y-2">
+            <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-cyan-700 border-t-transparent"></div>
+            <p>Loading clinical queue...</p>
+          </div>
+        ) : queueError ? (
+          <div className="p-6 text-center text-red-600 text-xs space-y-3 bg-red-50/50 rounded-2xl m-2 border border-red-200">
+            <AlertCircle size={20} className="mx-auto text-red-500" />
+            <p className="font-semibold">{queueError}</p>
+            {refreshQueue && (
+              <button
+                type="button"
+                onClick={refreshQueue}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition shadow"
+              >
+                Retry Loading
+              </button>
+            )}
+          </div>
+        ) : filteredPatients.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs space-y-1">
+            <p className="font-semibold text-slate-600">No patients available</p>
+            <p className="text-[11px] text-slate-400">
+              {hospitalScopedPatients.length === 0
+                ? 'No active patient cases found for this healthcare facility.'
+                : 'No patient cases match the active search and department filters.'}
+            </p>
           </div>
         ) : (
           filteredPatients.map((p) => {

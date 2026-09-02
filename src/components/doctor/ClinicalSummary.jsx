@@ -109,7 +109,7 @@ export const ClinicalSummary = ({ patient }) => {
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {isVerified
-              ? `Verified by attending medical officer at ${patient.verificationTimestamp || '09:15 AM'}`
+              ? `Verified by attending medical officer${(patient.verificationTimestamp || patient.verifiedAt || patient.aiSummary?.verified_at) ? ` at ${patient.verificationTimestamp || patient.verifiedAt || patient.aiSummary?.verified_at}` : ''}`
               : 'Review and modify any clinical section before confirming into medical record.'}
           </p>
         </div>
@@ -699,15 +699,20 @@ export const ClinicalSummary = ({ patient }) => {
                     </span>
                   </div>
                   <div className="text-xs text-slate-700 space-y-1">
-                    <p><strong>Frame:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Medium / Athletic'}</p>
-                    <p><strong>Thermal:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Prefers Cool'}</p>
-                    <p><strong>Skin:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.skinNature || 'Warm / Oily'}</p>
+                    <p><strong>Frame:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Not recorded during patient intake'}</p>
+                    <p><strong>Thermal:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Not recorded during patient intake'}</p>
+                    <p><strong>Skin:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.skinNature || 'Not recorded during patient intake'}</p>
+                    {!isEditing && (
+                      <p className="text-emerald-900 font-semibold pt-1">
+                        <strong>Clinician Dominant Dosha:</strong> {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha || 'Pending clinician examination'}
+                      </p>
+                    )}
                   </div>
                   {isEditing && (
                     <div className="pt-2 border-t border-slate-100">
                       <label className="text-[10px] font-bold text-emerald-900 block mb-1">Clinician Verified Dominant Dosha:</label>
                       <select
-                        value={formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha || 'Pitta Pradhana'}
+                        value={formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha || ''}
                         onChange={(e) => {
                           const updated = { ...formData };
                           if (!updated.ayushHistory) updated.ayushHistory = {};
@@ -715,10 +720,12 @@ export const ClinicalSummary = ({ patient }) => {
                           if (!updated.ayushHistory.dashavidhaPariksha.prakriti) updated.ayushHistory.dashavidhaPariksha.prakriti = {};
                           if (!updated.ayushHistory.dashavidhaPariksha.prakriti.clinicianVerified) updated.ayushHistory.dashavidhaPariksha.prakriti.clinicianVerified = {};
                           updated.ayushHistory.dashavidhaPariksha.prakriti.clinicianVerified.dominantDosha = e.target.value;
+                          updated.ayushHistory.dashavidhaPariksha.prakriti.clinicianVerified.isVerified = !!e.target.value;
                           setFormData(updated);
                         }}
                         className="w-full p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950"
                       >
+                        <option value="">-- Pending clinician examination --</option>
                         <option value="Vata Pradhana">Vata Pradhana</option>
                         <option value="Pitta Pradhana">Pitta Pradhana</option>
                         <option value="Kapha Pradhana">Kapha Pradhana</option>
@@ -743,8 +750,13 @@ export const ClinicalSummary = ({ patient }) => {
                     </span>
                   </div>
                   <div className="text-xs text-slate-700 space-y-1">
-                    <p><strong>Reported Symptoms:</strong> {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.join(', ') || 'Digestive acidity and bodily heat'}</p>
-                    <p><strong>Duration:</strong> {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.durationOfImbalance || 'Acute (< 2 weeks)'}</p>
+                    <p><strong>Reported Symptoms:</strong> {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.length > 0 ? formData.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.join(', ') : 'Not recorded during patient intake'}</p>
+                    <p><strong>Duration:</strong> {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.durationOfImbalance || 'Not recorded during patient intake'}</p>
+                    {!isEditing && (
+                      <p className="text-emerald-900 font-semibold pt-1">
+                        <strong>Clinician Aggravated Dosha:</strong> {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified?.aggravatedDosha || 'Pending clinician examination'}
+                      </p>
+                    )}
                   </div>
                   {isEditing && (
                     <div className="pt-2 border-t border-slate-100">
@@ -755,13 +767,12 @@ export const ClinicalSummary = ({ patient }) => {
                         value={formData.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified?.aggravatedDosha || ''}
                         onChange={(e) => {
                           const updated = { ...formData };
-                          if (!updated.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified) {
-                            if (!updated.ayushHistory) updated.ayushHistory = {};
-                            if (!updated.ayushHistory.dashavidhaPariksha) updated.ayushHistory.dashavidhaPariksha = {};
-                            if (!updated.ayushHistory.dashavidhaPariksha.vikriti) updated.ayushHistory.dashavidhaPariksha.vikriti = {};
-                            updated.ayushHistory.dashavidhaPariksha.vikriti.clinicianVerified = {};
-                          }
+                          if (!updated.ayushHistory) updated.ayushHistory = {};
+                          if (!updated.ayushHistory.dashavidhaPariksha) updated.ayushHistory.dashavidhaPariksha = {};
+                          if (!updated.ayushHistory.dashavidhaPariksha.vikriti) updated.ayushHistory.dashavidhaPariksha.vikriti = {};
+                          if (!updated.ayushHistory.dashavidhaPariksha.vikriti.clinicianVerified) updated.ayushHistory.dashavidhaPariksha.vikriti.clinicianVerified = {};
                           updated.ayushHistory.dashavidhaPariksha.vikriti.clinicianVerified.aggravatedDosha = e.target.value;
+                          updated.ayushHistory.dashavidhaPariksha.vikriti.clinicianVerified.isVerified = !!e.target.value;
                           setFormData(updated);
                         }}
                         className="w-full p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-semibold"
@@ -773,50 +784,50 @@ export const ClinicalSummary = ({ patient }) => {
                 {/* 3. Sara (Tissue Vitality) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">3. Tissue Excellence (Sara):</span>
-                  <p className="text-slate-700"><strong>Reported Stamina:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Moderate / Average (Madhya Sara)'}</p>
-                  <p className="text-emerald-900 font-semibold"><strong>Dhatu Tone:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara || 'Rasa-Mamsa Madhyama Sara'}</p>
+                  <p className="text-slate-700"><strong>Reported Stamina:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Not recorded during patient intake'}</p>
+                  <p className="text-emerald-900 font-semibold"><strong>Dhatu Tone:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara || 'Pending clinician examination'}</p>
                 </div>
 
                 {/* 4. Samhanana (Body Compactness) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">4. Compactness (Samhanana):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.samhanana?.bodyCompactness || 'Madhyama (Moderate compactness)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.samhanana?.bodyCompactness || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 5. Pramana (Anthropometry) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">5. Proportions (Pramana):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.pramana?.bodyProportion || 'Sama Pramana (Well-proportioned)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.pramana?.bodyProportion || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 6. Satmya (Habitual Adaptability) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">6. Habitual Suitability (Satmya):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.satmya?.dietSuitability || 'Madhyama (Prefers warm, cooked simple foods)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.satmya?.dietSuitability || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 7. Sattva (Mental Resilience) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">7. Mental Tone (Sattva):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Madhya Sattva (Moderate resolve)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 8. Ahara Shakti (Digestive Power) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">8. Digestive Capacity (Ahara Shakti):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.aharaShakti?.appetiteDigestionPower || 'Madhya (Moderate appetite, normal digestion)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.aharaShakti?.appetiteDigestionPower || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 9. Vyayama Shakti (Physical Endurance) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">9. Physical Stamina (Vyayama Shakti):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.vyayamaShakti?.physicalEndurance || 'Madhya (Can walk 1-3 km comfortably)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.vyayamaShakti?.physicalEndurance || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* 10. Vaya (Biological Age Stage) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
                   <span className="font-bold text-slate-900 block">10. Life Stage (Vaya):</span>
-                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.vaya?.ageStage || 'Madhyama (16-60 yrs - Youth & Adulthood / Pitta stage)'}</p>
+                  <p className="text-slate-700">{formData.ayushHistory?.dashavidhaPariksha?.vaya?.ageStage || 'Not recorded during patient intake'}</p>
                 </div>
               </div>
             </div>
@@ -835,7 +846,7 @@ export const ClinicalSummary = ({ patient }) => {
                     <Flame size={14} className="text-amber-600" />
                     <span>Digestive Fire (Agni):</span>
                   </span>
-                  <p className="text-slate-800 font-semibold">{formData.ayushHistory?.additionalHistory?.agni || 'Samagni (Balanced)'}</p>
+                  <p className="text-slate-800 font-semibold">{formData.ayushHistory?.additionalHistory?.agni || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* Koshtha */}
@@ -844,7 +855,7 @@ export const ClinicalSummary = ({ patient }) => {
                     <Layers size={14} className="text-cyan-600" />
                     <span>Bowel Habit (Koshtha):</span>
                   </span>
-                  <p className="text-slate-800 font-semibold">{formData.ayushHistory?.additionalHistory?.koshtha || 'Madhyama Koshtha'}</p>
+                  <p className="text-slate-800 font-semibold">{formData.ayushHistory?.additionalHistory?.koshtha || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* Ahara */}
@@ -853,8 +864,8 @@ export const ClinicalSummary = ({ patient }) => {
                     <Utensils size={14} className="text-emerald-600" />
                     <span>Dietary Regimen (Ahara):</span>
                   </span>
-                  <p className="text-slate-700"><strong>Type:</strong> {formData.ayushHistory?.additionalHistory?.ahara?.dietType || 'Vegetarian with dairy'}</p>
-                  <p className="text-slate-700"><strong>Fluids:</strong> {formData.ayushHistory?.additionalHistory?.ahara?.waterIntake || '2 - 3 Litres / day'}</p>
+                  <p className="text-slate-700"><strong>Type:</strong> {formData.ayushHistory?.additionalHistory?.ahara?.dietType || 'Not recorded during patient intake'}</p>
+                  <p className="text-slate-700"><strong>Fluids:</strong> {formData.ayushHistory?.additionalHistory?.ahara?.waterIntake || 'Not recorded during patient intake'}</p>
                   {formData.ayushHistory?.additionalHistory?.ahara?.unwholesomeHabits && (
                     <p className="text-amber-800 font-medium"><strong>Unwholesome:</strong> {formData.ayushHistory.additionalHistory.ahara.unwholesomeHabits}</p>
                   )}
@@ -866,8 +877,8 @@ export const ClinicalSummary = ({ patient }) => {
                     <Clock size={14} className="text-purple-600" />
                     <span>Daily Regimen (Vihara):</span>
                   </span>
-                  <p className="text-slate-700"><strong>Wake:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.wakeTime || '6:30 AM'} • <strong>Sleep:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.sleepTime || '11:00 PM'}</p>
-                  <p className="text-slate-700"><strong>Stress Level:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.stressLevel || 'Moderate'}</p>
+                  <p className="text-slate-700"><strong>Wake:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.wakeTime || 'Not recorded'} • <strong>Sleep:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.sleepTime || 'Not recorded'}</p>
+                  <p className="text-slate-700"><strong>Stress Level:</strong> {formData.ayushHistory?.additionalHistory?.vihara?.stressLevel || 'Not recorded during patient intake'}</p>
                 </div>
 
                 {/* Nidana */}
@@ -877,7 +888,7 @@ export const ClinicalSummary = ({ patient }) => {
                     <span>Patient-Reported Causative Factors & Triggers (Nidana):</span>
                   </span>
                   <p className="text-slate-800 font-medium bg-red-50/50 p-2 rounded-xl border border-red-200">
-                    {formData.ayushHistory?.additionalHistory?.nidana?.patientReportedTriggers || 'Irregular meal timings, stress during work, unaccustomed spicy food'}
+                    {formData.ayushHistory?.additionalHistory?.nidana?.patientReportedTriggers || 'Not recorded during patient intake'}
                   </p>
                 </div>
 
@@ -888,14 +899,14 @@ export const ClinicalSummary = ({ patient }) => {
                     <span>Disease Progression & Relief Factors (Samprapti):</span>
                   </span>
                   <p className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 leading-relaxed">
-                    {formData.ayushHistory?.additionalHistory?.samprapti?.patientReportedProgression || 'Symptoms began with mild sour belching, then progressed into epigastric burning.'}
+                    {formData.ayushHistory?.additionalHistory?.samprapti?.patientReportedProgression || 'Not recorded during patient intake'}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
                     <div className="p-2 bg-emerald-50 rounded-lg text-emerald-950 border border-emerald-200">
-                      <strong>Relieving Factors (Upashaya):</strong> {formData.ayushHistory?.additionalHistory?.samprapti?.relievingFactors || 'Cool water, buttermilk, resting'}
+                      <strong>Relieving Factors (Upashaya):</strong> {formData.ayushHistory?.additionalHistory?.samprapti?.relievingFactors || 'Not recorded during patient intake'}
                     </div>
                     <div className="p-2 bg-amber-50 rounded-lg text-amber-950 border border-amber-200">
-                      <strong>Aggravating Factors (Anupashaya):</strong> {formData.ayushHistory?.additionalHistory?.samprapti?.aggravatingFactors || 'Spicy food, empty stomach, stress'}
+                      <strong>Aggravating Factors (Anupashaya):</strong> {formData.ayushHistory?.additionalHistory?.samprapti?.aggravatingFactors || 'Not recorded during patient intake'}
                     </div>
                   </div>
                 </div>

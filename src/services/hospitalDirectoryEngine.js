@@ -5,7 +5,24 @@
  * Haversine proximity computation, and pagination over 2,294+ verified Indian hospitals.
  */
 
-import { NATIONAL_HOSPITALS } from '../data/nationalHospitalsData.js';
+// Lazy loader for nationwide hospital directory dataset
+let hospitalsDataPromise = null;
+let loadedHospitals = null;
+let cachedStates = ['All States'];
+let cachedTypes = ['All Types'];
+
+export async function getHospitalsData() {
+  if (loadedHospitals) return loadedHospitals;
+  if (!hospitalsDataPromise) {
+    hospitalsDataPromise = import('../data/nationalHospitalsData.js').then(m => {
+      loadedHospitals = m.NATIONAL_HOSPITALS || [];
+      cachedStates = ['All States', ...Array.from(new Set(loadedHospitals.map(h => h.state).filter(Boolean))).sort()];
+      cachedTypes = ['All Types', ...Array.from(new Set(loadedHospitals.map(h => h.facility_type).filter(Boolean))).sort()];
+      return loadedHospitals;
+    });
+  }
+  return hospitalsDataPromise;
+}
 
 // Haversine formula helper for real-world geographic distance calculation in kilometers
 export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -21,10 +38,6 @@ export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10;
 }
 
-// Extract distinct filter options once for fast reuse
-const cachedStates = ['All States', ...Array.from(new Set(NATIONAL_HOSPITALS.map(h => h.state).filter(Boolean))).sort()];
-const cachedTypes = ['All Types', ...Array.from(new Set(NATIONAL_HOSPITALS.map(h => h.facility_type).filter(Boolean))).sort()];
-
 const defaultDepartments = [
   { id: 'dept-genmed', code: 'GENMED', name: 'General Medicine', room_number: 'Room 101', description: 'Internal Medicine, Chronic Illness & Fevers' },
   { id: 'dept-cardio', code: 'CARDIO', name: 'Cardiology', room_number: 'Room 104', description: 'Cardiac Care, Angina & ECG Evaluation' },
@@ -39,7 +52,8 @@ export const HospitalDirectoryEngine = {
   /**
    * Search, filter, calculate distance, and paginate the national hospital directory.
    */
-  queryHospitals(options = {}) {
+  async queryHospitals(options = {}) {
+    const hospitals = await getHospitalsData();
     const {
       search = '',
       state = '',
@@ -69,7 +83,7 @@ export const HospitalDirectoryEngine = {
     const typeFilter = (facility_type || '').trim();
 
     // 1. Filter hospitals
-    let filtered = NATIONAL_HOSPITALS.filter(h => {
+    let filtered = hospitals.filter(h => {
       if (searchLower) {
         const matchesName = h.name && h.name.toLowerCase().includes(searchLower);
         const matchesCity = h.city && h.city.toLowerCase().includes(searchLower);
@@ -160,9 +174,10 @@ export const HospitalDirectoryEngine = {
     };
   },
 
-  getHospitalById(id) {
+  async getHospitalById(id) {
     if (!id) return null;
-    const hosp = NATIONAL_HOSPITALS.find(h => h.id === id || h.code?.toLowerCase() === id.toLowerCase());
+    const hospitals = await getHospitalsData();
+    const hosp = hospitals.find(h => h.id === id || h.code?.toLowerCase() === id.toLowerCase());
     if (!hosp) return null;
     return {
       ...hosp,
@@ -170,13 +185,13 @@ export const HospitalDirectoryEngine = {
     };
   },
 
-  getHospitalDepartments(hospitalId) {
-    const hosp = this.getHospitalById(hospitalId);
+  async getHospitalDepartments(hospitalId) {
+    const hosp = await this.getHospitalById(hospitalId);
     return hosp?.departments || defaultDepartments;
   },
 
-  getHospitalDoctors(hospitalId) {
-    const hosp = this.getHospitalById(hospitalId);
+  async getHospitalDoctors(hospitalId) {
+    const hosp = await this.getHospitalById(hospitalId);
     const hospName = hosp?.name || 'Healthcare Facility';
     return [
       { id: `doc-${hospitalId}-1`, username: 'dr.sharma', full_name: 'Dr. Rajesh Sharma, MD', department: 'Cardiology & General Medicine', hospital_id: hospitalId, hospital_name: hospName, license_number: 'MCI-DEL-2015-84920' },
@@ -186,8 +201,8 @@ export const HospitalDirectoryEngine = {
     ];
   },
 
-  getHospitalStats(hospitalId) {
-    const hosp = this.getHospitalById(hospitalId);
+  async getHospitalStats(hospitalId) {
+    const hosp = await this.getHospitalById(hospitalId);
     return {
       hospitalId,
       hospitalName: hosp?.name || 'Government General Hospital',

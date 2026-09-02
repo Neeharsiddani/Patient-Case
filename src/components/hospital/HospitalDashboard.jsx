@@ -79,9 +79,11 @@ export const HospitalDashboard = () => {
     fetchStatsAndDoctors();
   }, [currentHospitalId]);
 
-  // Filter hospital patients
+  // Filter hospital patients strictly fail-closed
   const hospitalPatients = patients.filter(p => {
-    const matchesHosp = !p.hospitalId || p.hospitalId === currentHospitalId;
+    if (!p || !currentHospitalId) return false;
+    const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
+    const matchesHosp = typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
     const matchesDept = selectedDeptFilter === 'all' || p.departmentId === selectedDeptFilter || p.department === selectedDeptFilter;
     return matchesHosp && matchesDept;
   });

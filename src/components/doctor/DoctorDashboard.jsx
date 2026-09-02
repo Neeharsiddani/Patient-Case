@@ -17,14 +17,15 @@ import {
   Sparkles,
   FileCheck2
 } from 'lucide-react';
-import { usePatient } from '../../context/PatientContext';
 import { PatientQueue } from './PatientQueue';
 import { RedFlagAlerts } from './RedFlagAlerts';
 import { ClinicalSummary } from './ClinicalSummary';
 import { DocumentTimeline } from './DocumentTimeline';
-import { PrintableOpdSlip } from './PrintableOpdSlip';
-import { FhirBundleModal } from './FhirBundleModal';
+import { PrescriptionEditor } from './PrescriptionEditor';
 import { TriageBadge } from '../common/TriageBadge';
+
+const PrintableOpdSlip = React.lazy(() => import('./PrintableOpdSlip').then(m => ({ default: m.PrintableOpdSlip })));
+const FhirBundleModal = React.lazy(() => import('./FhirBundleModal').then(m => ({ default: m.FhirBundleModal })));
 
 export const DoctorDashboard = () => {
   const { 
@@ -42,14 +43,21 @@ export const DoctorDashboard = () => {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showFhirModal, setShowFhirModal] = useState(false);
 
-  const currentHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId)) || hospitals[0];
+  const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
+  const currentHospital = hospitals.find(h => h.id === currentHospitalId) || (currentHospitalId ? { id: currentHospitalId, name: 'Assigned Healthcare Facility' } : hospitals[0]);
   const doctorName = authenticatedUser?.fullName || 'Dr. Rajesh Sharma, MD';
   const doctorDept = authenticatedUser?.department || 'Cardiology & General Medicine';
 
-  const totalPatients = patients.length;
-  const waitingPatients = patients.filter((p) => p.status === 'Waiting' || !p.status).length;
-  const verifiedPatients = patients.filter((p) => p.status === 'History Verified' || p.verificationStatus === 'History Verified').length;
-  const redFlagPatients = patients.filter((p) => p.triageLevel <= 2 && p.status !== 'Completed').length;
+  const hospitalPatients = patients.filter(p => {
+    if (!currentHospitalId) return false;
+    const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
+    return typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+  });
+
+  const totalPatients = hospitalPatients.length;
+  const waitingPatients = hospitalPatients.filter((p) => p.status === 'Waiting' || !p.status).length;
+  const verifiedPatients = hospitalPatients.filter((p) => p.status === 'History Verified' || p.verificationStatus === 'History Verified').length;
+  const redFlagPatients = hospitalPatients.filter((p) => p.triageLevel <= 2 && p.status !== 'Completed').length;
 
   const handleCallPatient = () => {
     if (!selectedPatient) return;

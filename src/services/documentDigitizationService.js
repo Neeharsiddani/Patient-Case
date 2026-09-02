@@ -1,5 +1,4 @@
-import { createWorker } from 'tesseract.js';
-import { extractClinicalEntities } from './clinicalEntityExtractor';
+import { extractClinicalEntities } from './clinicalEntityExtractor.js';
 
 /**
  * MediMitra Medical Document Digitization & Genuine OCR Service
@@ -151,7 +150,7 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
   await new Promise(r => setTimeout(r, 200));
 
   let rawOcrText = '';
-  let ocrConfidence = 85;
+  let ocrConfidence = null;
   let ocrProvider = 'LOCAL_TESSERACT_WASM';
 
   // 1. Attempt Backend Server OCR First
@@ -184,7 +183,7 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
           hospital: d.hospitalName || 'Unspecified Healthcare Facility',
           doctor: d.doctorName || 'Attending Medical Officer',
           diagnosis: d.diagnosis || null,
-          ocrConfidence: d.ocrConfidence || 85,
+          ocrConfidence: d.ocrConfidence ?? d.ocr_confidence ?? null,
           ocrProvider: d.ocrProvider || 'SERVER_OCR',
           verificationStatus: d.verificationStatus || 'MACHINE_EXTRACTED_UNVERIFIED',
           isMachineExtracted: true,
@@ -210,12 +209,13 @@ export const processDocumentWithOcr = async (fileOrPreset, onStageProgress = nul
   // 2. Client-Side Genuine OCR Fallback (In-Browser Tesseract.js WASM Engine)
   updateStage(3, 'Running genuine in-browser Tesseract.js Optical Character Recognition...');
   try {
+    const { createWorker } = await import('tesseract.js');
     const worker = await createWorker('eng');
     const ret = await worker.recognize(file);
     await worker.terminate();
 
     rawOcrText = ret.data.text || '';
-    ocrConfidence = Math.round(ret.data.confidence || 75);
+    ocrConfidence = typeof ret.data.confidence === 'number' ? Math.round(ret.data.confidence) : null;
     ocrProvider = 'IN_BROWSER_TESSERACT_WASM';
   } catch (ocrErr) {
     console.error('In-browser OCR error:', ocrErr);

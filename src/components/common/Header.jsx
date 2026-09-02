@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { languages } from '../../data/translations';
-import { initialPatients } from '../../data/initialPatients';
 import { AbhaProfileModal } from './AbhaProfileModal';
 import { MediMitraLogo } from './MediMitraLogo';
 import { DoctorAuthModal } from '../doctor/DoctorAuthModal';
@@ -40,7 +39,8 @@ export const Header = () => {
     handleUserLogout,
     activeHospitalId,
     kioskForm,
-    hospitals
+    hospitals,
+    refreshQueue
   } = usePatient();
 
   const [showAbhaModal, setShowAbhaModal] = useState(false);
@@ -74,15 +74,22 @@ export const Header = () => {
 
   const handleResetSession = () => {
     if (window.confirm('Clear current session data and refresh patient records?')) {
-      setPatients(initialPatients);
       localStorage.removeItem('medimitra_patients_v2');
       localStorage.removeItem('medikiosk_patients_v2');
       resetKiosk();
+      if (refreshQueue) refreshQueue();
     }
   };
 
-  const waitingCount = patients.filter(p => p.status === 'Waiting').length;
-  const redFlagCount = patients.filter(p => p.triageLevel <= 2 && p.status !== 'Completed').length;
+  const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
+  const hospitalPatients = patients.filter(p => {
+    if (!currentHospitalId) return false;
+    const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
+    return typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+  });
+
+  const waitingCount = hospitalPatients.filter(p => p.status === 'Waiting').length;
+  const redFlagCount = hospitalPatients.filter(p => p.triageLevel <= 2 && p.status !== 'Completed').length;
 
   return (
     <header className="no-print sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">

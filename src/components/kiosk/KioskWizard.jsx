@@ -97,8 +97,40 @@ export const KioskWizard = () => {
       {/* Session Inactivity & Privacy Timeout Protection */}
       <KioskInactivityModal idleTimeoutSec={90} countdownSec={15} />
 
-      {/* 10-Step Progress Stepper (Touch-Optimized) */}
-      <div className="no-print bg-white p-4 rounded-3xl border border-slate-200 shadow-sm overflow-x-auto">
+      {/* Mobile Compact Progress Card (<640px) */}
+      <div className="sm:hidden no-print bg-white p-4 rounded-3xl border border-slate-200 shadow-sm space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-cyan-700 text-white font-extrabold text-xs flex items-center justify-center">
+              {kioskStep}
+            </span>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Step {kioskStep} of 10
+              </span>
+              <h4 className="text-sm font-extrabold text-slate-900 leading-tight">
+                {steps[kioskStep - 1]?.title || 'Clinical Intake'}
+              </h4>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-cyan-800 font-mono bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
+            {Math.round((kioskStep / 10) * 100)}%
+          </span>
+        </div>
+
+        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+          <div 
+            style={{ 
+              width: `${(kioskStep / 10) * 100}%`,
+              backgroundColor: '#088395'
+            }}
+            className="h-full transition-all duration-300"
+          />
+        </div>
+      </div>
+
+      {/* 10-Step Progress Stepper (Touch-Optimized for >=640px) */}
+      <div className="hidden sm:block no-print bg-white p-4 rounded-3xl border border-slate-200 shadow-sm overflow-x-auto">
         <div className="flex items-center justify-between min-w-[780px] gap-2">
           {steps.map((s, idx) => {
             const isDone = kioskStep > s.num;
@@ -225,7 +257,7 @@ export const KioskWizard = () => {
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0" />
           <span>
-            <strong>Healthcare Facility Routing:</strong> Scoped under DPDP Act 2023 • Facility: <strong className="text-slate-800">{kioskForm.selectedHospitalName || 'Government General Hospital'}</strong> ({kioskForm.selectedDepartmentName || 'General Medicine'})
+            <strong>Healthcare Facility Routing:</strong> Scoped under DPDP Act 2023 • Facility: <strong className="text-slate-800">{kioskForm.selectedHospitalName || 'Not Selected'}</strong> ({kioskForm.selectedDepartmentName || 'General Medicine'})
           </span>
         </div>
         <span className="text-cyan-800 font-extrabold text-[11px] uppercase tracking-wider">

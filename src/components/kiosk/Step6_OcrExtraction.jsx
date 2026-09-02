@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { 
-  standardClinicalDocuments, 
   generateMedicalTimeline 
 } from '../../services/documentDigitizationService';
 import { AudioPrompt } from '../common/AudioPrompt';
@@ -190,7 +189,7 @@ export const Step6_OcrExtraction = () => {
                 </span>
               </div>
               <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded text-[10px] font-mono font-bold">
-                Confidence: {currentDoc.ocrConfidence || 95}%
+                Confidence: {currentDoc.ocrConfidence != null ? `${currentDoc.ocrConfidence}%` : 'Confidence unavailable'}
               </span>
             </div>
 
@@ -300,7 +299,7 @@ export const Step6_OcrExtraction = () => {
                   <span className="text-[11px] text-slate-400">Tap to edit</span>
                 </div>
 
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                       <tr>
@@ -349,7 +348,7 @@ export const Step6_OcrExtraction = () => {
                   <span>Prescribed Medications ({currentDoc.medicines.length})</span>
                 </h4>
 
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                       <tr>

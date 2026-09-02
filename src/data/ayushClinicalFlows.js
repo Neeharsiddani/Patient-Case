@@ -351,10 +351,10 @@ export const ADDITIONAL_AYUSH_SECTIONS = [
 export const createInitialAyushState = () => ({
   dashavidhaPariksha: {
     prakriti: {
-      bodyFrame: 'Medium / Athletic (Pitta tendency)',
-      skinNature: 'Warm / Oily / Sensitive',
-      thermalPreference: 'Sensitive to Heat (Prefers Cool)',
-      sleepPattern: 'Moderate / Vivid Dreams',
+      bodyFrame: '',
+      skinNature: '',
+      thermalPreference: '',
+      sleepPattern: '',
       clinicianVerified: {
         dominantDosha: '',
         assessmentNotes: '',
@@ -363,7 +363,7 @@ export const createInitialAyushState = () => ({
     },
     vikriti: {
       primaryImbalanceSymptoms: [],
-      durationOfImbalance: 'Acute (< 2 weeks)',
+      durationOfImbalance: '',
       customSymptoms: '',
       clinicianVerified: {
         aggravatedDosha: '',
@@ -372,7 +372,7 @@ export const createInitialAyushState = () => ({
       }
     },
     sara: {
-      overallVitality: 'Moderate / Average (Madhya Sara)',
+      overallVitality: '',
       clinicianVerified: {
         predominantDhatuSara: '',
         grade: '',
@@ -380,49 +380,49 @@ export const createInitialAyushState = () => ({
       }
     },
     samhanana: {
-      bodyCompactness: 'Madhyama (Moderate compactness)',
+      bodyCompactness: '',
       clinicianVerified: {
         status: '',
         isVerified: false
       }
     },
     pramana: {
-      bodyProportion: 'Sama Pramana (Well-proportioned)',
+      bodyProportion: '',
       clinicianVerified: {
         status: '',
         isVerified: false
       }
     },
     satmya: {
-      dietSuitability: 'Madhyama (Prefers warm, cooked simple foods)',
+      dietSuitability: '',
       clinicianVerified: {
         category: '',
         isVerified: false
       }
     },
     sattva: {
-      mentalResilience: 'Madhya Sattva (Moderate resolve with support)',
+      mentalResilience: '',
       clinicianVerified: {
         level: '',
         isVerified: false
       }
     },
     aharaShakti: {
-      appetiteDigestionPower: 'Madhya (Moderate appetite, normal digestion)',
+      appetiteDigestionPower: '',
       clinicianVerified: {
         grade: '',
         isVerified: false
       }
     },
     vyayamaShakti: {
-      physicalEndurance: 'Madhya (Can walk 1-3 km comfortably)',
+      physicalEndurance: '',
       clinicianVerified: {
         grade: '',
         isVerified: false
       }
     },
     vaya: {
-      ageStage: 'Madhyama (16-60 yrs - Youth & Adulthood / Pitta stage)',
+      ageStage: '',
       clinicianVerified: {
         doshaDominanceByAge: '',
         isVerified: false
@@ -430,35 +430,35 @@ export const createInitialAyushState = () => ({
     }
   },
   additionalHistory: {
-    agni: 'Samagni (Balanced & regular)',
-    koshtha: 'Madhyama Koshtha (Normal regular bowels)',
+    agni: '',
+    koshtha: '',
     ahara: {
-      dietType: 'Vegetarian with dairy',
-      tastePreferences: ['Sweet', 'Spicy'],
-      mealTimings: 'Regular meal times',
-      waterIntake: '2 - 3 Litres / day',
-      unwholesomeHabits: 'Occasional late dinner'
+      dietType: '',
+      tastePreferences: [],
+      mealTimings: '',
+      waterIntake: '',
+      unwholesomeHabits: ''
     },
     vihara: {
-      wakeTime: '6:30 AM',
-      sleepTime: '11:00 PM',
-      daytimeNap: 'None',
-      exerciseHabit: 'Walking 20 mins',
-      stressLevel: 'Moderate'
+      wakeTime: '',
+      sleepTime: '',
+      daytimeNap: '',
+      exerciseHabit: '',
+      stressLevel: ''
     },
     nidana: {
-      patientReportedTriggers: 'Irregular meal timings and stress during work',
-      onsetCircumstances: 'Started after traveling and eating unaccustomed spicy food'
+      patientReportedTriggers: '',
+      onsetCircumstances: ''
     },
     samprapti: {
-      patientReportedProgression: 'Started with mild sour belching, then burning sensation in stomach',
-      relievingFactors: 'Cold water, buttermilk, resting',
-      aggravatingFactors: 'Spicy food, empty stomach, anxiety'
+      patientReportedProgression: '',
+      relievingFactors: '',
+      aggravatingFactors: ''
     }
   },
   metadata: {
-    isAyushCase: true,
-    intakeRecordedAt: new Date().toISOString(),
-    verificationStatus: 'Patient-Reported Draft (Pending Clinician Review)'
+    isAyushCase: false,
+    intakeRecordedAt: null,
+    verificationStatus: 'Pending Clinician Review'
   }
 });

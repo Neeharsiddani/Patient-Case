@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { PatientProvider, usePatient } from './context/PatientContext';
 import { Header } from './components/common/Header';
 import { WelcomeScreen } from './components/common/WelcomeScreen';
-import { PatientIntakeFlow } from './components/kiosk/PatientIntakeFlow';
-import { DoctorLoginScreen } from './components/doctor/DoctorLoginScreen';
-import { DoctorDashboard } from './components/doctor/DoctorDashboard';
-import { HospitalDashboard } from './components/hospital/HospitalDashboard';
-import { ShieldCheck, HeartHandshake, Building2, Lock, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, HeartHandshake, Building2, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { MediMitraLogo } from './components/common/MediMitraLogo';
 import { ApiService } from './services/api';
 import { getRouteUrl, parseRouteFromHash } from './utils/navigation';
+
+// Feature-level code splitting for major screens
+const PatientIntakeFlow = lazy(() => import('./components/kiosk/PatientIntakeFlow').then(m => ({ default: m.PatientIntakeFlow })));
+const DoctorLoginScreen = lazy(() => import('./components/doctor/DoctorLoginScreen').then(m => ({ default: m.DoctorLoginScreen })));
+const DoctorDashboard = lazy(() => import('./components/doctor/DoctorDashboard').then(m => ({ default: m.DoctorDashboard })));
+const HospitalDashboard = lazy(() => import('./components/hospital/HospitalDashboard').then(m => ({ default: m.HospitalDashboard })));
 
 const AppContent = () => {
   const { 
@@ -260,33 +262,40 @@ const AppContent = () => {
 
         {/* Dynamic Main Body Content */}
         <main className="pb-12">
-          {currentScreen === 'welcome' && (
-            <WelcomeScreen
-              onSelectPatient={handleSelectPatient}
-              onSelectDoctor={handleSelectDoctor}
-            />
-          )}
+          <Suspense fallback={
+            <div className="min-h-[400px] flex flex-col items-center justify-center p-12 text-center space-y-3">
+              <Loader2 size={36} className="animate-spin text-cyan-700" />
+              <p className="text-xs font-bold text-slate-600">Loading MediMitra clinical interface...</p>
+            </div>
+          }>
+            {currentScreen === 'welcome' && (
+              <WelcomeScreen
+                onSelectPatient={handleSelectPatient}
+                onSelectDoctor={handleSelectDoctor}
+              />
+            )}
 
-          {currentScreen === 'patient' && (
-            <PatientIntakeFlow
-              onBackToWelcome={() => setCurrentScreen('welcome')}
-            />
-          )}
+            {currentScreen === 'patient' && (
+              <PatientIntakeFlow
+                onBackToWelcome={() => setCurrentScreen('welcome')}
+              />
+            )}
 
-          {currentScreen === 'doctor_login' && (
-            <DoctorLoginScreen
-              onBack={() => setCurrentScreen('welcome')}
-              onLoginSuccess={handleDoctorLoginSuccess}
-            />
-          )}
+            {currentScreen === 'doctor_login' && (
+              <DoctorLoginScreen
+                onBack={() => setCurrentScreen('welcome')}
+                onLoginSuccess={handleDoctorLoginSuccess}
+              />
+            )}
 
-          {currentScreen === 'doctor_dashboard' && (
-            <DoctorDashboard />
-          )}
+            {currentScreen === 'doctor_dashboard' && (
+              <DoctorDashboard />
+            )}
 
-          {currentScreen === 'hospital_admin' && (
-            <HospitalDashboard />
-          )}
+            {currentScreen === 'hospital_admin' && (
+              <HospitalDashboard />
+            )}
+          </Suspense>
         </main>
       </div>
 

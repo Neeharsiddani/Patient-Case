@@ -59,7 +59,7 @@ export const Step1_Identification = () => {
         abhaAddress: abhaAddress || prev.abhaAddress,
         name: name || prev.name,
         gender: gender || prev.gender,
-        age: calculatedAge || prev.age || '45',
+        age: calculatedAge || prev.age || '',
         phone: parsed.mobile || parsed.phone || prev.phone,
         address: parsed.address || prev.address,
         abhaStatus: 'ABHA_QR_SCANNED_UNVERIFIED'

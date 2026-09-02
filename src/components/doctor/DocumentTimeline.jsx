@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   History, 
   FileText, 
@@ -13,27 +13,216 @@ import {
   Pill, 
   FlaskConical, 
   Activity, 
-  ShieldCheck 
+  ShieldCheck,
+  RefreshCw
 } from 'lucide-react';
 import { 
-  standardClinicalDocuments, 
   generateMedicalTimeline 
 } from '../../services/documentDigitizationService';
+import { ApiService } from '../../services/api';
+
+/**
+ * Normalizes document record into a uniform schema regardless of origin
+ * (Client-side kiosk upload, initial state, or server SQLite backend)
+ */
+const normalizeDoc = (d) => {
+  const extracted = d.extractedData || {};
+  return {
+    id: d.id || `doc-${Math.random().toString(36).slice(2, 8)}`,
+    title: d.title || d.originalFilename || 'Medical Record',
+    docType: d.docType || d.type || 'document',
+    typeName: d.typeName || (d.docType === 'lab_report' ? 'Lab Test Report' : d.docType === 'prescription' ? 'Prescription Slip' : d.docType === 'discharge_summary' ? 'Discharge Summary' : 'Clinical Document'),
+    date: d.date || d.docDate || '',
+    year: d.year || d.docYear || (d.docDate ? d.docDate.slice(0, 4) : (d.date ? d.date.split(/[\/\-\.]/)[2] : 'Recent')),
+    hospital: d.hospital || d.hospitalName || 'Healthcare Facility',
+    doctor: d.doctor || d.doctorName || 'Attending Physician',
+    diagnosis: d.diagnosis || extracted.diagnosis || 'Digitized clinical record',
+    ocrConfidence: d.ocrConfidence ?? d.ocr_confidence ?? null,
+    verificationStatus: d.verificationStatus || d.verification_status || 'MACHINE_EXTRACTED_UNVERIFIED',
+    investigations: d.investigations || extracted.investigations || [],
+    medicines: d.medicines || extracted.medicines || [],
+    procedures: d.procedures || extracted.procedures || [],
+    rawOcrText: d.rawOcrText || extracted.rawOcrText || '',
+    timelineEvent: d.timelineEvent
+  };
+};
 
 export const DocumentTimeline = ({ patient }) => {
-  // If patient has documents, use them; fallback to standard clinical records
-  const rawDocs = (patient?.documents && patient.documents.length > 0)
-    ? patient.documents
-    : standardClinicalDocuments;
+  const [documents, setDocuments] = useState(patient?.documents || []);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [expandedDocId, setExpandedDocId] = useState(null);
 
-  const [expandedDocId, setExpandedDocId] = useState(rawDocs[0]?.id || null);
-  const [activeFilter, setActiveFilter] = useState('ALL');
+  useEffect(() => {
+    let isMounted = true;
+    if (!patient?.id) {
+      setDocuments([]);
+      setError(null);
+      return;
+    }
 
+    // Initialize with patient.documents if already loaded in context/prop
+    if (Array.isArray(patient.documents)) {
+      setDocuments(patient.documents);
+      if (patient.documents.length > 0) {
+        setExpandedDocId(patient.documents[0].id);
+      }
+    }
+
+    // Fetch from backend API to ensure real-time synchronization
+    const fetchPatientDocs = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await ApiService.getPatientDocuments(patient.id);
+        if (isMounted) {
+          if (res && res.success && Array.isArray(res.documents)) {
+            setDocuments(res.documents);
+            if (res.documents.length > 0 && !expandedDocId) {
+              setExpandedDocId(res.documents[0].id);
+            }
+          } else if (Array.isArray(patient.documents)) {
+            setDocuments(patient.documents);
+          } else {
+            setDocuments([]);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          // If we already have patient.documents in memory from context, keep them
+          if (Array.isArray(patient.documents) && patient.documents.length > 0) {
+            setDocuments(patient.documents);
+          } else {
+            setDocuments([]);
+            setError('Unable to load medical records. Please try again.');
+          }
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchPatientDocs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [patient?.id]);
+
+  const rawDocs = documents.map(normalizeDoc);
   const timeline = generateMedicalTimeline(rawDocs);
 
-  // Total abnormal labs across all documents
-  const allAbnormalLabs = rawDocs.flatMap((d) => (d.investigations || []).filter((inv) => inv.isAbnormal));
+  // Abnormal lab investigations across all genuine patient documents
+  const allAbnormalLabs = rawDocs.flatMap((d) => 
+    (d.investigations || []).filter((inv) => inv.isAbnormal)
+  );
 
+  // Extract all genuine lab tests with values from uploaded documents
+  const allGenuineLabs = rawDocs.flatMap((d) => 
+    (d.investigations || []).map((inv) => ({ ...inv, docYear: d.year, docDate: d.date, hospital: d.hospital }))
+  );
+
+  const handleVerifyDocument = async (docId, diagnosis, docDate) => {
+    try {
+      if (docId) {
+        await fetch(`/api/documents/${docId}/verify`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(ApiService.getAuthToken() ? { Authorization: `Bearer ${ApiService.getAuthToken()}` } : {})
+          },
+          body: JSON.stringify({ diagnosis, docDate })
+        });
+      }
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === docId ? { ...d, verificationStatus: 'VERIFIED_BY_CLINICIAN' } : d))
+      );
+    } catch (err) {
+      console.error('Verification failed:', err);
+    }
+  };
+
+  // 1. Error State
+  if (error && rawDocs.length === 0) {
+    return (
+      <div className="bg-white p-8 sm:p-12 rounded-3xl border border-red-200 text-center space-y-4 shadow-sm">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-red-50 flex items-center justify-center text-red-600">
+          <AlertTriangle size={28} />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-bold text-red-900">
+            Unable to load medical records. Please try again.
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            An error occurred while connecting to the medical records repository or verifying hospital permissions.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (patient?.id) {
+              setLoading(true);
+              setError(null);
+              ApiService.getPatientDocuments(patient.id)
+                .then((res) => {
+                  setDocuments(res.documents || []);
+                })
+                .catch(() => {
+                  setError('Unable to load medical records. Please try again.');
+                })
+                .finally(() => setLoading(false));
+            }
+          }}
+          className="px-5 py-2.5 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm cursor-pointer"
+        >
+          <RefreshCw size={14} />
+          <span>Retry Connection</span>
+        </button>
+      </div>
+    );
+  }
+
+  // 2. Loading State
+  if (loading && rawDocs.length === 0) {
+    return (
+      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 shadow-sm">
+        <div className="w-10 h-10 mx-auto rounded-2xl bg-cyan-50 flex items-center justify-center text-cyan-600 animate-spin">
+          <History size={20} />
+        </div>
+        <p className="text-xs font-semibold text-slate-600">Loading digitized medical records...</p>
+      </div>
+    );
+  }
+
+  // 3. Clean Empty State (Zero Persisted Documents)
+  if (rawDocs.length === 0) {
+    return (
+      <div className="bg-white p-8 sm:p-12 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4">
+        <div className="w-16 h-16 mx-auto rounded-3xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+          <FileText size={32} />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-extrabold text-slate-800 font-heading">
+            No past digitized medical records
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            Documents uploaded during this consultation will appear here.
+          </p>
+        </div>
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-w-lg mx-auto text-left space-y-1.5">
+          <div className="flex items-center gap-2 text-slate-700 text-xs font-bold">
+            <Sparkles size={14} className="text-cyan-700" />
+            <span>Consultation Record Status:</span>
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            No previous paper prescriptions, lab test reports, or diagnostic scans were attached by this patient during intake. If physical records are available, they can be digitized via the intake kiosk flatbed scanner or mobile document upload.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Populated State with Genuinely Uploaded Documents
   return (
     <div className="space-y-5">
       {/* Abnormal Values High-Priority Attention Banner for Doctor */}
@@ -70,80 +259,37 @@ export const DocumentTimeline = ({ patient }) => {
         </div>
       )}
 
-      {/* 1. Longitudinal Biomarker Trends Widget */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <TrendingUp size={15} className="text-cyan-700" />
-            <span>Longitudinal Health & Lab Biomarker Trends (2022 - 2026)</span>
-          </h4>
-          <span className="text-[11px] font-semibold text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
-            Multi-Year Progression
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* BP Trend */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-            <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
-              <span>Systolic BP (mmHg)</span>
-              <span className="text-red-600 font-black">174 (Today)</span>
-            </div>
-            <div className="flex items-end gap-2 h-14 pt-2">
-              <div className="flex-1 bg-cyan-500 rounded-t h-2/5 flex items-center justify-center text-[9px] font-bold text-white">130</div>
-              <div className="flex-1 bg-cyan-600 rounded-t h-3/5 flex items-center justify-center text-[9px] font-bold text-white">148</div>
-              <div className="flex-1 bg-amber-500 rounded-t h-4/5 flex items-center justify-center text-[9px] font-bold text-white">168</div>
-              <div className="flex-1 bg-red-500 rounded-t h-full flex items-center justify-center text-[9px] font-bold text-white">174</div>
-            </div>
-            <div className="flex justify-between text-[9px] text-slate-400 pt-1 font-mono">
-              <span>'22</span>
-              <span>'24</span>
-              <span>'25</span>
-              <span>'26</span>
-            </div>
+      {/* 1. Verified Biomarker Panel from Genuine Patient Records */}
+      {allGenuineLabs.length > 0 && (
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <TrendingUp size={15} className="text-cyan-700" />
+              <span>Extracted Laboratory Biomarkers ({allGenuineLabs.length} Parameters)</span>
+            </h4>
+            <span className="text-[11px] font-semibold text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
+              Digitized Lab Panels
+            </span>
           </div>
 
-          {/* HbA1c Glycemic Trend */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-            <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
-              <span>HbA1c Glycated Hb (%)</span>
-              <span className="text-amber-700 font-black">8.9%</span>
-            </div>
-            <div className="flex items-end gap-2 h-14 pt-2">
-              <div className="flex-1 bg-amber-400 rounded-t h-3/5 flex items-center justify-center text-[9px] font-bold text-white">7.2</div>
-              <div className="flex-1 bg-amber-500 rounded-t h-3/4 flex items-center justify-center text-[9px] font-bold text-white">7.8</div>
-              <div className="flex-1 bg-red-500 rounded-t h-full flex items-center justify-center text-[9px] font-bold text-white">10.2</div>
-              <div className="flex-1 bg-amber-600 rounded-t h-4/5 flex items-center justify-center text-[9px] font-bold text-white">8.9</div>
-            </div>
-            <div className="flex justify-between text-[9px] text-slate-400 pt-1 font-mono">
-              <span>'22</span>
-              <span>'23</span>
-              <span>'25</span>
-              <span>'26</span>
-            </div>
-          </div>
-
-          {/* Serum Creatinine Trend */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-            <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
-              <span>Serum Creatinine (mg/dL)</span>
-              <span className="text-amber-700 font-black">1.6 (High)</span>
-            </div>
-            <div className="flex items-end gap-2 h-14 pt-2">
-              <div className="flex-1 bg-cyan-500 rounded-t h-1/2 flex items-center justify-center text-[9px] font-bold text-white">0.9</div>
-              <div className="flex-1 bg-cyan-600 rounded-t h-3/5 flex items-center justify-center text-[9px] font-bold text-white">1.1</div>
-              <div className="flex-1 bg-amber-400 rounded-t h-4/5 flex items-center justify-center text-[9px] font-bold text-white">1.3</div>
-              <div className="flex-1 bg-red-500 rounded-t h-full flex items-center justify-center text-[9px] font-bold text-white">1.6</div>
-            </div>
-            <div className="flex justify-between text-[9px] text-slate-400 pt-1 font-mono">
-              <span>'22</span>
-              <span>'24</span>
-              <span>'25</span>
-              <span>'26</span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allGenuineLabs.slice(0, 6).map((inv, idx) => (
+              <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
+                  <span className="truncate pr-2">{inv.name}</span>
+                  <span className={inv.isAbnormal ? 'text-red-600 font-black' : 'text-slate-800 font-bold'}>
+                    {inv.value} {inv.unit}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 pt-1">
+                  <span>Ref: {inv.refRange} {inv.unit}</span>
+                  <span className="font-medium text-slate-500">{inv.docYear || 'Recent'}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* 2. Automated Chronological Medical Timeline Flow */}
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
@@ -189,7 +335,7 @@ export const DocumentTimeline = ({ patient }) => {
                 </div>
 
                 <p className="text-xs text-slate-800 font-semibold">
-                  {item.timelineEvent.summary}
+                  {item.timelineEvent?.summary || item.diagnosis}
                 </p>
 
                 {/* Badges */}
@@ -250,7 +396,7 @@ export const DocumentTimeline = ({ patient }) => {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {doc.hospital} • <span className="text-cyan-700 font-semibold">{doc.typeName || doc.type}</span>
+                        {doc.hospital} • <span className="text-cyan-700 font-semibold">{doc.typeName || doc.docType}</span>
                       </p>
                     </div>
                   </div>
@@ -262,7 +408,7 @@ export const DocumentTimeline = ({ patient }) => {
                       </span>
                     )}
                     <span className="text-[10px] font-mono text-slate-400">
-                      OCR: {doc.ocrConfidence || 95}%
+                      OCR: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
                     </span>
                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </div>
@@ -361,7 +507,7 @@ export const DocumentTimeline = ({ patient }) => {
                             <span>📄 Preserved Raw OCR Text Stream</span>
                           </span>
                           <span className="text-[9px] font-mono text-slate-400">
-                            Engine Confidence: {doc.ocrConfidence || 95}%
+                            Engine Confidence: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
                           </span>
                         </div>
                         <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
@@ -388,22 +534,8 @@ export const DocumentTimeline = ({ patient }) => {
                         {doc.verificationStatus !== 'VERIFIED_BY_CLINICIAN' && (
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                if (doc.id && !doc.id.startsWith('doc-preset')) {
-                                  await fetch(`/api/documents/${doc.id}/verify`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ diagnosis: doc.diagnosis, docDate: doc.date })
-                                  });
-                                }
-                                doc.verificationStatus = 'VERIFIED_BY_CLINICIAN';
-                                setExpandedDocId(doc.id); // Trigger re-render
-                              } catch (err) {
-                                console.error('Verification failed:', err);
-                              }
-                            }}
-                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                            onClick={() => handleVerifyDocument(doc.id, doc.diagnosis, doc.date)}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                           >
                             <ShieldCheck size={14} />
                             <span>Verify & Sign Document</span>

@@ -15,7 +15,6 @@ import {
 import { usePatient } from '../../context/PatientContext';
 import { 
   documentTypes, 
-  standardClinicalDocuments, 
   processDocumentWithOcr 
 } from '../../services/documentDigitizationService';
 import { AudioPrompt } from '../common/AudioPrompt';
@@ -25,7 +24,6 @@ export const Step5_DocUpload = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [activeTypeFilter, setActiveTypeFilter] = useState('ALL');
 
   const handleProcessAndAttach = async (docPresetOrFile) => {
     setIsProcessing(true);
@@ -74,10 +72,6 @@ export const Step5_DocUpload = () => {
       e.target.value = '';
     }
   };
-
-  const filteredPresets = standardClinicalDocuments.filter((doc) => {
-    return activeTypeFilter === 'ALL' || doc.type === activeTypeFilter;
-  });
 
   return (
     <div className="space-y-6">
@@ -326,7 +320,7 @@ export const Step5_DocUpload = () => {
                       ✓ Extracted: {doc.medicines?.length || 0} Rx • {doc.investigations?.length || 0} Labs
                     </span>
                     <span className="text-slate-400 text-[10px]">
-                      Confidence: {doc.ocrConfidence || 95}%
+                      Confidence: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
                     </span>
                   </div>
 
