@@ -164,7 +164,7 @@ export const Step2_ReasonForVisit = () => {
           </div>
 
           <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border bg-white text-slate-700 border-slate-300">
-            Step 2 of 8
+            Mandatory Intake
           </span>
         </div>
 

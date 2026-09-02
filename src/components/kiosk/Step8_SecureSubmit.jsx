@@ -24,12 +24,12 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
   const [showQrModal, setShowQrModal] = useState(false);
 
   const patientToken = kioskForm.generatedToken || {
-    tokenNumber: `OPD-${Date.now().toString().slice(-4)}`,
-    roomNumber: kioskForm.roomNumber || 'Room 101',
+    tokenNumber: kioskForm.generatedToken?.tokenNumber || (kioskForm.token_number ? kioskForm.token_number : `OPD-${Date.now().toString().slice(-4)}`),
+    roomNumber: kioskForm.roomNumber || 'Room pending assignment',
     department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
     assignedDoctor: kioskForm.assignedDoctor || 'Attending Medical Officer',
     registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    waitTime: '15-20 mins',
+    waitTime: 'Calculated on queue call',
     name: kioskForm.name || 'Walk-in Patient',
     age: kioskForm.age || 'Not provided',
     gender: kioskForm.gender || 'Not specified',
@@ -129,12 +129,12 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
 
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
             <span className="text-[10px] text-slate-500 font-bold uppercase block">Consultation Room</span>
-            <span className="text-base font-extrabold text-slate-900">{patientToken.roomNumber || 'Room 104'}</span>
+            <span className="text-base font-extrabold text-slate-900">{patientToken.roomNumber || 'Pending assignment'}</span>
           </div>
 
           <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
             <span className="text-[10px] text-slate-500 font-bold uppercase block">Estimated Wait</span>
-            <span className="text-base font-extrabold text-cyan-800">{patientToken.waitTime || '15-20 mins'}</span>
+            <span className="text-base font-extrabold text-cyan-800">{patientToken.waitTime || 'Calculated on queue call'}</span>
           </div>
         </div>
 

@@ -28,7 +28,7 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
   const [prescriptions, setPrescriptions] = useState([]);
   const [selectedTests, setSelectedTests] = useState([]);
   const [doctorAdvice, setDoctorAdvice] = useState('');
-  const [followUp, setFollowUp] = useState('After 7 Days (OPD Review)');
+  const [followUp, setFollowUp] = useState('');
   const [allergyNotice, setAllergyNotice] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -61,7 +61,7 @@ export const PrescriptionEditor = ({ patient, onSaveAndPrint }) => {
     setPrescriptions(existingPrescriptions);
     setSelectedTests(existingTests);
     setDoctorAdvice(existingNotes.advice || patient.doctorAdvice || '');
-    setFollowUp(existingNotes.followUp || patient.followUp || 'After 7 Days (OPD Review)');
+    setFollowUp(existingNotes.followUp || patient.followUp || '');
   }, [patient?.id]);
 
   const handleToggleIcd = (code) => {

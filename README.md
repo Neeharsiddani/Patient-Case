@@ -1,30 +1,30 @@
 # MediMitra — Clinical Intake & Medical History Platform
 > **"Your Health, Ready for Care"**  
-> *AI-powered clinical intake and medical history platform that helps patients provide their health information before consultation and helps clinicians review structured patient information efficiently.*
+> *Assistive clinical intake and medical history platform that helps patients provide their health information before consultation and helps clinicians review structured patient information efficiently.*
 
 ---
 
 ## 🏥 About MediMitra
-**MediMitra** (*Medical Companion*) streamlines outpatient department (OPD) clinical intake and case-history taking in hospitals by providing an accessible, multi-lingual touchscreen intake kiosk for patients and an integrated clinical review workstation for doctors.
+**MediMitra** (*Medical Companion*) streamlines outpatient department (OPD) clinical intake and case-history taking in hospitals by providing an accessible touchscreen intake kiosk for patients and an integrated clinical review workstation for doctors.
 
-### Key Capabilities:
-1. **Patient Kiosk (Structured Intake Workflow)**:
-   - 14-digit ABHA ID & ABDM QR Scanner or new walk-in registration.
-   - 11 Indian languages (English, हिन्दी, తెలుగు, தமிழ், मराठी, বাংলা, ગુજરાતી, ಕನ್ನಡ, മലയാളം, ਪੰਜਾਬੀ, اردو) with regional speech recognition.
-   - Granular, plain-language informed consent aligned with Digital Personal Data Protection (DPDP) Act 2023 principles.
-   - Adaptive clinical branch questioning and AYUSH / Dashavidha Pariksha assessment.
-   - Real-time deterministic clinical triage (ESI Levels 1 to 5) and red-flag evaluation.
-   - Medical document upload with real client/server OCR (Tesseract.js & pdf-parse).
-   - Verifiable OPD token slip with ABDM consultation QR code pass.
+### Clinical & Technical Implementation Status Matrix
 
-2. **Doctor Clinical Workstation**:
-   - Hospital-isolated real-time patient queue with triage urgency categorization (🔴 Red Flag, 🟡 Urgent, 🟢 Routine).
-   - 10-section structured clinical summary with mandatory clinician verification workflow.
-   - Complete doctor e-Prescription builder with ICD-10 diagnostic coding (starts blank; zero unapproved auto-prescribing).
-   - Standardized HL7 FHIR R4 Bundle export for ABDM ecosystem integration.
-   - Printable official OPD consultation slip preserving authentic hospital identity.
-
----
+| Capability / Integration | Status | Notes |
+| :--- | :--- | :--- |
+| **Patient Kiosk 13-Step Intake Journey** | **IMPLEMENTED** | Complete guided intake (Hospital, ID, Language, Consent, Reason, History, AYUSH, Red Flags, Documents, OCR, Timeline, Review, Token). |
+| **Assistive Clinical Draft (SOAP / HPI)** | **IMPLEMENTED** | Algorithmic synthesis from patient questionnaire & OCR records; strictly non-diagnostic; clinician verification mandatory. |
+| **Deterministic Clinical Triage (ESI 1-5)** | **IMPLEMENTED** | Rule-based triage scoring and red-flag evaluation based on Emergency Severity Index principles. |
+| **Document OCR Digitization** | **IMPLEMENTED** | Client-side (Tesseract.js) and backend OCR (pdf-parse / tesseract); extracts clinical entities with review requirement. |
+| **HL7 FHIR R4 Bundle Generation & Export** | **IMPLEMENTED** | Generates standard ABDM FHIR R4 document bundles with full provenance tagging ([PATIENT-REPORTED], [MACHINE-EXTRACTED], [CLINICIAN-VERIFIED]). |
+| **Multi-Hospital RBAC & Tenant Isolation** | **IMPLEMENTED** | Strict hospital/department scoping on SQLite backend with JWT authentication and audit trails. |
+| **Multilingual Kiosk Navigation** | **IMPLEMENTED (6 Languages)** | Full UI translations for English, Hindi, Telugu, Tamil, Marathi, and Bengali. Standard English fallback for Gujarati, Kannada, Malayalam, Punjabi, and Urdu. Specialized medical questionnaires in English terminology. |
+| **Browser Speech Recognition** | **IMPLEMENTED** | Web Speech API integration with automatic keyboard/touch card manual fallbacks. |
+| **ABDM M1/M2/M3 Gateway Live Sync** | **CONFIGURATION REQUIRED** | Gateway client architecture implemented; requires official NHA Sandbox/Production credentials (`ABDM_CLIENT_ID`, `ABDM_CLIENT_SECRET`). |
+| **Hospital HIS / EMR Direct Dispatch** | **CONFIGURATION REQUIRED** | HIS adapter architecture implemented; requires per-hospital endpoint (`HIS_ENDPOINT_<HOSPITAL>`) and API keys. |
+| **Government Bhashini AI Speech Engine** | **CONFIGURATION REQUIRED** | Bhashini integration layer implemented; requires active Bhashini API keys. |
+| **Autonomous AI Medical Diagnosis** | **NOT IMPLEMENTED** | Intentionally not implemented; MediMitra does not diagnose patients or replace clinician judgment. |
+| **Automatic Prescription Generation** | **NOT IMPLEMENTED** | Intentionally not implemented; prescription editor starts blank and requires licensed doctor decision. |
+| **Persistent Cloud Database & File Storage** | **INFRASTRUCTURE REQUIRED** | SQLite (`server/data/medimitra.db`) and uploaded files (`server/uploads/`) require a persistent disk or volume mount. |
 
 ## 🚀 Production Deployment Architecture
 

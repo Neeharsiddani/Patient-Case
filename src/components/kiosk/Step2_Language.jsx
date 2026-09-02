@@ -86,11 +86,20 @@ export const Step2_Language = () => {
         })}
       </div>
 
-      <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4 flex items-center gap-3 text-cyan-900 text-xs font-medium">
-        <Globe size={18} className="text-cyan-700 flex-shrink-0" />
-        <span>
-          Current Selection: <strong>{languages.find(l => l.code === language)?.name} ({languages.find(l => l.code === language)?.native})</strong>. All clinical questions will adapt automatically.
-        </span>
+      <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4 space-y-2 text-cyan-900 text-xs font-medium">
+        <div className="flex items-center gap-2">
+          <Globe size={18} className="text-cyan-700 flex-shrink-0" />
+          <span>
+            Current Selection: <strong>{languages.find(l => l.code === language)?.name} ({languages.find(l => l.code === language)?.native})</strong>
+          </span>
+        </div>
+        <p className="text-[11px] text-cyan-800 leading-relaxed pl-6">
+          {['en'].includes(language)
+            ? 'Kiosk navigation and clinical questions are displayed in English.'
+            : ['hi', 'te', 'ta', 'mr', 'bn'].includes(language)
+            ? 'Kiosk navigation labels and prompts are translated into regional language. Specialized clinical question sets are presented in standardized medical phrasing.'
+            : 'Regional language voice assistance enabled where available; navigation interface displays with standard English fallback.'}
+        </p>
       </div>
     </div>
   );

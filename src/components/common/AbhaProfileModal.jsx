@@ -137,7 +137,7 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
               <div>
                 <span className="text-[10px] text-cyan-200 block">ABHA Address / PHR Handle</span>
                 <span className="text-xs font-mono font-bold text-white">
-                  {patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`}
+                  {patient.abhaAddress || 'Not registered / None'}
                 </span>
               </div>
               <button
@@ -149,7 +149,7 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
                 <QRCodeSVG 
                   value={JSON.stringify({
                     hidn: patient.abhaId,
-                    hid: patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`,
+                    hid: patient.abhaAddress || '',
                     name: patient.name,
                     gender: patient.gender === 'Male' ? 'M' : patient.gender === 'Female' ? 'F' : 'O',
                     age: patient.age,
@@ -173,7 +173,7 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
             onClose={() => setShowQrModal(false)}
             value={JSON.stringify({
               hidn: patient.abhaId,
-              hid: patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`,
+              hid: patient.abhaAddress || '',
               name: patient.name,
               gender: patient.gender === 'Male' ? 'M' : patient.gender === 'Female' ? 'F' : 'O',
               age: patient.age,
@@ -183,7 +183,7 @@ export const AbhaProfileModal = ({ patient, onClose }) => {
             title="Official ABHA Health ID QR"
             tokenNumber={patient.abhaId}
             patientName={patient.name}
-            subtitle={`PHR: ${patient.abhaAddress || `${patient.name?.toLowerCase().replace(/\s+/g, '')}@abdm`} • ${patient.age} Y / ${patient.gender}`}
+            subtitle={`PHR: ${patient.abhaAddress || 'Not registered'} • ${patient.age} Y / ${patient.gender}`}
           />
 
           {/* 4 Core Status Indicators */}

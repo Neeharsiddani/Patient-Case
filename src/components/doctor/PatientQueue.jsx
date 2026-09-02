@@ -176,7 +176,7 @@ export const PatientQueue = () => {
           </div>
         ) : filteredPatients.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs space-y-1">
-            <p className="font-semibold text-slate-600">No patients available</p>
+            <p className="font-semibold text-slate-600">No patients are currently waiting.</p>
             <p className="text-[11px] text-slate-400">
               {hospitalScopedPatients.length === 0
                 ? 'No active patient cases found for this healthcare facility.'

@@ -164,24 +164,24 @@ export const ClinicalSummary = ({ patient }) => {
         </div>
       )}
 
-      {/* Mandatory AI-Generated Summary Disclaimer Banner */}
+      {/* Mandatory Assistive Clinical Draft Disclaimer Banner */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 p-5 rounded-3xl shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-2.5">
           <div className="flex items-center gap-2">
             <Sparkles size={20} className="text-amber-700" />
             <h4 className="text-sm font-black text-amber-950 uppercase tracking-wide">
-              AI-Generated Clinical Summary Draft
+              Assistive Clinical Summary Draft
             </h4>
           </div>
 
           <div className="bg-amber-600 text-white text-[11px] font-extrabold px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
             <AlertCircle size={13} />
-            <span>AI-generated draft — Doctor verification required</span>
+            <span>Assistive Clinical Draft — Clinician verification required</span>
           </div>
         </div>
 
         <p className="text-xs text-amber-900 font-semibold leading-relaxed">
-          <strong>Notice:</strong> The clinical draft below is synthesized automatically from kiosk inputs and OCR extracted records. <strong>The AI does not make the final diagnosis.</strong> The attending doctor must verify, edit, and confirm all findings.
+          <strong>Notice:</strong> The assistive clinical draft below is synthesized from patient intake inputs and digitized medical records. <strong>MediMitra does not make medical decisions or diagnoses.</strong> The attending clinician must verify, edit, and confirm all findings prior to consultation.
         </p>
 
         {/* AI Draft Details */}
@@ -209,7 +209,7 @@ export const ClinicalSummary = ({ patient }) => {
         {patient.aiGeneratedDraft?.differentialDiagnosisDraft && (
           <div className="p-3.5 bg-white/90 rounded-2xl border border-amber-200 space-y-2 text-xs">
             <span className="text-[10px] font-extrabold uppercase text-amber-800 block">
-              Suggested Differential Diagnosis Draft (For Doctor Review):
+              Diagnostic Possibilities for Clinician Evaluation:
             </span>
             <div className="flex flex-wrap gap-1.5">
               {patient.aiGeneratedDraft.differentialDiagnosisDraft.map((item, idx) => (

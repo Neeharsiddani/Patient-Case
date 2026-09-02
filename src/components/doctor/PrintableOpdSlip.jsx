@@ -69,16 +69,16 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
               </div>
               <div>
                 <p className="text-[10px] font-bold tracking-widest uppercase text-slate-500">
-                  Government of India • Ministry of Health & Family Welfare
+                  Outpatient Department (OPD) Consultation Record
                 </p>
                 <h1 className="text-xl font-extrabold text-slate-900">
                   {hospitalName}
                 </h1>
                 <p className="text-xs text-slate-600 font-semibold mt-0.5">
-                  Ayushman Bharat Digital Mission (ABDM) • Outpatient Department (OPD)
+                  Ayushman Bharat Digital Mission (ABDM) • Clinical Care Record
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {patient.department} • {patient.roomNumber}
+                  {patient.department} • {patient.roomNumber || 'Room pending assignment'}
                 </p>
               </div>
             </div>
@@ -119,23 +119,23 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           <div className="border border-slate-200 rounded-xl p-3 grid grid-cols-5 gap-2 text-center text-xs bg-slate-50/50">
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">BP</span>
-              <span className="font-bold text-slate-900">{patient.vitals.bpSystolic}/{patient.vitals.bpDiastolic} mmHg</span>
+              <span className="font-bold text-slate-900">{patient.vitals?.bpSystolic ? `${patient.vitals.bpSystolic}/${patient.vitals.bpDiastolic} mmHg` : 'Not recorded'}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">Pulse</span>
-              <span className="font-bold text-slate-900">{patient.vitals.pulse} bpm</span>
+              <span className="font-bold text-slate-900">{patient.vitals?.pulse ? `${patient.vitals.pulse} bpm` : 'Not recorded'}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">SpO2</span>
-              <span className="font-bold text-slate-900">{patient.vitals.spo2}%</span>
+              <span className="font-bold text-slate-900">{patient.vitals?.spo2 ? `${patient.vitals.spo2}%` : 'Not recorded'}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">Temp</span>
-              <span className="font-bold text-slate-900">{patient.vitals.temp} °F</span>
+              <span className="font-bold text-slate-900">{patient.vitals?.temp ? `${patient.vitals.temp} °F` : 'Not recorded'}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">Blood Sugar</span>
-              <span className="font-bold text-slate-900">{patient.vitals.bloodSugar} mg/dL</span>
+              <span className="font-bold text-slate-900">{patient.vitals?.bloodSugar ? `${patient.vitals.bloodSugar} mg/dL` : 'Not recorded'}</span>
             </div>
           </div>
 
@@ -143,7 +143,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           <div className="space-y-1 text-xs">
             <span className="font-bold text-slate-700 block uppercase text-[11px]">Chief Complaints (HPI):</span>
             <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200 font-medium">
-              {patient.chiefComplaints?.join('; ') || 'General evaluation'} (Duration: {patient.duration || '2 Days'}, Pain: {patient.painScore || 5}/10).
+              {patient.chiefComplaints?.join('; ') || 'General evaluation'} ({patient.duration ? `Duration: ${patient.duration}` : 'Duration: Not recorded'}, {patient.painScore ? `Pain: ${patient.painScore}/10` : 'Pain: Not assessed'}).
             </p>
           </div>
 
@@ -197,7 +197,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                 ) : (
                   <tr>
                     <td colSpan={5} className="p-3 text-center text-slate-400">
-                      Standard lifestyle advice and observation.
+                      No prescription recorded during this encounter.
                     </td>
                   </tr>
                 )}
@@ -223,11 +223,11 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           <div className="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-200">
             <div>
               <span className="font-bold text-slate-700 block uppercase text-[10px]">Advice & Lifestyle:</span>
-              <p className="text-slate-800 mt-0.5 font-medium">{notes.advice || 'Low salt diet, adequate hydration, avoid strenuous activity.'}</p>
+              <p className="text-slate-800 mt-0.5 font-medium">{notes.advice || 'As advised by attending clinician.'}</p>
             </div>
             <div>
               <span className="font-bold text-slate-700 block uppercase text-[10px]">Follow-Up Date:</span>
-              <p className="text-slate-900 mt-0.5 font-bold">{notes.followUp || 'After 7 Days (OPD Review)'}</p>
+              <p className="text-slate-900 mt-0.5 font-bold">{notes.followUp || 'As needed / SOS'}</p>
             </div>
           </div>
 
@@ -248,8 +248,8 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                     patientName: patient.name,
                     abhaId: patient.abhaId,
                     hospital: hospitalName,
-                    doctor: patient.assignedDoctor,
-                    diagnosis: notes.provisionalDiagnosis,
+                    doctor: patient.assignedDoctor || 'Attending Clinician',
+                    diagnosis: notes.provisionalDiagnosis || 'Encounter Documented',
                     date: new Date().toISOString()
                   })}
                   size={56}
@@ -270,12 +270,14 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
             </div>
 
             <div className="text-right space-y-1">
-              <div className="font-script text-lg text-cyan-900 font-serif italic">
-                Dr. R. Sharma
+              <div className="font-script text-base text-cyan-900 font-serif italic border-b border-slate-300 pb-0.5 inline-block">
+                {patient.assignedDoctor || 'Attending Clinician'}
               </div>
-              <p className="text-xs font-bold text-slate-900">{patient.assignedDoctor}</p>
-              <p className="text-[10px] text-slate-500">Medical Council Reg: MCI/DMC-74892</p>
-              <p className="text-[10px] text-slate-400">{patient.department}</p>
+              <p className="text-xs font-bold text-slate-900">{patient.assignedDoctor || 'Attending Clinician'}</p>
+              {patient.doctorLicense && (
+                <p className="text-[10px] text-slate-500">Reg: {patient.doctorLicense}</p>
+              )}
+              <p className="text-[10px] text-slate-400">{patient.department || 'Outpatient Department'}</p>
             </div>
           </div>
         </div>
