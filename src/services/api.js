@@ -81,6 +81,9 @@ export class ApiService {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          this.logout();
+        }
         throw new Error(data?.message || data?.error || `HTTP Error ${response.status}`);
       }
 

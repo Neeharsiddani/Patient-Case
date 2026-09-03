@@ -95,8 +95,67 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
     const assignedDoctorId = primaryDoctor ? primaryDoctor.id : null;
     const assignedDoctorName = primaryDoctor ? primaryDoctor.full_name : 'Assigned OPD Clinician';
 
+    // 2b. Idempotency Check: Prevent duplicate submissions within 10 seconds
+    if (name) {
+      const recentSubmission = phone ? await get(
+        `SELECT id, token_number, created_at FROM patients 
+         WHERE hospital_id = ? AND phone = ? AND name = ?
+         AND datetime(created_at) >= datetime('now', '-10 seconds')
+         ORDER BY created_at DESC LIMIT 1`,
+        [validatedHospitalId, phone, name]
+      ) : await get(
+        `SELECT id, token_number, created_at FROM patients 
+         WHERE hospital_id = ? AND (phone = '' OR phone IS NULL) AND name = ?
+         AND datetime(created_at) >= datetime('now', '-10 seconds')
+         ORDER BY created_at DESC LIMIT 1`,
+        [validatedHospitalId, name]
+      );
+
+      if (recentSubmission) {
+        return res.status(200).json({
+          success: true,
+          message: 'Patient intake already registered (idempotent)',
+          data: {
+            id: recentSubmission.id,
+            tokenNumber: recentSubmission.token_number,
+            hospitalId: validatedHospitalId,
+            hospitalName: validatedHospitalName,
+            departmentId: validatedDeptId,
+            department: validatedDeptName,
+            roomNumber,
+            assignedDoctorName
+          }
+        });
+      }
+    }
+
     const patientId = `patient-${uuidv4().substring(0, 8)}`;
-    const tokenNumber = `MED-${Math.floor(100 + Math.random() * 900)}`;
+    
+    // Unique token number generation per hospital per day
+    const deptPrefix = (validatedDeptName.includes('Cardiology') ? 'CARD' 
+      : validatedDeptName.includes('Ortho') ? 'ORTH' 
+      : validatedDeptName.includes('Pediatric') ? 'PED' 
+      : validatedDeptName.includes('AYUSH') ? 'AYU'
+      : 'MED');
+
+    let tokenNumber;
+    let isTokenUnique = false;
+    let tokenAttempts = 0;
+    while (!isTokenUnique && tokenAttempts < 10) {
+      const candidate = `${deptPrefix}-${Math.floor(100 + Math.random() * 900)}`;
+      const existingToken = await get(
+        'SELECT id FROM patients WHERE hospital_id = ? AND token_number = ? AND DATE(created_at) = DATE("now")',
+        [validatedHospitalId, candidate]
+      );
+      if (!existingToken) {
+        tokenNumber = candidate;
+        isTokenUnique = true;
+      }
+      tokenAttempts++;
+    }
+    if (!tokenNumber) {
+      tokenNumber = `${deptPrefix}-${Math.floor(100 + Math.random() * 900)}`;
+    }
 
     // 3. Server-Side Deterministic Clinical Triage & Red-Flag Assessment
     const triageResult = evaluateClinicalTriage({
@@ -128,96 +187,104 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       ayushHistory
     });
 
-    // 5. Database Persistence: Insert Patient & Routed Case
-    await run(`
-      INSERT INTO patients (
-        id, token_number, hospital_id, hospital_name, department_id, department, room_number,
-        assigned_doctor_id, assigned_doctor_name, name, age, gender, phone, address,
-        abha_id, abha_address, language, reason_for_visit, triage_level, triage_category, triage_color,
-        wait_time, status, case_status, verification_status, ayush_history
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification', ?)
-    `, [
-      patientId, tokenNumber, validatedHospitalId, validatedHospitalName, validatedDeptId, validatedDeptName, roomNumber,
-      assignedDoctorId, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
-      phone || '', address || '', abhaId || '', abhaAddress || '', language, reasonForVisit || chiefComplaints.join('; '),
-      triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime,
-      ayushHistory ? JSON.stringify(ayushHistory) : null
-    ]);
-
-    // 5b. Insert Granular AYUSH Clinical Record if present
-    if (ayushHistory) {
+    // 5. Database Persistence: Transactional multi-table insertion
+    await run('BEGIN TRANSACTION');
+    try {
       await run(`
-        INSERT INTO ayush_histories (
-          id, patient_id, hospital_id, department_id, dashavidha_pariksha, additional_history, clinician_verified
-        ) VALUES (?, ?, ?, ?, ?, ?, 0)
+        INSERT INTO patients (
+          id, token_number, hospital_id, hospital_name, department_id, department, room_number,
+          assigned_doctor_id, assigned_doctor_name, name, age, gender, phone, address,
+          abha_id, abha_address, language, reason_for_visit, triage_level, triage_category, triage_color,
+          wait_time, status, case_status, verification_status, ayush_history
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification', ?)
       `, [
-        uuidv4(),
-        patientId,
-        validatedHospitalId,
-        validatedDeptId,
-        JSON.stringify(ayushHistory.dashavidhaPariksha || {}),
-        JSON.stringify(ayushHistory.additionalHistory || {})
+        patientId, tokenNumber, validatedHospitalId, validatedHospitalName, validatedDeptId, validatedDeptName, roomNumber,
+        assignedDoctorId, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
+        phone || '', address || '', abhaId || '', abhaAddress || '', language, reasonForVisit || chiefComplaints.join('; '),
+        triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime,
+        ayushHistory ? JSON.stringify(ayushHistory) : null
       ]);
-    }
 
-    // 6. Insert Hospital-Scoped Consent Record (DPDP Act 2023)
-    await run(`
-      INSERT INTO consents (id, patient_id, hospital_id, status, scope, purpose, consent_type, signature_data, ip_address)
-      VALUES (?, ?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical consultation, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', ?, ?)
-    `, [uuidv4(), patientId, validatedHospitalId, signatureData || '', req.ip || '127.0.0.1']);
+      // 5b. Insert Granular AYUSH Clinical Record if present
+      if (ayushHistory) {
+        await run(`
+          INSERT INTO ayush_histories (
+            id, patient_id, hospital_id, department_id, dashavidha_pariksha, additional_history, clinician_verified
+          ) VALUES (?, ?, ?, ?, ?, ?, 0)
+        `, [
+          uuidv4(),
+          patientId,
+          validatedHospitalId,
+          validatedDeptId,
+          JSON.stringify(ayushHistory.dashavidhaPariksha || {}),
+          JSON.stringify(ayushHistory.additionalHistory || {})
+        ]);
+      }
 
-    // 7. Insert Clinical History
-    await run(`
-      INSERT INTO clinical_histories (
-        id, patient_id, chief_complaints, duration, pain_score, onset, hpi, past_medical_history,
-        past_surgical_history, current_medications, drug_allergies, family_history, personal_history,
-        review_of_systems, structured_dialogue
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      uuidv4(), patientId,
-      JSON.stringify(chiefComplaints), duration, parseInt(painScore, 10) || 0, onset,
-      JSON.stringify(hpi), JSON.stringify(pastMedicalHistory), JSON.stringify(pastSurgicalHistory),
-      JSON.stringify(currentMedications), JSON.stringify(drugAllergies), familyHistory, personalHistory,
-      JSON.stringify(reviewOfSystems), JSON.stringify(structuredDialogue)
-    ]);
-
-    // 8. Insert Vitals
-    await run(`
-      INSERT INTO vitals (
-        id, patient_id, bp_systolic, bp_diastolic, pulse, spo2, temp, respiratory_rate, blood_sugar, weight, height
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      uuidv4(), patientId,
-      vitals.bp_systolic || vitals.bpSystolic || null,
-      vitals.bp_diastolic || vitals.bpDiastolic || null,
-      vitals.pulse || null,
-      vitals.spo2 || null,
-      vitals.temp || null,
-      vitals.respiratory_rate || null,
-      vitals.blood_sugar || vitals.bloodSugar || null,
-      vitals.weight || null,
-      vitals.height || null
-    ]);
-
-    // 9. Insert Red Flags
-    for (const flag of triageResult.redFlags) {
+      // 6. Insert Hospital-Scoped Consent Record (DPDP Act 2023)
       await run(`
-        INSERT INTO red_flags (id, patient_id, flag_text, severity, trigger_source)
-        VALUES (?, ?, ?, 'HIGH', 'SERVER_DETERMINISTIC_RULES')
-      `, [uuidv4(), patientId, flag]);
-    }
+        INSERT INTO consents (id, patient_id, hospital_id, status, scope, purpose, consent_type, signature_data, ip_address)
+        VALUES (?, ?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical consultation, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', ?, ?)
+      `, [uuidv4(), patientId, validatedHospitalId, signatureData || '', req.ip || '127.0.0.1']);
 
-    // 10. Insert AI Summary Draft
-    await run(`
-      INSERT INTO clinical_summaries (
-        id, patient_id, subjective_summary, objective_summary, preliminary_risk_assessment,
-        differential_diagnosis, suggested_next_steps, is_ai_draft, clinician_verified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
-    `, [
-      uuidv4(), patientId,
-      aiDraft.subjective_summary, aiDraft.objective_summary, aiDraft.preliminary_risk_assessment,
-      JSON.stringify(aiDraft.differential_diagnosis), JSON.stringify(aiDraft.suggested_next_steps)
-    ]);
+      // 7. Insert Clinical History
+      await run(`
+        INSERT INTO clinical_histories (
+          id, patient_id, chief_complaints, duration, pain_score, onset, hpi, past_medical_history,
+          past_surgical_history, current_medications, drug_allergies, family_history, personal_history,
+          review_of_systems, structured_dialogue
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        uuidv4(), patientId,
+        JSON.stringify(chiefComplaints), duration, parseInt(painScore, 10) || 0, onset,
+        JSON.stringify(hpi), JSON.stringify(pastMedicalHistory), JSON.stringify(pastSurgicalHistory),
+        JSON.stringify(currentMedications), JSON.stringify(drugAllergies), familyHistory, personalHistory,
+        JSON.stringify(reviewOfSystems), JSON.stringify(structuredDialogue)
+      ]);
+
+      // 8. Insert Vitals
+      await run(`
+        INSERT INTO vitals (
+          id, patient_id, bp_systolic, bp_diastolic, pulse, spo2, temp, respiratory_rate, blood_sugar, weight, height
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        uuidv4(), patientId,
+        vitals.bp_systolic || vitals.bpSystolic || null,
+        vitals.bp_diastolic || vitals.bpDiastolic || null,
+        vitals.pulse || null,
+        vitals.spo2 || null,
+        vitals.temp || null,
+        vitals.respiratory_rate || null,
+        vitals.blood_sugar || vitals.bloodSugar || null,
+        vitals.weight || null,
+        vitals.height || null
+      ]);
+
+      // 9. Insert Red Flags
+      for (const flag of triageResult.redFlags) {
+        await run(`
+          INSERT INTO red_flags (id, patient_id, flag_text, severity, trigger_source)
+          VALUES (?, ?, ?, 'HIGH', 'SERVER_DETERMINISTIC_RULES')
+        `, [uuidv4(), patientId, flag]);
+      }
+
+      // 10. Insert AI Summary Draft
+      await run(`
+        INSERT INTO clinical_summaries (
+          id, patient_id, subjective_summary, objective_summary, preliminary_risk_assessment,
+          differential_diagnosis, suggested_next_steps, is_ai_draft, clinician_verified
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
+      `, [
+        uuidv4(), patientId,
+        aiDraft.subjective_summary, aiDraft.objective_summary, aiDraft.preliminary_risk_assessment,
+        JSON.stringify(aiDraft.differential_diagnosis), JSON.stringify(aiDraft.suggested_next_steps)
+      ]);
+
+      await run('COMMIT');
+    } catch (txErr) {
+      await run('ROLLBACK');
+      throw txErr;
+    }
 
     // 11. Record Immutable Audit Log
     await recordAuditLog({
@@ -283,12 +350,24 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         cs.subjective_summary, cs.objective_summary, cs.preliminary_risk_assessment,
         cs.differential_diagnosis, cs.suggested_next_steps, cs.is_ai_draft, cs.clinician_verified,
         cs.verified_at, cs.verified_by_doctor_id,
-        dn.provisional_diagnosis, dn.icd10_codes, dn.prescriptions, dn.investigations, dn.advice
+        dn.provisional_diagnosis, dn.icd10_codes, dn.prescriptions, dn.investigations, dn.advice, dn.follow_up
       FROM patients p
       LEFT JOIN vitals v ON p.id = v.patient_id
       LEFT JOIN clinical_histories ch ON p.id = ch.patient_id
-      LEFT JOIN clinical_summaries cs ON p.id = cs.patient_id
-      LEFT JOIN doctor_notes dn ON p.id = dn.patient_id
+      LEFT JOIN (
+        SELECT patient_id, subjective_summary, objective_summary, preliminary_risk_assessment,
+               differential_diagnosis, suggested_next_steps, is_ai_draft, clinician_verified,
+               verified_at, verified_by_doctor_id
+        FROM clinical_summaries
+        GROUP BY patient_id
+        HAVING MAX(rowid)
+      ) cs ON p.id = cs.patient_id
+      LEFT JOIN (
+        SELECT patient_id, provisional_diagnosis, icd10_codes, prescriptions, investigations, advice, follow_up
+        FROM doctor_notes
+        GROUP BY patient_id
+        HAVING MAX(rowid)
+      ) dn ON p.id = dn.patient_id
       WHERE 1=1
     `;
     const params = [];
@@ -368,6 +447,7 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         roomNumber: row.room_number,
         assignedDoctorId: row.assigned_doctor_id,
         assignedDoctorName: row.assigned_doctor_name,
+        assignedDoctor: row.assigned_doctor_name || 'Assigned OPD Clinician',
         name: row.name,
         age: row.age,
         gender: row.gender,
@@ -402,10 +482,13 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         vitals: {
           bp_systolic: row.bp_systolic,
           bp_diastolic: row.bp_diastolic,
+          bpSystolic: row.bp_systolic,
+          bpDiastolic: row.bp_diastolic,
           pulse: row.pulse,
           spo2: row.spo2,
           temp: row.temp,
-          blood_sugar: row.blood_sugar
+          blood_sugar: row.blood_sugar,
+          bloodSugar: row.blood_sugar
         },
         aiSummary: {
           subjective_summary: row.subjective_summary,
@@ -416,6 +499,29 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
           is_ai_draft: Boolean(row.is_ai_draft),
           clinician_verified: Boolean(row.clinician_verified),
           verified_at: row.verified_at
+        },
+        aiGeneratedDraft: row.subjective_summary ? {
+          disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
+          subjectiveSummary: row.subjective_summary,
+          objectiveSummary: row.objective_summary,
+          preliminaryRiskAssessment: row.preliminary_risk_assessment,
+          differentialDiagnosisDraft: row.differential_diagnosis ? JSON.parse(row.differential_diagnosis) : [],
+          suggestedNextSteps: row.suggested_next_steps ? JSON.parse(row.suggested_next_steps) : []
+        } : null,
+        doctorNotes: row.provisional_diagnosis || row.prescriptions || row.advice ? {
+          provisionalDiagnosis: row.provisional_diagnosis || '',
+          icd10: row.icd10_codes ? JSON.parse(row.icd10_codes) : [],
+          prescriptions: row.prescriptions ? JSON.parse(row.prescriptions) : [],
+          investigations: row.investigations ? JSON.parse(row.investigations) : [],
+          advice: row.advice || '',
+          followUp: row.follow_up || ''
+        } : {
+          provisionalDiagnosis: '',
+          icd10: [],
+          prescriptions: [],
+          investigations: [],
+          advice: '',
+          followUp: ''
         },
         documents: documents.map(d => ({
           id: d.id,
@@ -500,6 +606,7 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
     const redFlags = await query('SELECT * FROM red_flags WHERE patient_id = ?', [id]);
     const aiSummary = await get('SELECT * FROM clinical_summaries WHERE patient_id = ?', [id]);
     const documents = await query('SELECT * FROM documents WHERE patient_id = ?', [id]);
+    const doctorNotes = await get('SELECT * FROM doctor_notes WHERE patient_id = ? ORDER BY signed_at DESC LIMIT 1', [id]);
     const consent = await get('SELECT * FROM consents WHERE patient_id = ? ORDER BY granted_at DESC LIMIT 1', [id]);
 
     // Record Audit Log for sensitive medical record access
@@ -518,7 +625,39 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
       success: true,
       patient: {
         ...patient,
-        vitals: vitals || {},
+        tokenNumber: patient.token_number,
+        hospitalId: patient.hospital_id,
+        hospitalName: patient.hospital_name,
+        departmentId: patient.department_id,
+        roomNumber: patient.room_number,
+        assignedDoctorId: patient.assigned_doctor_id,
+        assignedDoctorName: patient.assigned_doctor_name,
+        assignedDoctor: patient.assigned_doctor_name || 'Assigned OPD Clinician',
+        abhaId: patient.abha_id,
+        abhaAddress: patient.abha_address,
+        reasonForVisit: patient.reason_for_visit,
+        triageLevel: patient.triage_level,
+        triageCategory: patient.triage_category,
+        triageColor: patient.triage_color,
+        waitTime: patient.wait_time,
+        caseStatus: patient.case_status || patient.status,
+        verificationStatus: patient.verification_status,
+        verificationTimestamp: patient.verification_timestamp,
+        rejectionReason: patient.rejection_reason,
+        createdAt: patient.created_at,
+        vitals: vitals ? {
+          bp_systolic: vitals.bp_systolic,
+          bp_diastolic: vitals.bp_diastolic,
+          bpSystolic: vitals.bp_systolic,
+          bpDiastolic: vitals.bp_diastolic,
+          pulse: vitals.pulse,
+          spo2: vitals.spo2,
+          temp: vitals.temp,
+          blood_sugar: vitals.blood_sugar,
+          bloodSugar: vitals.blood_sugar,
+          weight: vitals.weight,
+          height: vitals.height
+        } : {},
         clinicalHistory: clinicalHistory ? {
           chiefComplaints: JSON.parse(clinicalHistory.chief_complaints || '[]'),
           duration: clinicalHistory.duration,
@@ -544,6 +683,29 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
           clinician_verified: Boolean(aiSummary.clinician_verified),
           verified_at: aiSummary.verified_at
         } : null,
+        aiGeneratedDraft: aiSummary ? {
+          disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
+          subjectiveSummary: aiSummary.subjective_summary,
+          objectiveSummary: aiSummary.objective_summary,
+          preliminaryRiskAssessment: aiSummary.preliminary_risk_assessment,
+          differentialDiagnosisDraft: JSON.parse(aiSummary.differential_diagnosis || '[]'),
+          suggestedNextSteps: JSON.parse(aiSummary.suggested_next_steps || '[]')
+        } : null,
+        doctorNotes: doctorNotes ? {
+          provisionalDiagnosis: doctorNotes.provisional_diagnosis || '',
+          icd10: doctorNotes.icd10_codes ? JSON.parse(doctorNotes.icd10_codes) : [],
+          prescriptions: doctorNotes.prescriptions ? JSON.parse(doctorNotes.prescriptions) : [],
+          investigations: doctorNotes.investigations ? JSON.parse(doctorNotes.investigations) : [],
+          advice: doctorNotes.advice || '',
+          followUp: doctorNotes.follow_up || ''
+        } : {
+          provisionalDiagnosis: '',
+          icd10: [],
+          prescriptions: [],
+          investigations: [],
+          advice: '',
+          followUp: ''
+        },
         documents: documents.map(d => ({
           id: d.id,
           originalFilename: d.original_filename,

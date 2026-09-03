@@ -72,15 +72,35 @@ MediMitra strictly separates static frontend presentation from authenticated bac
 | `HOST` | Bind address for network interface | `0.0.0.0` |
 | `NODE_ENV` | Runtime environment | `production` / `development` |
 | `JWT_SECRET` | Cryptographic secret for clinician tokens | **Mandatory in production** (fails closed if missing) |
-| `ALLOWED_ORIGINS` | Comma-separated allowed frontend origins for CORS | `https://neeharsiddani.github.io,http://localhost:3000` |
-| `DATABASE_PATH` | Path to SQLite database file | `server/data/medimitra.db` (optional override) |
-| `UPLOAD_DIR` | Directory for uploaded medical records | `server/uploads` (optional override) |
+| `ALLOWED_ORIGINS` | Comma-separated allowed frontend origins for CORS | `https://eshwarajaysai.github.io,https://neeharsiddani.github.io,http://localhost:3000` |
+| `DATABASE_PATH` | Path to SQLite database file | `server/data/medimitra.db` (requires persistent volume) |
+| `UPLOAD_DIR` | Directory for uploaded medical records | `server/uploads` (requires persistent volume) |
 
 #### Frontend Build (`.env` or GitHub Actions Secrets/Variables):
 | Variable | Description | Example / Requirement |
 | :--- | :--- | :--- |
 | `VITE_API_BASE_URL` | Absolute URL of the standalone Express backend | `https://api.medimitra.yourdomain.org` |
 | `VITE_BASE_PATH` | Base path for GitHub Pages asset routing | `/Patient-Case/` (default on GitHub Pages) |
+
+### Step-by-Step Production Deployment
+
+#### 1. Backend Deployment (Standalone Express Server)
+1. Provision a Node.js 20+ runtime on your host (e.g. AWS EC2, DigitalOcean, Railway, Render, Fly.io).
+2. Attach a **persistent volume** to `./server/data` (for SQLite database) and `./server/uploads` (for patient documents).
+3. Configure required environment variables: `PORT=5000`, `NODE_ENV=production`, `JWT_SECRET=<32+ char secret>`, and `ALLOWED_ORIGINS=https://<user>.github.io`.
+4. Install dependencies and start server:
+   ```bash
+   npm ci --production
+   npm start
+   ```
+   *(The server initializes database tables idempotently and binds to `0.0.0.0:${PORT}`).*
+
+#### 2. Frontend Deployment (GitHub Pages Static Site)
+1. In your GitHub repository settings, go to **Settings > Secrets and variables > Actions**.
+2. Add a variable or secret `VITE_API_BASE_URL` with your reachable backend URL (e.g., `https://api.yourdomain.org`).
+3. Enable GitHub Pages under **Settings > Pages > Source: GitHub Actions**.
+4. Push to `main` branch or trigger `.github/workflows/deploy.yml` manually.
+5. The automated workflow builds the static SPA bundle with `/Patient-Case/` base path and publishes to GitHub Pages.
 
 ---
 

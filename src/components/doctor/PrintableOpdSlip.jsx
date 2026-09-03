@@ -119,7 +119,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           <div className="border border-slate-200 rounded-xl p-3 grid grid-cols-5 gap-2 text-center text-xs bg-slate-50/50">
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">BP</span>
-              <span className="font-bold text-slate-900">{patient.vitals?.bpSystolic ? `${patient.vitals.bpSystolic}/${patient.vitals.bpDiastolic} mmHg` : 'Not recorded'}</span>
+              <span className="font-bold text-slate-900">{(patient.vitals?.bpSystolic || patient.vitals?.bp_systolic) ? `${patient.vitals.bpSystolic || patient.vitals.bp_systolic}/${patient.vitals.bpDiastolic || patient.vitals.bp_diastolic} mmHg` : 'Not recorded'}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">Pulse</span>
@@ -135,7 +135,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 block font-semibold">Blood Sugar</span>
-              <span className="font-bold text-slate-900">{patient.vitals?.bloodSugar ? `${patient.vitals.bloodSugar} mg/dL` : 'Not recorded'}</span>
+              <span className="font-bold text-slate-900">{(patient.vitals?.bloodSugar ?? patient.vitals?.blood_sugar) ? `${patient.vitals.bloodSugar ?? patient.vitals.blood_sugar} mg/dL` : 'Not recorded'}</span>
             </div>
           </div>
 
@@ -248,7 +248,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                     patientName: patient.name,
                     abhaId: patient.abhaId,
                     hospital: hospitalName,
-                    doctor: patient.assignedDoctor || 'Attending Clinician',
+                    doctor: patient.assignedDoctor || patient.assignedDoctorName || patient.assigned_doctor_name || 'Attending Clinician',
                     diagnosis: notes.provisionalDiagnosis || 'Encounter Documented',
                     date: new Date().toISOString()
                   })}

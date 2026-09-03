@@ -41,6 +41,7 @@ const allowedOrigins = [
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'https://neeharsiddani.github.io',
+  'https://eshwarajaysai.github.io',
   ...envOrigins
 ].filter(Boolean);
 
@@ -61,20 +62,7 @@ app.use(cors({
 }));
 
 // 3. Rate Limiting for Clinical API Protection
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    error: 'Too Many Requests',
-    message: 'Too many requests from this IP. Please try again later.'
-  }
-});
-app.use('/api/', apiLimiter);
-
-// 3b. Dedicated Authentication Brute-Force Protection
+// Apply dedicated strict limiters first for sensitive endpoints (supporting both /api and root paths)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'test' ? 200 : 30, // 30 login attempts per 15 minutes per IP
@@ -86,9 +74,8 @@ const authLimiter = rateLimit({
     message: 'Too many login attempts from this IP address. Please wait 15 minutes before retrying.'
   }
 });
-app.use('/api/auth/login', authLimiter);
+app.use(['/api/auth/login', '/auth/login'], authLimiter);
 
-// 3c. Dedicated Document Upload Rate Limiting
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'test' ? 300 : 60, // 60 document uploads per 15 minutes per IP
@@ -100,35 +87,57 @@ const uploadLimiter = rateLimit({
     message: 'Too many document uploads from this IP. Please wait before uploading more files.'
   }
 });
-app.use('/api/documents/upload', uploadLimiter);
+app.use(['/api/documents/upload', '/documents/upload'], uploadLimiter);
+
+// Global clinical API rate limiter (executes exactly once per request across all endpoints)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit each IP to 1000 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too Many Requests',
+    message: 'Too many requests from this IP. Please try again later.'
+  }
+});
+app.use(apiLimiter);
 
 // 4. Request Body Parsers
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// 5. Mount API Routes
-app.use('/api/health', healthRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/hospitals', hospitalRoutes);
-app.use('/api/patients', patientRoutes);
-app.use('/api/doctor', doctorRoutes);
-app.use('/api/consent', consentRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/audit-logs', auditRoutes);
-app.use('/api/audit', auditRoutes);
-app.use('/api/fhir', fhirRoutes);
-app.use('/api/voice', voiceRoutes);
-app.use('/api/abdm', abdmRoutes);
-app.use('/api/his', hisRoutes);
+// 5. Mount API Routes (Both /api/* and root /* to support any VITE_API_BASE_URL configuration)
+const routes = [
+  ['/health', healthRoutes],
+  ['/auth', authRoutes],
+  ['/hospitals', hospitalRoutes],
+  ['/patients', patientRoutes],
+  ['/doctor', doctorRoutes],
+  ['/consent', consentRoutes],
+  ['/documents', documentRoutes],
+  ['/audit-logs', auditRoutes],
+  ['/audit', auditRoutes],
+  ['/fhir', fhirRoutes],
+  ['/voice', voiceRoutes],
+  ['/abdm', abdmRoutes],
+  ['/his', hisRoutes]
+];
+
+for (const [subpath, router] of routes) {
+  app.use(`/api${subpath}`, router);
+  app.use(subpath, router);
+}
 
 // 6. 404 Handler for Unmatched API Endpoints
-app.use('/api', (req, res) => {
+const handleNotFound = (req, res) => {
   res.status(404).json({
     success: false,
     error: 'Endpoint Not Found',
     message: `The requested clinical API route '${req.originalUrl}' does not exist.`
   });
-});
+};
+app.use(handleNotFound);
 
 // 7. Global Error Handler
 app.use(errorHandler);

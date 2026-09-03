@@ -82,9 +82,12 @@ export const ClinicalSummary = ({ patient }) => {
     setRejectReason('');
   };
 
-  const isHighBp = patient.vitals?.bpSystolic >= 160 || patient.vitals?.bpDiastolic >= 100;
-  const isLowSpo2 = patient.vitals?.spo2 <= 94;
-  const isHighBs = patient.vitals?.bloodSugar >= 200;
+  const bpSys = Number(patient.vitals?.bpSystolic ?? patient.vitals?.bp_systolic);
+  const bpDia = Number(patient.vitals?.bpDiastolic ?? patient.vitals?.bp_diastolic);
+  const bloodSug = Number(patient.vitals?.bloodSugar ?? patient.vitals?.blood_sugar);
+  const isHighBp = (bpSys && bpSys >= 160) || (bpDia && bpDia >= 100);
+  const isLowSpo2 = Boolean(patient.vitals?.spo2 && Number(patient.vitals.spo2) <= 94);
+  const isHighBs = Boolean(bloodSug && bloodSug >= 200);
 
   return (
     <div className="space-y-6">
@@ -191,7 +194,7 @@ export const ClinicalSummary = ({ patient }) => {
               Subjective Clinical Impression
             </span>
             <p className="text-slate-800 font-medium">
-              {patient.aiGeneratedDraft?.subjectiveSummary || 'Patient history collected at kiosk.'}
+              {patient.aiGeneratedDraft?.subjectiveSummary || patient.aiSummary?.subjective_summary || 'Patient history collected at kiosk.'}
             </p>
           </div>
 
@@ -200,19 +203,19 @@ export const ClinicalSummary = ({ patient }) => {
               Objective & Risk Assessment
             </span>
             <p className="text-slate-800 font-medium">
-              {patient.aiGeneratedDraft?.objectiveSummary || 'Vitals and lab observations recorded.'}
+              {patient.aiGeneratedDraft?.objectiveSummary || patient.aiSummary?.objective_summary || 'Vitals and lab observations recorded.'}
             </p>
           </div>
         </div>
 
         {/* Suggested Differential & Next Steps */}
-        {patient.aiGeneratedDraft?.differentialDiagnosisDraft && (
+        {((patient.aiGeneratedDraft?.differentialDiagnosisDraft && patient.aiGeneratedDraft.differentialDiagnosisDraft.length > 0) || (patient.aiSummary?.differential_diagnosis && patient.aiSummary.differential_diagnosis.length > 0)) && (
           <div className="p-3.5 bg-white/90 rounded-2xl border border-amber-200 space-y-2 text-xs">
             <span className="text-[10px] font-extrabold uppercase text-amber-800 block">
               Diagnostic Possibilities for Clinician Evaluation:
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {patient.aiGeneratedDraft.differentialDiagnosisDraft.map((item, idx) => (
+              {(patient.aiGeneratedDraft?.differentialDiagnosisDraft || patient.aiSummary?.differential_diagnosis || []).map((item, idx) => (
                 <span key={idx} className="bg-amber-100/70 text-amber-950 font-bold px-2.5 py-1 rounded-lg border border-amber-300 text-[11px]">
                   • {item}
                 </span>
@@ -226,31 +229,33 @@ export const ClinicalSummary = ({ patient }) => {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
         <div className={`p-3 rounded-2xl border text-center ${isHighBp ? 'bg-red-50 border-red-300 text-red-900' : 'bg-slate-50 border-slate-200'}`}>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">BP (Blood Pressure)</span>
-          <span className="text-lg font-black text-slate-900">{formData.vitals?.bpSystolic}/{formData.vitals?.bpDiastolic}</span>
+          <span className="text-lg font-black text-slate-900">
+            {(formData.vitals?.bpSystolic || formData.vitals?.bp_systolic) ? `${formData.vitals?.bpSystolic || formData.vitals?.bp_systolic}/${formData.vitals?.bpDiastolic || formData.vitals?.bp_diastolic}` : 'Not recorded'}
+          </span>
           <span className="text-[10px] text-slate-400 block">mmHg</span>
         </div>
 
         <div className="p-3 rounded-2xl border bg-slate-50 border-slate-200 text-center">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pulse Rate</span>
-          <span className="text-lg font-black text-cyan-800">{formData.vitals?.pulse}</span>
+          <span className="text-lg font-black text-cyan-800">{formData.vitals?.pulse || 'Not recorded'}</span>
           <span className="text-[10px] text-slate-400 block">bpm</span>
         </div>
 
         <div className={`p-3 rounded-2xl border text-center ${isLowSpo2 ? 'bg-red-50 border-red-300 text-red-900' : 'bg-slate-50 border-slate-200'}`}>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">SpO2 (Oxygen)</span>
-          <span className="text-lg font-black text-emerald-700">{formData.vitals?.spo2}%</span>
+          <span className="text-lg font-black text-emerald-700">{formData.vitals?.spo2 ? `${formData.vitals.spo2}%` : 'Not recorded'}</span>
           <span className="text-[10px] text-slate-400 block">Room Air</span>
         </div>
 
         <div className="p-3 rounded-2xl border bg-slate-50 border-slate-200 text-center">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Temperature</span>
-          <span className="text-lg font-black text-amber-700">{formData.vitals?.temp} °F</span>
+          <span className="text-lg font-black text-amber-700">{formData.vitals?.temp ? `${formData.vitals.temp} °F` : 'Not recorded'}</span>
           <span className="text-[10px] text-slate-400 block">Oral</span>
         </div>
 
         <div className={`p-3 rounded-2xl border text-center ${isHighBs ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-slate-50 border-slate-200'}`}>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Blood Sugar</span>
-          <span className="text-lg font-black text-purple-800">{formData.vitals?.bloodSugar}</span>
+          <span className="text-lg font-black text-purple-800">{formData.vitals?.bloodSugar ?? formData.vitals?.blood_sugar ?? 'Not recorded'}</span>
           <span className="text-[10px] text-slate-400 block">mg/dL (RBS)</span>
         </div>
 

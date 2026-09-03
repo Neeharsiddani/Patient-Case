@@ -53,17 +53,14 @@ export const Step5_DepartmentSelect = () => {
   );
 
   const handleSelectDepartment = (dept) => {
-    const defaultDoctor = dept.name.includes('Cardiology') ? 'Dr. Rajesh Sharma, MD (Cardiology)'
-      : dept.name.includes('Ortho') ? 'Dr. Anand Verma, MS (Ortho)'
-      : dept.name.includes('Pediatric') ? 'Dr. Priya Nair, MBBS, DNB'
-      : 'Assigned OPD Clinician';
+    const defaultDoctor = dept.assignedDoctor || 'Assigned OPD Clinician';
 
     setKioskForm(prev => ({
       ...prev,
       selectedDepartmentId: dept.id,
       selectedDepartmentName: dept.name,
       assignedDepartment: dept.name,
-      roomNumber: dept.room_number || 'Room 101',
+      roomNumber: dept.room_number || 'Room pending assignment',
       assignedDoctor: defaultDoctor
     }));
   };

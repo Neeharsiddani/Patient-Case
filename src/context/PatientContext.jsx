@@ -549,7 +549,7 @@ export const PatientProvider = ({ children }) => {
 
     // Post to real backend asynchronously with graceful offline fallback
     try {
-      await ApiService.submitPatientIntake({
+      const response = await ApiService.submitPatientIntake({
         name: newPatient.name,
         age: newPatient.age,
         gender: newPatient.gender,
@@ -581,6 +581,25 @@ export const PatientProvider = ({ children }) => {
         uploadedDocuments: newPatient.documents,
         ayushHistory: newPatient.ayushHistory
       });
+
+      if (response && response.data) {
+        const backendData = response.data;
+        newPatient.id = backendData.id || newPatient.id;
+        newPatient.tokenNumber = backendData.tokenNumber || newPatient.tokenNumber;
+        newPatient.roomNumber = backendData.roomNumber || newPatient.roomNumber;
+        newPatient.assignedDoctor = backendData.assignedDoctorName || newPatient.assignedDoctor;
+        newPatient.waitTime = backendData.waitTime || newPatient.waitTime;
+        if (backendData.triageLevel) newPatient.triageLevel = backendData.triageLevel;
+        if (backendData.triageCategory) newPatient.triageCategory = backendData.triageCategory;
+        if (backendData.triageColor) newPatient.triageColor = backendData.triageColor;
+
+        setPatients((prev) => prev.map((p) => (p.id === newId ? { ...newPatient } : p)));
+        setSelectedPatientId(newPatient.id);
+        setKioskForm((prev) => ({
+          ...prev,
+          generatedToken: { ...newPatient }
+        }));
+      }
     } catch (apiErr) {
       console.warn('Backend intake sync notice (saved locally in browser session):', apiErr.message);
     }

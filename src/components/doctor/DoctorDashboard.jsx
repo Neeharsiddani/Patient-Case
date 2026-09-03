@@ -46,8 +46,8 @@ export const DoctorDashboard = () => {
 
   const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
   const currentHospital = hospitals.find(h => h.id === currentHospitalId) || (currentHospitalId ? { id: currentHospitalId, name: 'Assigned Healthcare Facility' } : hospitals[0]);
-  const doctorName = authenticatedUser?.fullName || 'Dr. Rajesh Sharma, MD';
-  const doctorDept = authenticatedUser?.department || 'Cardiology & General Medicine';
+  const doctorName = authenticatedUser?.fullName || 'Attending Clinician';
+  const doctorDept = authenticatedUser?.department || 'Outpatient Department';
 
   const hospitalPatients = patients.filter(p => {
     if (!currentHospitalId) return false;

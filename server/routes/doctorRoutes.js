@@ -128,14 +128,12 @@ router.post('/confirm-summary', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADM
       }
     }
 
-    // 4. Save doctor notes if provided
+    // 4. Save doctor notes if provided (idempotent replacement for this patient)
     if (doctorNotes) {
+      await run('DELETE FROM doctor_notes WHERE patient_id = ?', [patientId]);
       await run(`
         INSERT INTO doctor_notes (id, patient_id, doctor_id, provisional_diagnosis, advice, signed_at)
         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(id) DO UPDATE SET
-          advice = excluded.advice,
-          signed_at = CURRENT_TIMESTAMP
       `, [uuidv4(), patientId, doctorId, 'Clinical History Verified', doctorNotes]);
     }
 
@@ -272,7 +270,8 @@ router.post('/eprescribe', requireAuth, requireRole('DOCTOR', 'ADMIN'), async (r
     const noteId = uuidv4();
     const doctorId = req.user.id;
 
-    // Insert or replace doctor notes
+    // Insert or replace doctor notes (idempotent replacement for this patient)
+    await run('DELETE FROM doctor_notes WHERE patient_id = ?', [patientId]);
     await run(`
       INSERT INTO doctor_notes (
         id, patient_id, doctor_id, provisional_diagnosis, icd10_codes,
