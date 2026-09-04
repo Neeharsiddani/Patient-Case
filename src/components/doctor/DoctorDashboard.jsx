@@ -40,7 +40,8 @@ export const DoctorDashboard = () => {
     authenticatedUser,
     activeHospitalId,
     hospitals,
-    deletePatient
+    deletePatient,
+    hospitalScopedPatients
   } = usePatient();
 
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'timeline' | 'rx'
@@ -55,24 +56,21 @@ export const DoctorDashboard = () => {
   const doctorName = authenticatedUser?.fullName || 'Attending Clinician';
   const doctorDept = authenticatedUser?.department || 'Outpatient Department';
 
-  const hospitalPatients = patients.filter(p => {
-    if (!currentHospitalId) return false;
-    const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
-    return typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
-  });
+  const doctorPatients = hospitalScopedPatients;
 
-  const totalPatients = hospitalPatients.length;
-  const waitingPatients = hospitalPatients.filter((p) => p.status === 'Waiting' || !p.status).length;
-  const verifiedPatients = hospitalPatients.filter((p) => p.status === 'History Verified' || p.verificationStatus === 'History Verified').length;
-  const redFlagPatients = hospitalPatients.filter((p) => p.triageLevel <= 2 && p.status !== 'Completed').length;
+  const totalPatients = doctorPatients.length;
+  const waitingPatients = doctorPatients.filter((p) => p.status === 'Waiting' || !p.status || p.caseStatus === 'Waiting for Review').length;
+  const verifiedPatients = doctorPatients.filter((p) => p.status === 'History Verified' || p.verificationStatus === 'History Verified').length;
+  const redFlagPatients = doctorPatients.filter((p) => p.triageLevel <= 2 && p.status !== 'Completed').length;
 
   const handleCallPatient = () => {
-    if (!selectedPatient) return;
-    const callSpeech = `Calling token number ${selectedPatient.tokenNumber}, patient ${selectedPatient.name}, to ${selectedPatient.roomNumber || 'Consultation Room 104'}.`;
+    const roomText = selectedPatient.roomNumber ? `to ${selectedPatient.roomNumber}` : 'to the consultation room';
+    const callSpeech = `Calling token number ${selectedPatient.tokenNumber}, patient ${selectedPatient.name}, ${roomText}.`;
     speakText(callSpeech);
   };
 
-  const isVerified = selectedPatient?.status === 'History Verified' || selectedPatient?.verificationStatus === 'History Verified';
+  const isCompleted = selectedPatient?.status === 'Completed' || selectedPatient?.caseStatus === 'Consultation Completed';
+  const isVerified = isCompleted || selectedPatient?.status === 'History Verified' || selectedPatient?.verificationStatus === 'History Verified';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">

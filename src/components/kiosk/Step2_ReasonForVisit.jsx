@@ -20,12 +20,12 @@ import {
   Calendar,
   Save
 } from 'lucide-react';
-import { usePatient } from '../../context/PatientContext';
+import { usePatient, standardHospitalDepartments } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
 import { VoiceInputWidget } from '../common/VoiceInputWidget';
 
 export const Step2_ReasonForVisit = () => {
-  const { kioskForm, setKioskForm, language, speakText, t } = usePatient();
+  const { kioskForm, setKioskForm, language, speakText, t, hospitals = [] } = usePatient();
   const [showVoiceWidget, setShowVoiceWidget] = useState(false);
   const [customInput, setCustomInput] = useState(kioskForm.reasonForVisit || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -199,14 +199,20 @@ export const Step2_ReasonForVisit = () => {
                   type="button"
                   onClick={() => {
                     const hospId = kioskForm.selectedHospitalId || 'hosp-ggh-hyd';
-                    const hospPrefix = hospId.startsWith('hosp-') ? hospId.slice(5) : hospId;
-                    const code = d.id.replace(/^dept-/, '');
-                    const resolvedDeptId = `dept-${hospPrefix}-${code}`;
+                    const currentHosp = hospitals.find(h => h.id === hospId);
+                    const availableDepts = currentHosp?.departments || standardHospitalDepartments[hospId] || standardHospitalDepartments['hosp-ggh-hyd'] || [];
+                    const matchedDept = availableDepts.find(dept => 
+                      dept.name.toLowerCase().includes(d.name.toLowerCase()) || 
+                      d.name.toLowerCase().includes(dept.name.toLowerCase()) ||
+                      (d.id === 'dept-ayush' && (dept.code === 'AYUSH' || dept.name.toLowerCase().includes('ayush') || dept.name.toLowerCase().includes('ayurveda')))
+                    );
+                    const resolvedDeptId = matchedDept ? matchedDept.id : `dept-${hospId.replace(/^hosp-/, '')}-${d.id.replace(/^dept-/, '')}`;
+                    const resolvedDeptName = matchedDept ? matchedDept.name : d.name;
 
                     setKioskForm(prev => ({
                       ...prev,
-                      assignedDepartment: d.name,
-                      selectedDepartmentName: d.name,
+                      assignedDepartment: resolvedDeptName,
+                      selectedDepartmentName: resolvedDeptName,
                       selectedDepartmentId: resolvedDeptId,
                       department_id: resolvedDeptId,
                       isAyushCase: d.id === 'dept-ayush'

@@ -84,6 +84,23 @@ router.get('/patient/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 
       });
     }
 
+    if (req.user.role === 'DOCTOR') {
+      const authorizedDepts = await query(
+        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        [req.user.id]
+      );
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+      const isAssigned = patientFull.assigned_doctor_id === req.user.id;
+      const isDeptAuthorized = authorizedDeptIds.includes(patientFull.department_id);
+      if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'You are not authorized to export FHIR records outside your registered clinical departments.'
+        });
+      }
+    }
+
     const fhirBundle = generateFhirBundle(patientFull);
     const validation = validateFhirBundle(fhirBundle);
 
@@ -128,6 +145,23 @@ router.get('/patient/:id/validate', requireAuth, requireRole('DOCTOR', 'HOSPITAL
         error: 'Forbidden Access',
         message: 'You are not authorized to validate FHIR records belonging to another healthcare facility.'
       });
+    }
+
+    if (req.user.role === 'DOCTOR') {
+      const authorizedDepts = await query(
+        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        [req.user.id]
+      );
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+      const isAssigned = patientFull.assigned_doctor_id === req.user.id;
+      const isDeptAuthorized = authorizedDeptIds.includes(patientFull.department_id);
+      if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'You are not authorized to validate FHIR records outside your registered clinical departments.'
+        });
+      }
     }
 
     const fhirBundle = generateFhirBundle(patientFull);

@@ -190,10 +190,9 @@ export const PatientQueue = () => {
         ) : (
           filteredPatients.map((p) => {
             const isSelected = selectedPatientId === p.id;
-            const isRed = p.triageLevel <= 2;
-            const isVerified = p.status === 'History Verified' || p.verificationStatus === 'History Verified';
-            const isCompleted = p.status === 'Completed';
-            const isRejected = p.status === 'Rejected' || p.verificationStatus === 'Rejected';
+            const isCompleted = p.status === 'Completed' || p.caseStatus === 'Consultation Completed';
+            const isVerified = (p.status === 'History Verified' || p.verificationStatus === 'History Verified') && !isCompleted;
+            const isRejected = p.status === 'Rejected' || p.verificationStatus === 'Rejected' || p.verificationStatus === 'Rejected (Re-Intake Required)';
 
             return (
               <div
@@ -218,15 +217,15 @@ export const PatientQueue = () => {
 
                   {/* Status Indicator & Delete Action */}
                   <div className="flex items-center gap-1.5">
-                    {isVerified ? (
+                    {isCompleted ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
+                        <CheckCircle2 size={12} />
+                        <span>Consultation Completed</span>
+                      </span>
+                    ) : isVerified ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
                         <ShieldCheck size={12} />
                         <span>History Verified ✓</span>
-                      </span>
-                    ) : isCompleted ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
-                        <CheckCircle2 size={12} />
-                        <span>Completed</span>
                       </span>
                     ) : isRejected ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-800 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">

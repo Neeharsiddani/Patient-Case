@@ -55,14 +55,14 @@ export const Step5_DepartmentSelect = () => {
   );
 
   const handleSelectDepartment = (dept) => {
-    const defaultDoctor = dept.assignedDoctor || 'Assigned OPD Clinician';
+    const defaultDoctor = dept.assignedDoctor || null;
 
     setKioskForm(prev => ({
       ...prev,
       selectedDepartmentId: dept.id,
       selectedDepartmentName: dept.name,
       assignedDepartment: dept.name,
-      roomNumber: dept.room_number || 'Room pending assignment',
+      roomNumber: dept.room_number || null,
       assignedDoctor: defaultDoctor
     }));
   };

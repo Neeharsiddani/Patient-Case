@@ -354,7 +354,7 @@ export const Step4_ClinicalHistory = () => {
       duration: extractedDuration,
       painScore: extractedPainScore,
       pastConditions: extractedPastConds.length > 0 ? extractedPastConds : prev.pastConditions,
-      allergies: extractedAllergies.length > 0 ? extractedAllergies : (prev.allergies.length > 0 ? prev.allergies : ['No Known Drug Allergies (NKDA)']),
+      allergies: extractedAllergies.length > 0 ? extractedAllergies : prev.allergies,
       currentMedications: extractedMeds.length > 0 ? extractedMeds : prev.currentMedications,
       historyAnswers: currentAnswers,
       structuredHistory: structuredPairs,

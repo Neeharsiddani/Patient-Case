@@ -381,7 +381,7 @@ export const initDb = async () => {
         if (patCols) {
           if (!patCols.some(c => c.name === 'hospital_id')) {
             try { await run("ALTER TABLE patients ADD COLUMN hospital_id TEXT DEFAULT 'hosp-ggh-hyd'"); } catch {}
-            try { await run("ALTER TABLE patients ADD COLUMN hospital_name TEXT DEFAULT 'Government General Hospital'"); } catch {}
+            try { await run("ALTER TABLE patients ADD COLUMN hospital_name TEXT DEFAULT 'Government General Hospital (Osmania General Hospital)'"); } catch {}
             try { await run("ALTER TABLE patients ADD COLUMN department_id TEXT DEFAULT 'dept-ggh-hyd-genmed'"); } catch {}
             try { await run("ALTER TABLE patients ADD COLUMN reason_for_visit TEXT"); } catch {}
             try { await run("ALTER TABLE patients ADD COLUMN case_status TEXT DEFAULT 'Waiting for Review'"); } catch {}

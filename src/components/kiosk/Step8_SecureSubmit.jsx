@@ -27,13 +27,13 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
     tokenNumber: kioskForm.generatedToken?.tokenNumber || (kioskForm.token_number ? kioskForm.token_number : `OPD-${Date.now().toString().slice(-4)}`),
     roomNumber: kioskForm.roomNumber || 'Room pending assignment',
     department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
-    assignedDoctor: kioskForm.assignedDoctor || 'Attending Medical Officer',
+    assignedDoctor: kioskForm.assignedDoctor || 'Pending Assignment',
     registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     waitTime: 'Calculated on queue call',
-    name: kioskForm.name || 'Walk-in Patient',
+    name: kioskForm.name || 'Patient',
     age: kioskForm.age || 'Not provided',
     gender: kioskForm.gender || 'Not specified',
-    abhaId: kioskForm.abhaId || 'None (Walk-in)',
+    abhaId: kioskForm.abhaId || 'None (No ABHA)',
     hospitalName: kioskForm.selectedHospitalName || 'Selected Healthcare Facility'
   };
 

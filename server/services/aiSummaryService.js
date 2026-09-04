@@ -8,7 +8,7 @@
  */
 export const generateAssistiveSummary = ({
   patientName = 'Patient',
-  age = 30,
+  age = null,
   gender = 'Unknown',
   chiefComplaints = [],
   duration = 'Not specified',
@@ -25,7 +25,41 @@ export const generateAssistiveSummary = ({
   ayushHistory = null
 }) => {
   const complaintsList = Array.isArray(chiefComplaints) ? chiefComplaints.join(', ') : String(chiefComplaints);
-  const vitalsSummary = `BP: ${vitals.bp_systolic || vitals.bpSystolic || '--'}/${vitals.bp_diastolic || vitals.bpDiastolic || '--'} mmHg, Pulse: ${vitals.pulse || '--'} bpm, SpO2: ${vitals.spo2 || '--'}%, Temp: ${vitals.temp || '--'}°F, RBS: ${vitals.blood_sugar || vitals.bloodSugar || '--'} mg/dL`;
+  const hasVitalsData = Boolean(
+    (vitals.bp_systolic || vitals.bpSystolic) ||
+    (vitals.bp_diastolic || vitals.bpDiastolic) ||
+    vitals.pulse ||
+    vitals.spo2 ||
+    vitals.temp ||
+    (vitals.blood_sugar || vitals.bloodSugar)
+  );
+
+  let vitalsSummary = 'Not recorded during intake';
+  if (hasVitalsData) {
+    const vParts = [];
+    if (vitals.bp_systolic || vitals.bpSystolic) {
+      vParts.push(`BP: ${vitals.bp_systolic || vitals.bpSystolic}/${vitals.bp_diastolic || vitals.bpDiastolic || '--'} mmHg`);
+    } else {
+      vParts.push('BP: Not recorded');
+    }
+    if (vitals.pulse) {
+      vParts.push(`Pulse: ${vitals.pulse} bpm`);
+    } else {
+      vParts.push('Pulse: Not recorded');
+    }
+    if (vitals.spo2) {
+      vParts.push(`SpO2: ${vitals.spo2}%`);
+    } else {
+      vParts.push('SpO2: Not recorded');
+    }
+    if (vitals.temp) {
+      vParts.push(`Temp: ${vitals.temp}°F`);
+    }
+    if (vitals.blood_sugar || vitals.bloodSugar) {
+      vParts.push(`RBS: ${vitals.blood_sugar || vitals.bloodSugar} mg/dL`);
+    }
+    vitalsSummary = vParts.join(', ');
+  }
   
   const complaintsStr = complaintsList.toLowerCase();
   
@@ -108,32 +142,127 @@ export const generateAssistiveSummary = ({
     hpiDetails = `HPI: ${Object.entries(hpi).map(([k, v]) => `${k}: ${v}`).join(', ')}. `;
   }
 
-  let subjectiveSummary = `${age}-year-old ${gender.toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${hpiDetails}${Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0 ? `Past medical history notable for ${pastMedicalHistory.join(', ')}.` : 'No significant past chronic illness reported.'}`;
-  let objectiveSummary = `Vitals: ${vitalsSummary}.${Array.isArray(drugAllergies) && drugAllergies.length > 0 ? ` ⚠️ Known Drug Allergies: ${drugAllergies.join(', ')}.` : ' No known drug allergies documented.'}`;
+  let pmhSummary = '';
+  if (Array.isArray(pastMedicalHistory) && pastMedicalHistory.length > 0) {
+    const isExplicitNone = pastMedicalHistory.some(m => typeof m === 'string' && m.toLowerCase().includes('none'));
+    if (isExplicitNone && pastMedicalHistory.length === 1) {
+      pmhSummary = 'Past medical history: No chronic conditions reported by patient.';
+    } else {
+      pmhSummary = `Past medical history notable for ${pastMedicalHistory.join(', ')}.`;
+    }
+  } else {
+    pmhSummary = 'Past medical history: Not recorded during intake.';
+  }
+
+  let allergySummary = '';
+  if (Array.isArray(drugAllergies) && drugAllergies.length > 0) {
+    const isExplicitNkda = drugAllergies.some(a => typeof a === 'string' && (a.includes('NKDA') || a.toLowerCase().includes('no known')));
+    if (isExplicitNkda && drugAllergies.length === 1) {
+      allergySummary = ' Drug allergies: No known drug allergies (NKDA) reported by patient.';
+    } else {
+      allergySummary = ` ⚠️ Known Drug Allergies: ${drugAllergies.join(', ')}.`;
+    }
+  } else {
+    allergySummary = ' Drug allergies: Not recorded during intake (verification required).';
+  }
+
+  let medSummary = '';
+  if (Array.isArray(currentMedications) && currentMedications.length > 0) {
+    const isExplicitNone = currentMedications.some(m => typeof m === 'string' && m.toLowerCase().includes('none'));
+    if (isExplicitNone && currentMedications.length === 1) {
+      medSummary = ' Current medications: No regular medications reported by patient.';
+    } else {
+      medSummary = ` Current medications: ${currentMedications.join(', ')}.`;
+    }
+  } else {
+    medSummary = ' Current medications: Not recorded during intake.';
+  }
+
+  let subjectiveSummary = `${age ? `${age}-year-old` : 'Adult'} ${(gender || 'patient').toLowerCase()} presenting with ${duration} of ${complaintsList}. ${onset ? `Onset: ${onset}. ` : ''}${painScore > 0 ? `Reported pain severity: ${painScore}/10. ` : ''}${hpiDetails}${pmhSummary}${medSummary}`;
+  let objectiveSummary = `Vitals: ${vitalsSummary}.${allergySummary}`;
 
   let ayushSummary = null;
-  if (ayushHistory && (ayushHistory.dashavidhaPariksha || ayushHistory.additionalHistory)) {
-    const dp = ayushHistory.dashavidhaPariksha || {};
-    const ah = ayushHistory.additionalHistory || {};
+  if (ayushHistory) {
+    const isAyushCase = Boolean(
+      ayushHistory.metadata?.isAyushCase ||
+      ayushHistory.isAyushCase ||
+      ayushHistory.dashavidhaPariksha ||
+      ayushHistory.additionalHistory ||
+      ayushHistory.isSkipped ||
+      ayushHistory.skipAyushAssessment
+    );
 
-    const prakritiTraits = dp.prakriti ? `Body frame: ${dp.prakriti.bodyFrame || 'Moderate'}, Thermal preference: ${dp.prakriti.thermalPreference || 'Moderate'}, Skin: ${dp.prakriti.skinNature || 'Normal'}` : 'Not recorded';
-    const agniStatus = ah.agni || 'Samagni (Balanced)';
-    const koshthaStatus = ah.koshtha || 'Madhyama (Regular)';
-    const reportedImbalance = dp.vikriti?.primaryImbalanceSymptoms?.length > 0 ? dp.vikriti.primaryImbalanceSymptoms.join('; ') : 'Routine Ayurvedic wellness consultation';
+    if (ayushHistory.isSkipped || ayushHistory.skipAyushAssessment) {
+      ayushSummary = {
+        status: 'Skipped by Patient',
+        disclaimer: 'AYUSH self-reported intake was skipped by the patient at the kiosk. Complete Dashavidha Pariksha and clinical assessment will be conducted by the attending AYUSH clinician in the OPD.'
+      };
+      subjectiveSummary += ` [AYUSH Intake: Skipped by patient at kiosk; pending clinician examination.]`;
+    } else if (isAyushCase) {
+      const dp = ayushHistory.dashavidhaPariksha || {};
+      const ah = ayushHistory.additionalHistory || {};
 
-    ayushSummary = {
-      patient_reported_prakriti_traits: prakritiTraits,
-      digestive_fire_agni: agniStatus,
-      bowel_tendency_koshtha: koshthaStatus,
-      reported_imbalance_vikriti: reportedImbalance,
-      diet_regimen_ahara: ah.ahara?.dietType || 'Vegetarian',
-      lifestyle_regimen_vihara: `Wake: ${ah.vihara?.wakeTime || '6:30 AM'}, Sleep: ${ah.vihara?.sleepTime || '11:00 PM'}, Stress: ${ah.vihara?.stressLevel || 'Moderate'}`,
-      causative_triggers_nidana: ah.nidana?.patientReportedTriggers || 'Not specified',
-      disease_progression_samprapti: ah.samprapti?.patientReportedProgression || 'Not specified',
-      disclaimer: 'Patient-reported AYUSH observations — Dosha Prakriti, Dhatu Sara, and Ayurvedic therapeutic plan must be verified by a registered AYUSH/Ayurvedic clinician.'
-    };
+      const hasReportedPrakriti = Boolean(dp.prakriti?.bodyFrame || dp.prakriti?.thermalPreference || dp.prakriti?.skinNature);
+      const hasReportedAgni = Boolean(ah.agni);
+      const hasReportedKoshtha = Boolean(ah.koshtha);
+      const hasReportedVikriti = Boolean(Array.isArray(dp.vikriti?.primaryImbalanceSymptoms) && dp.vikriti.primaryImbalanceSymptoms.length > 0);
+      const hasReportedAhara = Boolean(ah.ahara?.dietType);
+      const hasReportedVihara = Boolean(ah.vihara?.wakeTime || ah.vihara?.sleepTime || ah.vihara?.stressLevel);
+      const hasReportedNidana = Boolean(ah.nidana?.patientReportedTriggers);
+      const hasReportedSamprapti = Boolean(ah.samprapti?.patientReportedProgression);
 
-    subjectiveSummary += ` [AYUSH Intake: ${prakritiTraits}. Agni: ${agniStatus}, Koshtha: ${koshthaStatus}. Causative Triggers: ${ah.nidana?.patientReportedTriggers || 'None reported'}.]`;
+      const hasAnyPatientAyushData = hasReportedPrakriti || hasReportedAgni || hasReportedKoshtha || hasReportedVikriti || hasReportedAhara || hasReportedVihara || hasReportedNidana || hasReportedSamprapti;
+
+      if (!hasAnyPatientAyushData) {
+        ayushSummary = {
+          status: 'Not recorded during patient intake',
+          disclaimer: 'AYUSH self-reported intake was not recorded during patient intake. Complete Dashavidha Pariksha and clinical assessment will be conducted by the attending AYUSH clinician in the OPD.'
+        };
+        subjectiveSummary += ` [AYUSH Intake: Not recorded during patient intake; pending clinician examination.]`;
+      } else {
+        const prakritiParts = [];
+        if (dp.prakriti?.bodyFrame) prakritiParts.push(`Body frame: ${dp.prakriti.bodyFrame}`);
+        if (dp.prakriti?.thermalPreference) prakritiParts.push(`Thermal preference: ${dp.prakriti.thermalPreference}`);
+        if (dp.prakriti?.skinNature) prakritiParts.push(`Skin: ${dp.prakriti.skinNature}`);
+        const prakritiTraits = prakritiParts.length > 0 ? prakritiParts.join(', ') : 'Not recorded during patient intake';
+
+        const agniStatus = ah.agni || 'Not recorded during patient intake';
+        const koshthaStatus = ah.koshtha || 'Not recorded during patient intake';
+        const reportedImbalance = (Array.isArray(dp.vikriti?.primaryImbalanceSymptoms) && dp.vikriti.primaryImbalanceSymptoms.length > 0)
+          ? dp.vikriti.primaryImbalanceSymptoms.join('; ')
+          : 'Pending clinician examination';
+
+        const dietType = ah.ahara?.dietType || 'Not recorded during patient intake';
+        const viharaParts = [];
+        if (ah.vihara?.wakeTime) viharaParts.push(`Wake: ${ah.vihara.wakeTime}`);
+        if (ah.vihara?.sleepTime) viharaParts.push(`Sleep: ${ah.vihara.sleepTime}`);
+        if (ah.vihara?.stressLevel) viharaParts.push(`Stress: ${ah.vihara.stressLevel}`);
+        const viharaStatus = viharaParts.length > 0 ? viharaParts.join(', ') : 'Not recorded during patient intake';
+
+        ayushSummary = {
+          patient_reported_prakriti_traits: prakritiTraits,
+          digestive_fire_agni: agniStatus,
+          bowel_tendency_koshtha: koshthaStatus,
+          reported_imbalance_vikriti: reportedImbalance,
+          diet_regimen_ahara: dietType,
+          lifestyle_regimen_vihara: viharaStatus,
+          causative_triggers_nidana: ah.nidana?.patientReportedTriggers || 'Not recorded during patient intake',
+          disease_progression_samprapti: ah.samprapti?.patientReportedProgression || 'Not recorded during patient intake',
+          disclaimer: 'Patient-reported AYUSH observations — Dosha Prakriti, Dhatu Sara, and Ayurvedic therapeutic plan must be verified by a registered AYUSH/Ayurvedic clinician.'
+        };
+
+        const ayushReportedPhrases = [];
+        if (prakritiParts.length > 0) ayushReportedPhrases.push(`Prakriti traits: ${prakritiTraits}`);
+        if (ah.agni) ayushReportedPhrases.push(`Agni: ${ah.agni}`);
+        if (ah.koshtha) ayushReportedPhrases.push(`Koshtha: ${ah.koshtha}`);
+        if (Array.isArray(dp.vikriti?.primaryImbalanceSymptoms) && dp.vikriti.primaryImbalanceSymptoms.length > 0) {
+          ayushReportedPhrases.push(`Reported Vikriti: ${reportedImbalance}`);
+        }
+        if (ah.nidana?.patientReportedTriggers) ayushReportedPhrases.push(`Causative Triggers: ${ah.nidana.patientReportedTriggers}`);
+
+        subjectiveSummary += ` [Patient-Reported AYUSH Intake: ${ayushReportedPhrases.join('. ')}.]`;
+      }
+    }
   }
 
   return {

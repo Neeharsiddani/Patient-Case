@@ -121,7 +121,7 @@ export const Step8_SummaryGen = () => {
             <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
               <span className="font-bold text-cyan-900 block text-[11px]">S (Subjective):</span>
               <p className="text-slate-700 mt-0.5 font-medium">
-                {kioskForm.chiefComplaints.join('; ') || 'General OPD intake'} (Duration: {kioskForm.duration}, Pain: {kioskForm.painScore}/10).
+                {kioskForm.chiefComplaints?.join('; ') || kioskForm.reasonForVisit || 'Not reported'} (Duration: {kioskForm.duration || 'Not reported'}, Pain: {kioskForm.painScore || 0}/10).
               </p>
             </div>
 

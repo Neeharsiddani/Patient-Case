@@ -25,7 +25,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       abhaAddress,
       language = 'English',
       hospitalId = 'hosp-ggh-hyd',
-      hospitalName = 'Government General Hospital',
+      hospitalName = 'Government General Hospital (Osmania General Hospital)',
       departmentId = 'dept-ggh-hyd-genmed',
       department = 'General Medicine',
       reasonForVisit = '',
@@ -111,20 +111,16 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
     }
 
     if (!dept) {
-      // Fallback to hospital's primary General Medicine or first active department
-      dept = await get(
-        `SELECT id, name, room_number, code FROM departments 
-         WHERE hospital_id = ? AND (code = 'GENMED' OR LOWER(name) LIKE '%medicine%') LIMIT 1`,
-        [validatedHospitalId]
-      ) || await get(
-        `SELECT id, name, room_number, code FROM departments WHERE hospital_id = ? LIMIT 1`,
-        [validatedHospitalId]
-      );
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Department',
+        message: `Department '${departmentId || department}' is not available at this healthcare facility.`
+      });
     }
 
-    const validatedDeptId = dept ? dept.id : departmentId;
-    const validatedDeptName = dept ? dept.name : department;
-    const roomNumber = dept?.room_number || (validatedDeptName.includes('Cardiology') ? 'Room 104' : 'Room 101');
+    const validatedDeptId = dept.id;
+    const validatedDeptName = dept.name;
+    const roomNumber = dept.room_number || null;
 
     // Auto-assign available primary doctor for this hospital & department if present
     const primaryDoctor = await get(
@@ -134,16 +130,10 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
        WHERE dd.hospital_id = ? AND dd.department_id = ? AND u.status = 'ACTIVE'
        LIMIT 1`,
       [validatedHospitalId, validatedDeptId]
-    ) || await get(
-      `SELECT u.id, u.full_name
-       FROM users u
-       WHERE u.hospital_id = ? AND u.role = 'DOCTOR' AND u.status = 'ACTIVE'
-       LIMIT 1`,
-      [validatedHospitalId]
     );
 
     const assignedDoctorId = primaryDoctor ? primaryDoctor.id : null;
-    const assignedDoctorName = primaryDoctor ? primaryDoctor.full_name : 'Assigned OPD Clinician';
+    const assignedDoctorName = primaryDoctor ? primaryDoctor.full_name : null;
 
     // 2b. Idempotency Check: Prevent duplicate submissions within 10 seconds
     if (name) {
@@ -207,6 +197,10 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       tokenNumber = `${deptPrefix}-${Math.floor(100 + Math.random() * 900)}`;
     }
 
+    const parsedAge = (age !== undefined && age !== null && age !== '' && !isNaN(parseInt(age, 10))) 
+      ? parseInt(age, 10) 
+      : null;
+
     // 3. Server-Side Deterministic Clinical Triage & Red-Flag Assessment
     const triageResult = evaluateClinicalTriage({
       chiefComplaints,
@@ -214,13 +208,13 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
       vitals,
       painScore: parseInt(painScore, 10) || 0,
       drugAllergies,
-      age: parseInt(age, 10) || 30
+      age: parsedAge || 0
     });
 
     // 4. Assistive AI Clinical Summary Draft Generation
     const aiDraft = generateAssistiveSummary({
       patientName: name,
-      age: parseInt(age, 10) || 30,
+      age: parsedAge,
       gender,
       chiefComplaints,
       duration,
@@ -249,7 +243,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', 'Waiting for Review', 'Pending Verification', ?)
       `, [
         patientId, tokenNumber, validatedHospitalId, validatedHospitalName, validatedDeptId, validatedDeptName, roomNumber,
-        assignedDoctorId, assignedDoctorName, name, parseInt(age, 10) || 30, gender,
+        assignedDoctorId, assignedDoctorName, name, parsedAge, gender,
         phone || '', address || '', abhaId || '', abhaAddress || '', language, reasonForVisit || chiefComplaints.join('; '),
         triageResult.triageLevel, triageResult.triageCategory, triageResult.triageColor, triageResult.waitTime,
         ayushHistory ? JSON.stringify(ayushHistory) : null
@@ -277,6 +271,36 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         VALUES (?, ?, ?, 'GRANTED', 'PATIENT_INTAKE_OPD', 'Clinical consultation, OPD triage and verified medical record storage under DPDP Act 2023', 'ELECTRONIC_TOUCH_SIGNATURE', ?, ?)
       `, [uuidv4(), patientId, validatedHospitalId, signatureData || '', req.ip || '127.0.0.1']);
 
+      // Sanitize reviewOfSystems so it never makes false claims about unrecorded vitals
+      const sanitizedRos = { ...(reviewOfSystems || {}) };
+      const hasBp = Boolean(vitals.bp_systolic || vitals.bpSystolic);
+      const hasPulse = Boolean(vitals.pulse);
+      const hasSpo2 = Boolean(vitals.spo2);
+
+      if (!sanitizedRos.cardiovascular || sanitizedRos.cardiovascular === 'Heart rate and BP recorded at kiosk.') {
+        if (hasBp && hasPulse) {
+          sanitizedRos.cardiovascular = `Heart rate (${vitals.pulse} bpm) and BP (${vitals.bp_systolic || vitals.bpSystolic}/${vitals.bp_diastolic || vitals.bpDiastolic || '--'} mmHg) recorded at kiosk.`;
+        } else if (hasBp) {
+          sanitizedRos.cardiovascular = `BP (${vitals.bp_systolic || vitals.bpSystolic}/${vitals.bp_diastolic || vitals.bpDiastolic || '--'} mmHg) recorded at kiosk. Heart rate not recorded.`;
+        } else if (hasPulse) {
+          sanitizedRos.cardiovascular = `Heart rate (${vitals.pulse} bpm) recorded at kiosk. Blood pressure not recorded.`;
+        } else {
+          sanitizedRos.cardiovascular = 'Blood pressure and heart rate: Not recorded during intake.';
+        }
+      }
+
+      if (!sanitizedRos.respiratory || sanitizedRos.respiratory === 'SpO2 saturation monitored at kiosk.') {
+        if (hasSpo2) {
+          sanitizedRos.respiratory = `SpO2 saturation (${vitals.spo2}%) monitored at kiosk.`;
+        } else {
+          sanitizedRos.respiratory = 'SpO2: Not recorded during intake.';
+        }
+      }
+
+      if (!sanitizedRos.intakeNote) {
+        sanitizedRos.intakeNote = 'Clinical review of systems to be conducted by attending physician.';
+      }
+
       // 7. Insert Clinical History
       await run(`
         INSERT INTO clinical_histories (
@@ -289,7 +313,7 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         JSON.stringify(chiefComplaints), duration, parseInt(painScore, 10) || 0, onset,
         JSON.stringify(hpi), JSON.stringify(pastMedicalHistory), JSON.stringify(pastSurgicalHistory),
         JSON.stringify(currentMedications), JSON.stringify(drugAllergies), familyHistory, personalHistory,
-        JSON.stringify(reviewOfSystems), JSON.stringify(structuredDialogue)
+        JSON.stringify(sanitizedRos), JSON.stringify(structuredDialogue)
       ]);
 
       // 8. Insert Vitals
@@ -419,7 +443,24 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         triageCategory: triageResult.triageCategory,
         triageColor: triageResult.triageColor,
         waitTime: triageResult.waitTime,
-        redFlags: triageResult.redFlags
+        redFlags: triageResult.redFlags,
+        aiSummary: {
+          subjective_summary: aiDraft.subjective_summary,
+          objective_summary: aiDraft.objective_summary,
+          preliminary_risk_assessment: aiDraft.preliminary_risk_assessment,
+          differential_diagnosis: aiDraft.differential_diagnosis,
+          suggested_next_steps: aiDraft.suggested_next_steps,
+          is_ai_draft: true,
+          clinician_verified: false
+        },
+        aiGeneratedDraft: {
+          disclaimer: aiDraft.disclaimer,
+          subjectiveSummary: aiDraft.subjective_summary,
+          objectiveSummary: aiDraft.objective_summary,
+          preliminaryRiskAssessment: aiDraft.preliminary_risk_assessment,
+          differentialDiagnosisDraft: aiDraft.differential_diagnosis,
+          suggestedNextSteps: aiDraft.suggested_next_steps
+        }
       }
     });
   } catch (err) {
@@ -579,7 +620,7 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         roomNumber: row.room_number,
         assignedDoctorId: row.assigned_doctor_id,
         assignedDoctorName: row.assigned_doctor_name,
-        assignedDoctor: row.assigned_doctor_name || 'Assigned OPD Clinician',
+        assignedDoctor: row.assigned_doctor_name || null,
         name: row.name,
         age: row.age,
         gender: row.gender,
@@ -758,6 +799,7 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
     const documents = await query('SELECT * FROM documents WHERE patient_id = ?', [id]);
     const doctorNotes = await get('SELECT * FROM doctor_notes WHERE patient_id = ? ORDER BY signed_at DESC LIMIT 1', [id]);
     const consent = await get('SELECT * FROM consents WHERE patient_id = ? ORDER BY granted_at DESC LIMIT 1', [id]);
+    const ayushRecord = await get('SELECT * FROM ayush_histories WHERE patient_id = ?', [id]);
 
     // Record Audit Log for sensitive medical record access
     await recordAuditLog({
@@ -782,7 +824,7 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
         roomNumber: patient.room_number,
         assignedDoctorId: patient.assigned_doctor_id,
         assignedDoctorName: patient.assigned_doctor_name,
-        assignedDoctor: patient.assigned_doctor_name || 'Assigned OPD Clinician',
+        assignedDoctor: patient.assigned_doctor_name || null,
         abhaId: patient.abha_id,
         abhaAddress: patient.abha_address,
         reasonForVisit: patient.reason_for_visit,
@@ -884,7 +926,21 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
             uploadedAt: d.uploaded_at
           };
         }),
-        ayushHistory: patient.ayush_history ? JSON.parse(patient.ayush_history) : null,
+        ayushHistory: (() => {
+          if (!patient.ayush_history && !ayushRecord) return null;
+          const parsed = patient.ayush_history ? JSON.parse(patient.ayush_history) : {};
+          if (ayushRecord) {
+            return {
+              ...parsed,
+              dashavidhaPariksha: ayushRecord.dashavidha_pariksha ? JSON.parse(ayushRecord.dashavidha_pariksha) : (parsed.dashavidhaPariksha || null),
+              additionalHistory: ayushRecord.additional_history ? JSON.parse(ayushRecord.additional_history) : (parsed.additionalHistory || null),
+              clinicianVerified: Boolean(ayushRecord.clinician_verified),
+              verifiedByDoctorId: ayushRecord.verified_by_doctor_id,
+              verifiedAt: ayushRecord.verified_at
+            };
+          }
+          return parsed;
+        })(),
         consent: consent || null
       }
     });

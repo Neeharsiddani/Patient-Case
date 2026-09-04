@@ -239,7 +239,7 @@ export const Step4_AyushHistory = () => {
                                   if (q.isMulti) {
                                     toggleMultiSymptom(opt.value);
                                   } else {
-                                    updateDashavidhaField(field.id, q.key, opt.value);
+                                    updateDashavidhaField(field.id, q.key, isSelected ? '' : opt.value);
                                   }
                                 }}
                                 className={`p-3.5 rounded-2xl text-left border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
@@ -313,7 +313,7 @@ export const Step4_AyushHistory = () => {
                               <button
                                 key={opt.value}
                                 type="button"
-                                onClick={() => updateDashavidhaField(field.id, q.key, opt.value)}
+                                onClick={() => updateDashavidhaField(field.id, q.key, isSelected ? '' : opt.value)}
                                 className={`p-3.5 rounded-2xl text-left border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
                                   isSelected
                                     ? 'bg-emerald-50 border-emerald-600 text-emerald-950 shadow-xs ring-2 ring-emerald-500/20'
@@ -368,7 +368,7 @@ export const Step4_AyushHistory = () => {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => updateAdditionalHistory('agni', null, opt.value)}
+                    onClick={() => updateAdditionalHistory('agni', null, isSelected ? '' : opt.value)}
                     className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-amber-50 border-amber-600 text-amber-950 ring-2 ring-amber-500/20 shadow-xs'
@@ -413,7 +413,7 @@ export const Step4_AyushHistory = () => {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => updateAdditionalHistory('koshtha', null, opt.value)}
+                    onClick={() => updateAdditionalHistory('koshtha', null, isSelected ? '' : opt.value)}
                     className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-cyan-50 border-cyan-600 text-cyan-950 ring-2 ring-cyan-500/20 shadow-xs'
@@ -460,28 +460,30 @@ export const Step4_AyushHistory = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Diet Type</label>
                 <select
-                  value={ayushData.additionalHistory?.ahara?.dietType || 'Vegetarian with dairy'}
+                  value={ayushData.additionalHistory?.ahara?.dietType || ''}
                   onChange={(e) => updateAdditionalHistory('ahara', 'dietType', e.target.value)}
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option>Vegetarian with dairy (Ghee / Milk)</option>
-                  <option>Strict Vegan</option>
-                  <option>Non-Vegetarian (Eggs / Meat)</option>
-                  <option>Mixed diet</option>
+                  <option value="">-- Select an option --</option>
+                  <option value="Vegetarian with dairy (Ghee / Milk)">Vegetarian with dairy (Ghee / Milk)</option>
+                  <option value="Strict Vegan">Strict Vegan</option>
+                  <option value="Non-Vegetarian (Eggs / Meat)">Non-Vegetarian (Eggs / Meat)</option>
+                  <option value="Mixed diet">Mixed diet</option>
                 </select>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Daily Water Intake</label>
                 <select
-                  value={ayushData.additionalHistory?.ahara?.waterIntake || '2 - 3 Litres / day'}
+                  value={ayushData.additionalHistory?.ahara?.waterIntake || ''}
                   onChange={(e) => updateAdditionalHistory('ahara', 'waterIntake', e.target.value)}
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option>Less than 1.5 Litres / day</option>
-                  <option>1.5 - 2.5 Litres / day</option>
-                  <option>2.5 - 3.5 Litres / day</option>
-                  <option>More than 3.5 Litres / day</option>
+                  <option value="">-- Select an option --</option>
+                  <option value="Less than 1.5 Litres / day">Less than 1.5 Litres / day</option>
+                  <option value="1.5 - 2.5 Litres / day">1.5 - 2.5 Litres / day</option>
+                  <option value="2.5 - 3.5 Litres / day">2.5 - 3.5 Litres / day</option>
+                  <option value="More than 3.5 Litres / day">More than 3.5 Litres / day</option>
                 </select>
               </div>
 
@@ -519,8 +521,9 @@ export const Step4_AyushHistory = () => {
                 <label className="text-xs font-bold text-slate-700">Routine Wake-Up Time</label>
                 <input
                   type="text"
-                  value={ayushData.additionalHistory?.vihara?.wakeTime || '6:30 AM'}
+                  value={ayushData.additionalHistory?.vihara?.wakeTime || ''}
                   onChange={(e) => updateAdditionalHistory('vihara', 'wakeTime', e.target.value)}
+                  placeholder="e.g. 6:30 AM"
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -529,8 +532,9 @@ export const Step4_AyushHistory = () => {
                 <label className="text-xs font-bold text-slate-700">Routine Bedtime</label>
                 <input
                   type="text"
-                  value={ayushData.additionalHistory?.vihara?.sleepTime || '11:00 PM'}
+                  value={ayushData.additionalHistory?.vihara?.sleepTime || ''}
                   onChange={(e) => updateAdditionalHistory('vihara', 'sleepTime', e.target.value)}
+                  placeholder="e.g. 10:30 PM"
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -538,26 +542,28 @@ export const Step4_AyushHistory = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Daytime Naps (Divaswapna)</label>
                 <select
-                  value={ayushData.additionalHistory?.vihara?.daytimeNap || 'None'}
+                  value={ayushData.additionalHistory?.vihara?.daytimeNap || ''}
                   onChange={(e) => updateAdditionalHistory('vihara', 'daytimeNap', e.target.value)}
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500"
                 >
-                  <option>None / Stays active</option>
-                  <option>Brief 15-20 min nap</option>
-                  <option>Long sleep (1-2 hours) after lunch</option>
+                  <option value="">-- Select an option --</option>
+                  <option value="None / Stays active">None / Stays active</option>
+                  <option value="Brief 15-20 min nap">Brief 15-20 min nap</option>
+                  <option value="Long sleep (1-2 hours) after lunch">Long sleep (1-2 hours) after lunch</option>
                 </select>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Daily Stress Level</label>
                 <select
-                  value={ayushData.additionalHistory?.vihara?.stressLevel || 'Moderate'}
+                  value={ayushData.additionalHistory?.vihara?.stressLevel || ''}
                   onChange={(e) => updateAdditionalHistory('vihara', 'stressLevel', e.target.value)}
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500"
                 >
-                  <option>Low / Calm environment</option>
-                  <option>Moderate / Work-related deadlines</option>
-                  <option>High / Chronic emotional or mental strain</option>
+                  <option value="">-- Select an option --</option>
+                  <option value="Low / Calm environment">Low / Calm environment</option>
+                  <option value="Moderate / Work-related deadlines">Moderate / Work-related deadlines</option>
+                  <option value="High / Chronic emotional or mental strain">High / Chronic emotional or mental strain</option>
                 </select>
               </div>
             </div>

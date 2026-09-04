@@ -40,13 +40,23 @@ export const PROVENANCE_TAGS = {
 export const generateFhirBundle = (patientData) => {
   const patientId = patientData.id || 'patient-uuid';
   const hospitalId = patientData.hospital_id || patientData.hospitalId || 'hosp-ggh-hyd';
-  const hospitalName = patientData.hospital_name || patientData.hospitalName || 'Government General Hospital';
+  const hospitalName = patientData.hospital_name || patientData.hospitalName || 'Government General Hospital (Osmania General Hospital)';
   const doctorName = patientData.assigned_doctor_name || patientData.assignedDoctor || 'Attending Medical Officer';
   const doctorId = patientData.assigned_doctor_id || patientData.assignedDoctorId || 'doc-001';
   
   const bundleId = `bundle-${patientId}-${Date.now()}`;
   const timestamp = new Date().toISOString();
-  const isVerified = patientData.verification_status === 'History Verified' || patientData.case_status === 'Consultation Completed' || patientData.status === 'Completed';
+  // Authoritative verification state: ONLY verified when clinical verification has occurred or consultation is completed
+  const isVerified = Boolean(
+    patientData.verification_status === 'History Verified' ||
+    patientData.verificationStatus === 'History Verified' ||
+    patientData.case_status === 'Consultation Completed' ||
+    patientData.caseStatus === 'Consultation Completed' ||
+    patientData.status === 'History Verified' ||
+    patientData.status === 'Completed' ||
+    patientData.clinician_verified ||
+    patientData.aiSummary?.clinician_verified
+  );
 
   const bundleEntries = [];
 
@@ -540,20 +550,43 @@ export const generateFhirBundle = (patientData) => {
       code: { coding: [{ system: 'http://snomed.info/sct', code: '8716-3', display: 'Vital signs section' }] },
       text: {
         status: 'generated',
-        div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>BP: ${v.bp_systolic || '--'}/${v.bp_diastolic || '--'} mmHg, Pulse: ${v.pulse || '--'} bpm, SpO2: ${v.spo2 || '--'}%.</p></div>`
+        div: observations.length > 0
+          ? `<div xmlns="http://www.w3.org/1999/xhtml"><p>Recorded: ${[
+              (v.bp_systolic || v.bpSystolic) ? `BP ${v.bp_systolic || v.bpSystolic}/${v.bp_diastolic || v.bpDiastolic || '--'} mmHg` : null,
+              v.pulse ? `Pulse ${v.pulse} bpm` : null,
+              v.spo2 ? `SpO2 ${v.spo2}%` : null
+            ].filter(Boolean).join(', ')}.</p></div>`
+          : `<div xmlns="http://www.w3.org/1999/xhtml"><p>Vitals not recorded during patient intake.</p></div>`
       },
       entry: observations.map(o => ({ reference: o.fullUrl }))
     }
   ];
 
   // AYUSH Section (if AYUSH case)
-  if (patientData.ayush_history || patientData.ayushHistory) {
+  const ayushData = patientData.ayush_history || patientData.ayushHistory;
+  if (ayushData) {
+    const isSkipped = ayushData.isSkipped || ayushData.skipAyushAssessment;
+    const isAyushVerified = Boolean(ayushData.clinicianVerified || ayushData.metadata?.verificationStatus === 'Clinician Verified' || isVerified);
+    let ayushText = '';
+    if (isSkipped) {
+      ayushText = '<p>AYUSH self-reported intake skipped by patient at kiosk; pending clinician OPD examination.</p>';
+    } else {
+      const dp = ayushData.dashavidhaPariksha || {};
+      const ah = ayushData.additionalHistory || {};
+      const hasReported = Boolean(dp.prakriti?.bodyFrame || dp.prakriti?.thermalPreference || ah.agni || ah.koshtha || (Array.isArray(dp.vikriti?.primaryImbalanceSymptoms) && dp.vikriti.primaryImbalanceSymptoms.length > 0));
+      if (hasReported) {
+        ayushText = `<p>AYUSH Intake (${isAyushVerified ? 'Clinician-Verified' : 'Patient-Reported'}): Prakriti Frame: ${dp.prakriti?.bodyFrame || 'Not recorded'}, Agni: ${ah.agni || 'Not recorded'}, Koshtha: ${ah.koshtha || 'Not recorded'}.</p>`;
+      } else {
+        ayushText = '<p>AYUSH self-reported intake not recorded during intake; clinical examination pending attending clinician assessment.</p>';
+      }
+    }
+
     sections.push({
       title: 'AYUSH / Dashavidha Pariksha Intake',
       code: { coding: [{ system: 'http://snomed.info/sct', code: '371530004', display: 'Ayurvedic Clinical Intake' }] },
       text: {
         status: 'generated',
-        div: `<div xmlns="http://www.w3.org/1999/xhtml"><p>Prakriti, Vikriti, Agni, Koshtha, and lifestyle parameters recorded.</p></div>`
+        div: `<div xmlns="http://www.w3.org/1999/xhtml">${ayushText}</div>`
       }
     });
   }
@@ -600,9 +633,12 @@ export const generateFhirBundle = (patientData) => {
       },
       date: timestamp,
       author: [
-        {
+        isVerified ? {
           reference: `urn:uuid:user-${doctorId}`,
           display: doctorName
+        } : {
+          reference: `urn:uuid:${patientId}`,
+          display: `${patientData.name || 'Patient'} (Patient Self-Intake Kiosk)`
         }
       ],
       custodian: {

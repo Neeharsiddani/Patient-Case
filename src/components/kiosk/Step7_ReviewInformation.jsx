@@ -100,7 +100,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="text-slate-400 block">Name:</span>
-              <span className="font-bold text-slate-900">{kioskForm.name || 'Walk-in Patient'}</span>
+              <span className="font-bold text-slate-900">{kioskForm.name || 'Not provided'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Age / Gender:</span>
@@ -231,7 +231,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
                     </span>
                   ))
                 ) : (
-                  <span className="text-slate-600">No Known Drug Allergies (NKDA)</span>
+                  <span className="text-slate-500 italic text-[11px]">None reported during intake (Clinician verification required)</span>
                 )}
               </div>
             </div>
@@ -248,75 +248,97 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
         </div>
 
         {/* 7. AYUSH & Dashavidha Pariksha Summary (When AYUSH department is selected) */}
-        {(kioskForm.assignedDepartment?.includes('AYUSH') || kioskForm.assignedDepartment?.includes('Ayurveda') || kioskForm.isAyushCase) && (
-          <div className="bg-emerald-50/80 p-5 rounded-3xl border-2 border-emerald-300 shadow-sm space-y-3 md:col-span-2">
-            <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
-              <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
-                <span>🌿</span>
-                <span>Patient-Reported AYUSH & Dashavidha Pariksha Summary</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => onJumpToStep(4)}
-                className="text-xs text-emerald-800 hover:underline flex items-center gap-1 font-bold cursor-pointer"
-              >
-                <Edit2 size={12} /> Edit AYUSH Details
-              </button>
+        {(kioskForm.assignedDepartment?.includes('AYUSH') || kioskForm.assignedDepartment?.includes('Ayurveda') || kioskForm.isAyushCase || kioskForm.selectedDepartmentName?.includes('AYUSH') || kioskForm.selectedDepartmentName?.includes('Ayurveda')) && (
+          kioskForm.skipAyushAssessment ? (
+            <div className="bg-amber-50/90 p-5 rounded-3xl border-2 border-amber-300 shadow-sm space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                <h3 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-2">
+                  <span>🌿</span>
+                  <span>AYUSH & Dashavidha Pariksha Intake</span>
+                </h3>
+                <span className="text-[10px] font-extrabold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full uppercase border border-amber-300">
+                  Skipped by Patient
+                </span>
+              </div>
+              <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                The patient opted to skip the self-reported Ayurvedic intake at the kiosk. No patient-reported AYUSH answers were recorded. Full clinical examination and Dashavidha Pariksha will be conducted directly by the consulting AYUSH clinician in the OPD.
+              </p>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Physical Frame (Prakriti):</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Not assessed'}
-                </span>
+          ) : (
+            <div className="bg-emerald-50/80 p-5 rounded-3xl border-2 border-emerald-300 shadow-sm space-y-3 md:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200 pb-2">
+                <div>
+                  <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                    <span>🌿</span>
+                    <span>Patient-Reported AYUSH Intake Summary</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-emerald-800">
+                    Self-reported questionnaire • Pending clinician examination & verification
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onJumpToStep(4)}
+                  className="text-xs text-emerald-800 hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                >
+                  <Edit2 size={12} /> Edit AYUSH Details
+                </button>
               </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Thermal Preference:</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Not assessed'}
-                </span>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Physical Frame (Prakriti):</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || 'Not answered by patient'}
+                  </span>
+                </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Digestive Fire (Agni):</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.additionalHistory?.agni || 'Not assessed'}
-                </span>
-              </div>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Thermal Preference:</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || 'Not answered by patient'}
+                  </span>
+                </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Bowel Habit (Koshtha):</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.additionalHistory?.koshtha || 'Not assessed'}
-                </span>
-              </div>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Digestive Fire (Agni):</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.additionalHistory?.agni || 'Not answered by patient'}
+                  </span>
+                </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Tissue Vitality (Sara):</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Not assessed'}
-                </span>
-              </div>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Bowel Habit (Koshtha):</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.additionalHistory?.koshtha || 'Not answered by patient'}
+                  </span>
+                </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                <span className="text-[10px] text-slate-500 font-bold block">Mental Resilience (Sattva):</span>
-                <span className="font-bold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Not assessed'}
-                </span>
-              </div>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Tissue Vitality (Sara):</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Not answered by patient'}
+                  </span>
+                </div>
 
-              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 md:col-span-2">
-                <span className="text-[10px] text-slate-500 font-bold block">Active Imbalances & Symptoms (Vikriti):</span>
-                <span className="font-semibold text-emerald-950">
-                  {kioskForm.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.length > 0
-                    ? kioskForm.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.join(', ')
-                    : 'None reported'}
-                </span>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-slate-500 font-bold block">Mental Resilience (Sattva):</span>
+                  <span className="font-bold text-emerald-950">
+                    {kioskForm.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience || 'Not answered by patient'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200 md:col-span-2">
+                  <span className="text-[10px] text-slate-500 font-bold block">Active Imbalances & Symptoms (Vikriti):</span>
+                  <span className="font-semibold text-emerald-950">
+                    {kioskForm.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms?.length > 0
+                      ? kioskForm.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.join(', ')
+                      : 'Not answered by patient'}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
 
       </div>

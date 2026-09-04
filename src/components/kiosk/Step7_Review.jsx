@@ -64,19 +64,19 @@ export const Step7_Review = () => {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <span className="text-slate-400 block">Name:</span>
-              <span className="font-bold text-slate-800">{kioskForm.name || 'Ramesh Kumar Verma'}</span>
+              <span className="font-bold text-slate-800">{kioskForm.name || 'Not provided'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Age / Gender:</span>
-              <span className="font-bold text-slate-800">{kioskForm.age || '54'} Y / {kioskForm.gender}</span>
+              <span className="font-bold text-slate-800">{kioskForm.age ? `${kioskForm.age} Y` : 'Not provided'} / {kioskForm.gender || 'Not specified'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">ABHA ID:</span>
-              <span className="font-mono font-bold text-cyan-800">{kioskForm.abhaId || '91-8472-9182-3451'}</span>
+              <span className="font-mono font-bold text-cyan-800">{kioskForm.abhaId || 'None'}</span>
             </div>
             <div>
               <span className="text-slate-400 block">Phone:</span>
-              <span className="font-bold text-slate-800">{kioskForm.phone || '+91 98765 43210'}</span>
+              <span className="font-bold text-slate-800">{kioskForm.phone || 'Not provided'}</span>
             </div>
           </div>
         </div>
@@ -185,7 +185,7 @@ export const Step7_Review = () => {
                     </span>
                   ))
                 ) : (
-                  <span className="text-slate-600">No Known Drug Allergies (NKDA)</span>
+                  <span className="text-slate-500 italic text-[11px]">None reported during intake (Clinician verification required)</span>
                 )}
               </div>
             </div>

@@ -53,12 +53,29 @@ router.post('/dispatch/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL
       });
     }
 
-    if (req.user.hospital_id && req.user.hospital_id !== patient.hospital_id) {
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
       return res.status(403).json({
         success: false,
         error: 'Forbidden Access',
         message: 'You are not authorized to dispatch patient records belonging to another healthcare facility.'
       });
+    }
+
+    if (req.user.role === 'DOCTOR') {
+      const authorizedDepts = await query(
+        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        [req.user.id]
+      );
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+      const isAssigned = patient.assigned_doctor_id === req.user.id;
+      const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
+      if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden Access',
+          message: 'You are not authorized to dispatch records outside your registered clinical departments.'
+        });
+      }
     }
 
     const vitals = await get('SELECT * FROM vitals WHERE patient_id = ? ORDER BY recorded_at DESC LIMIT 1', [patientId]);

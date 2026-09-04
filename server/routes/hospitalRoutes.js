@@ -431,6 +431,33 @@ router.post('/:id/assign-doctor', requireAuth, requireRole('HOSPITAL_ADMIN', 'AD
       });
     }
 
+    // Verify department authorization for the assigned doctor
+    const doctorAuth = await get(
+      `SELECT dd.department_id 
+       FROM doctor_departments dd 
+       WHERE dd.doctor_id = ? AND dd.hospital_id = ? AND dd.department_id = ?`,
+      [doctor.id, hospitalId, patient.department_id]
+    );
+
+    const doctorProfile = await get(
+      `SELECT department FROM users WHERE id = ?`,
+      [doctor.id]
+    );
+
+    const hasDeptNameMatch = Boolean(
+      doctorProfile?.department &&
+      patient.department &&
+      doctorProfile.department.toLowerCase().includes(patient.department.toLowerCase())
+    );
+
+    if (!doctorAuth && !hasDeptNameMatch) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unauthorized Department Assignment',
+        message: `Doctor ${doctor.full_name} is not authorized for the ${patient.department || 'selected'} department.`
+      });
+    }
+
     // Update patient record
     await run(
       `UPDATE patients 
@@ -494,7 +521,7 @@ router.post('/:id/departments', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMI
     await run(
       `INSERT INTO departments (id, hospital_id, name, code, room_number, description)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [deptId, hospitalId, name, code.toUpperCase(), roomNumber || 'Room 101', description || '']
+      [deptId, hospitalId, name, code.toUpperCase(), roomNumber || null, description || '']
     );
 
     res.status(201).json({

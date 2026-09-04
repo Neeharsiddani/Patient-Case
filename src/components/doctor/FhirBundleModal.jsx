@@ -22,6 +22,7 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [hisDispatchResult, setHisDispatchResult] = useState(null);
+  const [hisConfig, setHisConfig] = useState(null);
   const [dispatching, setDispatching] = useState(false);
   const [activeTab, setActiveTab] = useState('resources'); // 'resources' | 'raw_json' | 'validation'
 
@@ -39,6 +40,14 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
 
         const valJson = await ApiService.validateFhirBundle(patient.id);
         if (isMounted && valJson) setValidationReport(valJson.validation || valJson);
+
+        const hospId = patient.hospital_id || patient.hospitalId;
+        if (hospId) {
+          try {
+            const cfg = await ApiService.request(`/his/status/${hospId}`);
+            if (isMounted && cfg?.config) setHisConfig(cfg.config);
+          } catch {}
+        }
       } catch (err) {
         console.warn('FHIR fetch notice:', err.message);
       } finally {
@@ -48,7 +57,7 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
 
     fetchFhirData();
     return () => { isMounted = false; };
-  }, [isOpen, patient?.id]);
+  }, [isOpen, patient?.id, patient?.hospital_id, patient?.hospitalId]);
 
   if (!isOpen) return null;
 
@@ -103,7 +112,7 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black tracking-wide">
-                  ABDM FHIR R4 Document Bundle
+                  MediMitra FHIR R4 Document Bundle (NRCeS Profile Aligned)
                 </h3>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
                   HL7 FHIR Release 4
@@ -180,17 +189,36 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
               type="button"
               onClick={handleDispatchHis}
               disabled={dispatching}
-              style={{ backgroundColor: '#088395' }}
+              style={{ backgroundColor: hisConfig?.hisConfigured ? '#088395' : '#475569' }}
               className="px-3.5 py-1.5 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:opacity-90 transition-all disabled:opacity-50"
+              title={hisConfig?.hisConfigured ? 'Dispatch FHIR bundle to configured Hospital HIS' : 'Hospital HIS endpoint is not configured in this environment (Stored in MediMitra Local Database)'}
             >
               <Send size={13} />
-              <span>{dispatching ? 'Dispatching...' : 'Dispatch to HIS'}</span>
+              <span>{dispatching ? 'Dispatching...' : hisConfig?.hisConfigured ? 'Dispatch to HIS' : 'Dispatch to HIS (Local Mode)'}</span>
             </button>
           </div>
         </div>
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
+
+          {/* HIS Integration Availability Indicator */}
+          <div className="flex items-center justify-between p-3 rounded-2xl text-xs border bg-slate-50 border-slate-200">
+            <div className="flex items-center gap-2">
+              <Server size={15} className={hisConfig?.hisConfigured ? 'text-emerald-600' : 'text-slate-500'} />
+              <span className="font-bold text-slate-700">Hospital HIS Gateway:</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                hisConfig?.hisConfigured 
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                  : 'bg-slate-200 text-slate-700 border border-slate-300'
+              }`}>
+                {hisConfig?.hisConfigured ? 'Live Endpoint Configured' : 'Unconfigured Endpoint (Local Database Repository Active)'}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 hidden sm:inline font-mono">
+              {hisConfig?.hisConfigured ? hisConfig.hisEndpoint : 'Internal Hospital Database Storage'}
+            </span>
+          </div>
           
           {/* HIS Dispatch Result Notification Banner */}
           {hisDispatchResult && (
@@ -314,12 +342,12 @@ export const FhirBundleModal = ({ patient, isOpen, onClose }) => {
                   )}
                   <span>
                     {validationReport?.isValid 
-                      ? 'VALID ABDM FHIR R4 DOCUMENT BUNDLE' 
+                      ? 'LOCAL FHIR R4 SCHEMA & PROFILE CONFORMANCE VERIFIED' 
                       : 'FHIR Validation Errors Detected'}
                   </span>
                 </div>
                 <p className="text-xs mt-1 pl-7 text-slate-600">
-                  Validated against National Health Authority (NHA) & NRCeS India FHIR Release 4 Document Profiles.
+                  Internal validation engine: verified structural integrity and reference-graph compliance modeled after NRCeS India FHIR R4 Document specifications (Local validation; not an external NHA sandbox certification).
                 </p>
               </div>
 

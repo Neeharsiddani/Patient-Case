@@ -53,7 +53,7 @@ export const HospitalDashboard = () => {
   const [showAddDeptModal, setShowAddDeptModal] = useState(false);
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptCode, setNewDeptCode] = useState('');
-  const [newDeptRoom, setNewDeptRoom] = useState('Room 101');
+  const [newDeptRoom, setNewDeptRoom] = useState('');
   const [newDeptDesc, setNewDeptDesc] = useState('');
 
   // Authoritative facility resolution - NEVER use dangerous || hospitals[0] fallback
@@ -157,6 +157,7 @@ export const HospitalDashboard = () => {
       setShowAddDeptModal(false);
       setNewDeptName('');
       setNewDeptCode('');
+      setNewDeptRoom('');
       setNewDeptDesc('');
       fetchStatsAndDoctors();
     } catch (err) {

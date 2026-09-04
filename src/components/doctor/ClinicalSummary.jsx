@@ -60,8 +60,55 @@ export const ClinicalSummary = ({ patient }) => {
 
   if (!patient) return null;
 
-  const isVerified = patient.status === 'History Verified' || patient.verificationStatus === 'History Verified';
-  const isRejected = patient.status === 'Rejected' || patient.verificationStatus === 'Rejected';
+  const isCompleted = patient.status === 'Completed' || patient.caseStatus === 'Consultation Completed' || patient.case_status === 'Consultation Completed';
+  const isVerified = isCompleted || patient.status === 'History Verified' || patient.verificationStatus === 'History Verified' || patient.verification_status === 'History Verified' || Boolean(patient.aiSummary?.clinician_verified);
+  const isRejected = patient.status === 'Rejected' || patient.verificationStatus === 'Rejected' || patient.verification_status === 'Rejected (Re-Intake Required)';
+
+  // Authoritative AYUSH provenance determinations
+  const isAyushClinicianVerified = Boolean(
+    patient.ayushHistory?.clinicianVerified ||
+    formData.ayushHistory?.clinicianVerified ||
+    patient.ayushHistory?.metadata?.verificationStatus === 'Clinician Verified' ||
+    formData.ayushHistory?.metadata?.verificationStatus === 'Clinician Verified' ||
+    (isVerified && (
+      formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha ||
+      formData.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified?.aggravatedDosha ||
+      formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara
+    ))
+  );
+
+  const hasPatientReportedAyush = Boolean(
+    formData.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame ||
+    formData.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference ||
+    formData.ayushHistory?.dashavidhaPariksha?.prakriti?.skinNature ||
+    (Array.isArray(formData.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms) && formData.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.length > 0) ||
+    formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality ||
+    formData.ayushHistory?.dashavidhaPariksha?.samhanana?.bodyCompactness ||
+    formData.ayushHistory?.dashavidhaPariksha?.pramana?.bodyProportion ||
+    formData.ayushHistory?.dashavidhaPariksha?.satmya?.dietSuitability ||
+    formData.ayushHistory?.dashavidhaPariksha?.sattva?.mentalResilience ||
+    formData.ayushHistory?.dashavidhaPariksha?.aharaShakti?.appetiteDigestionPower ||
+    formData.ayushHistory?.dashavidhaPariksha?.vyayamaShakti?.physicalEndurance ||
+    formData.ayushHistory?.additionalHistory?.agni ||
+    formData.ayushHistory?.additionalHistory?.koshtha ||
+    formData.ayushHistory?.additionalHistory?.ahara?.dietType
+  );
+
+  let ayushHeaderBadgeText = '';
+  let ayushHeaderBadgeClass = '';
+  if (isAyushClinicianVerified && hasPatientReportedAyush) {
+    ayushHeaderBadgeText = '📋 Patient-Reported & Clinician-Verified';
+    ayushHeaderBadgeClass = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+  } else if (isAyushClinicianVerified) {
+    ayushHeaderBadgeText = '🛡️ Clinician-Verified Examination';
+    ayushHeaderBadgeClass = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+  } else if (hasPatientReportedAyush) {
+    ayushHeaderBadgeText = '📋 Patient-Reported (Pending Clinician Examination)';
+    ayushHeaderBadgeClass = 'bg-blue-50 text-blue-900 border-blue-300';
+  } else {
+    ayushHeaderBadgeText = '⚠️ Not recorded during patient intake (Pending Clinician Examination)';
+    ayushHeaderBadgeClass = 'bg-slate-100 text-slate-800 border-slate-300';
+  }
 
   const handleSaveDraft = () => {
     updatePatientClinicalRecord(patient.id, formData);
@@ -72,7 +119,7 @@ export const ClinicalSummary = ({ patient }) => {
 
   const handleConfirmSummary = () => {
     updatePatientClinicalRecord(patient.id, formData);
-    confirmPatientSummary(patient.id);
+    confirmPatientSummary(patient.id, null, formData);
     setIsEditing(false);
   };
 
@@ -96,7 +143,11 @@ export const ClinicalSummary = ({ patient }) => {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold">Clinical Case History & Assessment</h3>
-            {isVerified ? (
+            {isCompleted ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black bg-blue-500 text-white px-2.5 py-0.5 rounded-full uppercase">
+                <ShieldCheck size={12} /> Consultation Completed ✓
+              </span>
+            ) : isVerified ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full uppercase">
                 <ShieldCheck size={12} /> History Verified ✓
               </span>
@@ -177,9 +228,9 @@ export const ClinicalSummary = ({ patient }) => {
             </h4>
           </div>
 
-          <div className="bg-amber-600 text-white text-[11px] font-extrabold px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
-            <AlertCircle size={13} />
-            <span>Assistive Clinical Draft — Clinician verification required</span>
+          <div className={`${isVerified ? 'bg-emerald-600' : 'bg-amber-600'} text-white text-[11px] font-extrabold px-3 py-1 rounded-full shadow-xs flex items-center gap-1`}>
+            {isVerified ? <ShieldCheck size={13} /> : <AlertCircle size={13} />}
+            <span>{isVerified ? 'Clinician Verified — Confirmed into Medical Record' : 'Assistive Clinical Draft — Clinician verification required'}</span>
           </div>
         </div>
 
@@ -212,7 +263,7 @@ export const ClinicalSummary = ({ patient }) => {
         {((patient.aiGeneratedDraft?.differentialDiagnosisDraft && patient.aiGeneratedDraft.differentialDiagnosisDraft.length > 0) || (patient.aiSummary?.differential_diagnosis && patient.aiSummary.differential_diagnosis.length > 0)) && (
           <div className="p-3.5 bg-white/90 rounded-2xl border border-amber-200 space-y-2 text-xs">
             <span className="text-[10px] font-extrabold uppercase text-amber-800 block">
-              Diagnostic Possibilities for Clinician Evaluation:
+              Diagnostic Possibilities for Clinician Evaluation (Unconfirmed AI Draft — Doctor Verification Required):
             </span>
             <div className="flex flex-wrap gap-1.5">
               {(patient.aiGeneratedDraft?.differentialDiagnosisDraft || patient.aiSummary?.differential_diagnosis || []).map((item, idx) => (
@@ -261,8 +312,8 @@ export const ClinicalSummary = ({ patient }) => {
 
         <div className="p-3 rounded-2xl border bg-slate-50 border-slate-200 text-center">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">BMI / Weight</span>
-          <span className="text-lg font-black text-slate-900">{formData.vitals?.bmi || 24.1}</span>
-          <span className="text-[10px] text-slate-400 block">{formData.vitals?.weight || 68} kg</span>
+          <span className="text-lg font-black text-slate-900">{formData.vitals?.bmi ? formData.vitals.bmi : 'Not recorded'}</span>
+          <span className="text-[10px] text-slate-400 block">{formData.vitals?.weight ? `${formData.vitals.weight} kg` : 'Not recorded'}</span>
         </div>
       </div>
 
@@ -314,7 +365,7 @@ export const ClinicalSummary = ({ patient }) => {
                     className="w-full mt-1 p-1 bg-white border border-slate-300 rounded text-xs font-bold"
                   />
                 ) : (
-                  <span className="font-bold text-slate-800">{formData.duration || '2 Days'}</span>
+                  <span className="font-bold text-slate-800">{formData.duration || 'Not recorded'}</span>
                 )}
               </div>
 
@@ -323,14 +374,14 @@ export const ClinicalSummary = ({ patient }) => {
                 {isEditing ? (
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     max={10}
-                    value={formData.painScore || 5}
-                    onChange={(e) => setFormData({ ...formData, painScore: Number(e.target.value) })}
+                    value={formData.painScore ?? ''}
+                    onChange={(e) => setFormData({ ...formData, painScore: e.target.value === '' ? '' : Number(e.target.value) })}
                     className="w-full mt-1 p-1 bg-white border border-slate-300 rounded text-xs font-bold"
                   />
                 ) : (
-                  <span className="font-black text-cyan-800">{formData.painScore || 5} / 10</span>
+                  <span className="font-black text-cyan-800">{formData.painScore !== undefined && formData.painScore !== null && formData.painScore !== '' ? `${formData.painScore} / 10` : 'Not reported'}</span>
                 )}
               </div>
             </div>
@@ -381,7 +432,7 @@ export const ClinicalSummary = ({ patient }) => {
                 </div>
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">Radiation & Triggers</span>
-                  <p className="text-slate-800 font-semibold">Spreads to: {formData.hpi?.radiation || 'None'}. Aggravated by: {formData.hpi?.aggravatingFactors || 'Exertion'}.</p>
+                  <p className="text-slate-800 font-semibold">Spreads to: {formData.hpi?.radiation || 'None'}. Aggravated by: {formData.hpi?.aggravatingFactors || 'None reported'}.</p>
                 </div>
               </div>
             )}
@@ -478,22 +529,37 @@ export const ClinicalSummary = ({ patient }) => {
                 <div>
                   <span className="text-[10px] font-bold uppercase text-red-700 block mb-1">Drug Allergies:</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {formData.drugAllergies?.map((a, i) => (
-                      <span key={i} className="bg-red-50 text-red-800 font-extrabold px-2.5 py-1 rounded-lg border border-red-300">
-                        ⚠️ {a}
+                    {Array.isArray(formData.drugAllergies) && formData.drugAllergies.length > 0 ? (
+                      formData.drugAllergies.map((a, i) => {
+                        const isNkda = typeof a === 'string' && (a.includes('NKDA') || a.toLowerCase().includes('no known'));
+                        return (
+                          <span key={i} className={`font-bold px-2.5 py-1 rounded-lg border ${isNkda ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-red-50 text-red-800 font-extrabold border border-red-300'}`}>
+                            {isNkda ? '✓ ' : '⚠️ '}{a}
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="text-slate-600 text-xs font-medium italic">
+                        Drug allergies: Not recorded
                       </span>
-                    ))}
+                    )}
                   </div>
                 </div>
 
                 <div className="pt-1">
                   <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Current Medicines:</span>
                   <div className="space-y-1">
-                    {formData.currentMedications?.map((m, i) => (
-                      <div key={i} className="p-2 bg-cyan-50/60 font-mono text-cyan-950 font-bold rounded-lg border border-cyan-200">
-                        {m}
-                      </div>
-                    ))}
+                    {Array.isArray(formData.currentMedications) && formData.currentMedications.length > 0 ? (
+                      formData.currentMedications.map((m, i) => (
+                        <div key={i} className="p-2 bg-cyan-50/60 font-mono text-cyan-950 font-bold rounded-lg border border-cyan-200">
+                          {m}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-slate-600 text-xs font-medium italic">
+                        Current medications: Not recorded
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -665,8 +731,8 @@ export const ClinicalSummary = ({ patient }) => {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold px-3 py-1 rounded-full border bg-white text-emerald-900 border-emerald-300">
-                  📋 Patient-Reported + Clinician-Verified
+                <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${ayushHeaderBadgeClass}`}>
+                  {ayushHeaderBadgeText}
                 </span>
               </div>
             </div>
@@ -699,8 +765,18 @@ export const ClinicalSummary = ({ patient }) => {
                       <User size={14} className="text-emerald-700" />
                       <span>1. Constitution (Prakriti)</span>
                     </span>
-                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Patient Self-Report
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
+                      formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha && (isAyushClinicianVerified || isVerified)
+                        ? 'text-emerald-900 bg-emerald-100 border-emerald-300'
+                        : (formData.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || formData.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || formData.ayushHistory?.dashavidhaPariksha?.prakriti?.skinNature)
+                        ? 'text-blue-900 bg-blue-50 border-blue-200'
+                        : 'text-slate-600 bg-slate-100 border-slate-200'
+                    }`}>
+                      {formData.ayushHistory?.dashavidhaPariksha?.prakriti?.clinicianVerified?.dominantDosha && (isAyushClinicianVerified || isVerified)
+                        ? 'CLINICIAN-VERIFIED'
+                        : (formData.ayushHistory?.dashavidhaPariksha?.prakriti?.bodyFrame || formData.ayushHistory?.dashavidhaPariksha?.prakriti?.thermalPreference || formData.ayushHistory?.dashavidhaPariksha?.prakriti?.skinNature)
+                        ? 'PATIENT-REPORTED'
+                        : 'NOT RECORDED DURING INTAKE'}
                     </span>
                   </div>
                   <div className="text-xs text-slate-700 space-y-1">
@@ -750,8 +826,18 @@ export const ClinicalSummary = ({ patient }) => {
                       <Activity size={14} className="text-emerald-700" />
                       <span>2. Active Imbalance (Vikriti)</span>
                     </span>
-                    <span className="text-[10px] font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      Active Disease
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
+                      formData.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified?.aggravatedDosha && (isAyushClinicianVerified || isVerified)
+                        ? 'text-emerald-900 bg-emerald-100 border-emerald-300'
+                        : (Array.isArray(formData.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms) && formData.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.length > 0)
+                        ? 'text-blue-900 bg-blue-50 border-blue-200'
+                        : 'text-amber-800 bg-amber-50 border-amber-200'
+                    }`}>
+                      {formData.ayushHistory?.dashavidhaPariksha?.vikriti?.clinicianVerified?.aggravatedDosha && (isAyushClinicianVerified || isVerified)
+                        ? 'CLINICIAN-VERIFIED'
+                        : (Array.isArray(formData.ayushHistory?.dashavidhaPariksha?.vikriti?.primaryImbalanceSymptoms) && formData.ayushHistory.dashavidhaPariksha.vikriti.primaryImbalanceSymptoms.length > 0)
+                        ? 'PATIENT-REPORTED'
+                        : 'PENDING CLINICIAN EXAMINATION'}
                     </span>
                   </div>
                   <div className="text-xs text-slate-700 space-y-1">
@@ -788,7 +874,22 @@ export const ClinicalSummary = ({ patient }) => {
 
                 {/* 3. Sara (Tissue Vitality) */}
                 <div className="bg-white p-4 rounded-2xl border border-emerald-200 space-y-1.5 text-xs">
-                  <span className="font-bold text-slate-900 block">3. Tissue Excellence (Sara):</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 block">3. Tissue Excellence (Sara):</span>
+                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border ${
+                      formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara && (isAyushClinicianVerified || isVerified)
+                        ? 'text-emerald-900 bg-emerald-100 border-emerald-300'
+                        : formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality
+                        ? 'text-blue-900 bg-blue-50 border-blue-200'
+                        : 'text-slate-600 bg-slate-100 border-slate-200'
+                    }`}>
+                      {formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara && (isAyushClinicianVerified || isVerified)
+                        ? 'CLINICIAN-VERIFIED'
+                        : formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality
+                        ? 'PATIENT-REPORTED'
+                        : 'PENDING CLINICIAN EXAMINATION'}
+                    </span>
+                  </div>
                   <p className="text-slate-700"><strong>Reported Stamina:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.overallVitality || 'Not recorded during patient intake'}</p>
                   <p className="text-emerald-900 font-semibold"><strong>Dhatu Tone:</strong> {formData.ayushHistory?.dashavidhaPariksha?.sara?.clinicianVerified?.predominantDhatuSara || 'Pending clinician examination'}</p>
                 </div>

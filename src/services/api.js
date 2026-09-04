@@ -173,7 +173,18 @@ export class ApiService {
       }
       throw new Error('Empty hospital directory from API');
     } catch (err) {
-      // Resilient fallback to Authoritative National Hospital Engine
+      const isProd = Boolean(typeof import.meta !== 'undefined' && import.meta.env?.PROD) || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
+      if (isProd) {
+        return {
+          success: false,
+          error: 'SERVICE_UNAVAILABLE',
+          message: 'Healthcare facility directory is temporarily unavailable. Please check connectivity and retry.',
+          hospitals: [],
+          total: 0,
+          totalPages: 1
+        };
+      }
+      // Resilient fallback to Authoritative National Hospital Engine for local dev only
       return await HospitalDirectoryEngine.queryHospitals(normalizedFilters);
     }
   }
@@ -183,7 +194,11 @@ export class ApiService {
       const res = await this.request(`/hospitals/${id}`);
       if (res?.success) return res;
       throw new Error('Hospital lookup failed');
-    } catch {
+    } catch (err) {
+      const isProd = Boolean(typeof import.meta !== 'undefined' && import.meta.env?.PROD) || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
+      if (isProd) {
+        return { success: false, error: 'SERVICE_UNAVAILABLE', message: 'Healthcare facility details temporarily unavailable.' };
+      }
       const hospital = await HospitalDirectoryEngine.getHospitalById(id);
       return { success: !!hospital, hospital };
     }
@@ -196,7 +211,11 @@ export class ApiService {
         return res;
       }
       throw new Error('Departments lookup failed');
-    } catch {
+    } catch (err) {
+      const isProd = Boolean(typeof import.meta !== 'undefined' && import.meta.env?.PROD) || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
+      if (isProd) {
+        return { success: false, error: 'SERVICE_UNAVAILABLE', message: 'Healthcare facility departments temporarily unavailable.', departments: [] };
+      }
       const departments = await HospitalDirectoryEngine.getHospitalDepartments(hospitalId);
       return { success: true, hospitalId, count: departments.length, departments };
     }
@@ -263,6 +282,13 @@ export class ApiService {
   }
 
   // Doctor Actions
+  static async updateClinicalRecord(patientId, editedFields) {
+    return await this.request('/doctor/update-record', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, editedFields })
+    });
+  }
+
   static async confirmSummary(patientId, doctorNotes, editedFields) {
     return await this.request('/doctor/confirm-summary', {
       method: 'POST',

@@ -12,7 +12,7 @@ const AUTH_USER_KEY = 'medimitra_auth_user';
 export const fallbackHospitals = [
   {
     id: 'hosp-ggh-hyd',
-    name: 'Government General Hospital',
+    name: 'Government General Hospital (Osmania General Hospital)',
     code: 'GGH-HYD',
     location: 'Afzal Gunj, Osmania Hospital Road',
     city: 'Hyderabad',
@@ -266,8 +266,15 @@ export const PatientProvider = ({ children }) => {
     redFlags: [],
     assignedDepartment: '',
     assignedDoctor: '',
-    roomNumber: '',
-    generatedToken: null,
+    generatedToken: (() => {
+      try {
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const saved = window.sessionStorage.getItem('medimitra_last_token');
+          return saved ? JSON.parse(saved) : null;
+        }
+      } catch {}
+      return null;
+    })(),
     isAyushCase: false,
     ayushHistory: createInitialAyushState()
   });
@@ -564,12 +571,12 @@ export const PatientProvider = ({ children }) => {
       throw new Error('Please select a healthcare facility before submitting.');
     }
 
-    const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
+    const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || '';
 
     const intakePayload = {
-      name: kioskForm.name || 'Walk-in Patient',
+      name: kioskForm.name?.trim() || '',
       age: Number(kioskForm.age) || null,
-      gender: kioskForm.gender || 'Unspecified',
+      gender: kioskForm.gender || '',
       phone: kioskForm.phone || '',
       address: kioskForm.address || '',
       abhaId: kioskForm.abhaId || null,
@@ -577,36 +584,61 @@ export const PatientProvider = ({ children }) => {
       language: languagesMap[language] || 'English',
       hospitalId: kioskForm.selectedHospitalId,
       hospitalName: kioskForm.selectedHospitalName,
-      departmentId: kioskForm.selectedDepartmentId || kioskForm.department_id || 'dept-genmed',
-      department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
+      departmentId: kioskForm.selectedDepartmentId || kioskForm.department_id || '',
+      department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || '',
       reasonForVisit: kioskForm.reasonForVisit || primaryComplaintTitle,
       consentAgreed: Boolean(kioskForm.consentAgreed),
       signatureData: kioskForm.signature,
-      chiefComplaints: kioskForm.chiefComplaints.length > 0 ? kioskForm.chiefComplaints : [primaryComplaintTitle],
+      chiefComplaints: kioskForm.chiefComplaints.length > 0 ? kioskForm.chiefComplaints : (primaryComplaintTitle ? [primaryComplaintTitle] : []),
       duration: kioskForm.duration,
       painScore: kioskForm.painScore,
       onset: kioskForm.onset,
       hpi: {
         onset: kioskForm.duration ? `Problem started ${kioskForm.duration}.` : 'Onset not specified.',
         location: kioskForm.selectedRegion ? `${kioskForm.selectedRegion} region.` : 'General/Systemic.',
-        character: `Patient described symptom as ${primaryComplaintTitle}.`,
+        character: primaryComplaintTitle ? `Patient described symptom as ${primaryComplaintTitle}.` : 'Clinical evaluation required.',
         severity: `${kioskForm.painScore || 0} / 10 on numeric pain rating scale.`,
         radiation: 'Recorded during conversational intake.',
-        aggravatingFactors: kioskForm.historyAnswers?.aggravating || 'Not reported by patient.',
-        relievingFactors: kioskForm.historyAnswers?.relieving || 'Not reported by patient.',
-        associatedSymptoms: kioskForm.historyAnswers?.associated || 'Not reported by patient.'
+        aggravatingFactors: kioskForm.historyAnswers?.aggravating || '',
+        relievingFactors: kioskForm.historyAnswers?.relieving || '',
+        associatedSymptoms: kioskForm.historyAnswers?.associated || ''
       },
-      pastMedicalHistory: kioskForm.pastConditions.length > 0 ? kioskForm.pastConditions : ['No chronic medical conditions reported by patient.'],
-      pastSurgicalHistory: ['No prior surgeries recorded during kiosk intake.'],
-      currentMedications: kioskForm.currentMedications.length > 0 ? kioskForm.currentMedications : ['No regular medications reported by patient.'],
-      drugAllergies: kioskForm.allergies.length > 0 ? kioskForm.allergies : ['No Known Drug Allergies (NKDA)'],
-      familyHistory: 'Not recorded during kiosk intake.',
-      personalHistory: 'Not recorded during kiosk intake.',
-      reviewOfSystems: {
-        cardiovascular: 'Heart rate and BP recorded at kiosk.',
-        respiratory: 'SpO2 saturation monitored at kiosk.',
-        intakeNote: 'Clinical review of systems to be conducted by attending physician.'
-      },
+      pastMedicalHistory: Array.isArray(kioskForm.pastConditions) ? kioskForm.pastConditions : [],
+      pastSurgicalHistory: [],
+      currentMedications: Array.isArray(kioskForm.currentMedications) ? kioskForm.currentMedications : [],
+      drugAllergies: Array.isArray(kioskForm.allergies) ? kioskForm.allergies : [],
+      familyHistory: kioskForm.familyHistory || '',
+      personalHistory: kioskForm.personalHistory || '',
+      reviewOfSystems: (() => {
+        const v = kioskForm.vitals || {};
+        const hasBp = Boolean(v.bpSystolic || v.bp_systolic);
+        const hasPulse = Boolean(v.pulse);
+        const hasSpo2 = Boolean(v.spo2);
+
+        let cvText = '';
+        if (hasBp && hasPulse) {
+          cvText = `Heart rate (${v.pulse} bpm) and BP (${v.bpSystolic || v.bp_systolic}/${v.bpDiastolic || v.bp_diastolic || '--'} mmHg) recorded at kiosk.`;
+        } else if (hasBp) {
+          cvText = `BP (${v.bpSystolic || v.bp_systolic}/${v.bpDiastolic || v.bp_diastolic || '--'} mmHg) recorded at kiosk. Heart rate not recorded.`;
+        } else if (hasPulse) {
+          cvText = `Heart rate (${v.pulse} bpm) recorded at kiosk. Blood pressure not recorded.`;
+        } else {
+          cvText = 'Blood pressure and heart rate: Not recorded during intake.';
+        }
+
+        let respText = '';
+        if (hasSpo2) {
+          respText = `SpO2 saturation (${v.spo2}%) monitored at kiosk.`;
+        } else {
+          respText = 'SpO2: Not recorded during intake.';
+        }
+
+        return {
+          cardiovascular: cvText,
+          respiratory: respText,
+          intakeNote: 'Clinical review of systems to be conducted by attending physician.'
+        };
+      })(),
       vitals: {
         bp_systolic: kioskForm.vitals.bpSystolic,
         bp_diastolic: kioskForm.vitals.bpDiastolic,
@@ -616,7 +648,42 @@ export const PatientProvider = ({ children }) => {
         blood_sugar: kioskForm.vitals.bloodSugar
       },
       uploadedDocuments: kioskForm.uploadedDocs || [],
-      ayushHistory: kioskForm.ayushHistory || createInitialAyushState()
+      ayushHistory: (() => {
+        const isAyushDept = Boolean(
+          kioskForm.assignedDepartment?.toLowerCase().includes('ayush') ||
+          kioskForm.assignedDepartment?.toLowerCase().includes('ayurveda') ||
+          kioskForm.selectedDepartmentName?.toLowerCase().includes('ayush') ||
+          kioskForm.selectedDepartmentName?.toLowerCase().includes('ayurveda') ||
+          kioskForm.isAyushCase
+        );
+        if (!isAyushDept) return null;
+        if (kioskForm.skipAyushAssessment) {
+          return {
+            isSkipped: true,
+            skipAyushAssessment: true,
+            dashavidhaPariksha: null,
+            additionalHistory: null,
+            metadata: {
+              isAyushCase: true,
+              skippedByPatient: true,
+              intakeRecordedAt: new Date().toISOString(),
+              verificationStatus: 'Skipped by Patient (Pending Clinician OPD Examination)'
+            }
+          };
+        }
+        const baseAyush = kioskForm.ayushHistory || createInitialAyushState();
+        return {
+          ...baseAyush,
+          isSkipped: false,
+          skipAyushAssessment: false,
+          metadata: {
+            isAyushCase: true,
+            skippedByPatient: false,
+            intakeRecordedAt: new Date().toISOString(),
+            verificationStatus: 'Pending Clinician Review'
+          }
+        };
+      })()
     };
 
     // 1. Submit to Authoritative Backend API
@@ -636,8 +703,8 @@ export const PatientProvider = ({ children }) => {
       departmentId: backendData.departmentId,
       department: backendData.department,
       roomNumber: backendData.roomNumber,
-      assignedDoctor: backendData.assignedDoctorName || 'Assigned OPD Clinician',
-      assignedDoctorName: backendData.assignedDoctorName || 'Assigned OPD Clinician',
+      assignedDoctor: backendData.assignedDoctorName || null,
+      assignedDoctorName: backendData.assignedDoctorName || null,
       reasonForVisit: intakePayload.reasonForVisit,
       registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       waitTime: backendData.waitTime || (triageLevel <= 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins'),
@@ -674,10 +741,20 @@ export const PatientProvider = ({ children }) => {
       structuredHistory: kioskForm.structuredHistory || [],
 
       // AI Generated Draft for Doctor
-      aiGeneratedDraft: {
+      aiGeneratedDraft: backendData.aiGeneratedDraft || {
         disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
         subjectiveSummary: `${intakePayload.age ? `${intakePayload.age}-year-old` : 'Adult'} ${intakePayload.gender || 'patient'} presenting at ${backendData.hospitalName} (${backendData.department || 'General OPD'}) with ${primaryComplaintTitle}${kioskForm.duration ? ` of ${kioskForm.duration} duration` : ''}.`,
-        objectiveSummary: `Vitals: BP ${kioskForm.vitals.bpSystolic}/${kioskForm.vitals.bpDiastolic} mmHg, HR ${kioskForm.vitals.pulse} bpm, SpO2 ${kioskForm.vitals.spo2}%, RBS ${kioskForm.vitals.bloodSugar} mg/dL.`,
+        objectiveSummary: (() => {
+          const v = kioskForm.vitals || {};
+          const hasVitals = Boolean((v.bpSystolic || v.bp_systolic) || v.pulse || v.spo2 || (v.bloodSugar || v.blood_sugar));
+          if (!hasVitals) return 'Vitals: Not recorded during intake.';
+          const parts = [];
+          if (v.bpSystolic || v.bp_systolic) parts.push(`BP ${v.bpSystolic || v.bp_systolic}/${v.bpDiastolic || v.bp_diastolic || '--'} mmHg`);
+          if (v.pulse) parts.push(`HR ${v.pulse} bpm`);
+          if (v.spo2) parts.push(`SpO2 ${v.spo2}%`);
+          if (v.bloodSugar || v.blood_sugar) parts.push(`RBS ${v.bloodSugar || v.blood_sugar} mg/dL`);
+          return `Vitals: ${parts.join(', ')}.`;
+        })(),
         preliminaryRiskAssessment: `Triage Priority: ${backendData.triageCategory || triageCategory} (ESI Level ${backendData.triageLevel ?? triageLevel}).`,
         differentialDiagnosisDraft: [
           `${primaryComplaintTitle} Evaluation`,
@@ -713,6 +790,12 @@ export const PatientProvider = ({ children }) => {
       triageColor: authoritativePatient.triageColor,
       redFlags: authoritativePatient.redFlags
     }));
+
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        window.sessionStorage.setItem('medimitra_last_token', JSON.stringify(authoritativePatient));
+      }
+    } catch {}
 
     return authoritativePatient;
   };
@@ -778,6 +861,7 @@ export const PatientProvider = ({ children }) => {
     });
     try {
       if (typeof window !== 'undefined' && window.sessionStorage) {
+        window.sessionStorage.removeItem('medimitra_last_token');
         window.sessionStorage.removeItem(KIOSK_DOCS_KEY);
       }
     } catch {
@@ -786,7 +870,7 @@ export const PatientProvider = ({ children }) => {
   };
 
   // Doctor Action: Save edits to any clinical section
-  const updatePatientClinicalRecord = (patientId, updatedFields) => {
+  const updatePatientClinicalRecord = async (patientId, updatedFields) => {
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id === patientId) {
@@ -798,10 +882,16 @@ export const PatientProvider = ({ children }) => {
         return p;
       })
     );
+
+    try {
+      await ApiService.updateClinicalRecord(patientId, updatedFields);
+    } catch (err) {
+      console.warn('Backend draft update sync notice (saved locally in browser session):', err.message);
+    }
   };
 
   // Doctor Action: Confirm Clinical Summary
-  const confirmPatientSummary = async (patientId, doctorNotes = null) => {
+  const confirmPatientSummary = async (patientId, doctorNotes = null, editedFields = null) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setPatients((prev) =>
       prev.map((p) => {
@@ -813,6 +903,7 @@ export const PatientProvider = ({ children }) => {
             verificationStatus: 'History Verified',
             verificationTimestamp: timestamp,
             rejectionReason: null,
+            ...(editedFields || {}),
             doctorNotes: doctorNotes ? { ...p.doctorNotes, ...doctorNotes } : p.doctorNotes
           };
         }
@@ -821,7 +912,7 @@ export const PatientProvider = ({ children }) => {
     );
 
     try {
-      await ApiService.confirmSummary(patientId, doctorNotes, null);
+      await ApiService.confirmSummary(patientId, doctorNotes, editedFields);
     } catch (err) {
       console.warn('Backend confirmation sync notice (saved locally in browser session):', err.message);
     }
@@ -862,6 +953,8 @@ export const PatientProvider = ({ children }) => {
             ...p,
             status: shouldComplete ? 'Completed' : p.status,
             caseStatus: shouldComplete ? 'Consultation Completed' : p.caseStatus,
+            verificationStatus: shouldComplete ? 'History Verified' : p.verificationStatus,
+            verificationTimestamp: shouldComplete ? (p.verificationTimestamp || new Date().toLocaleString('en-IN')) : p.verificationTimestamp,
             doctorNotes: {
               ...p.doctorNotes,
               ...updatedNotes
@@ -915,11 +1008,40 @@ export const PatientProvider = ({ children }) => {
 
   const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
 
-  // Strict Fail-Closed Hospital Scoping for Doctor / Staff Context
+  // Strict Fail-Closed Hospital & Department Scoping for Doctor / Staff Context
   const hospitalScopedPatients = patients.filter((p) => {
     if (!currentHospitalId) return false;
     const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
-    return typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+    const matchesHospital = typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+    if (!matchesHospital) return false;
+
+    // If authenticated user is a DOCTOR, filter strictly by authorized departments or direct assignment
+    if (authenticatedUser?.role === 'DOCTOR') {
+      const authDepts = authenticatedUser.authorizedDepartments || [];
+      const authDeptIds = authDepts.map((d) => (typeof d === 'string' ? d : d.id)).filter(Boolean);
+      const authDeptNames = [
+        ...authDepts.map((d) => (typeof d === 'string' ? d : d.name)).filter(Boolean),
+        ...(authenticatedUser.department ? [authenticatedUser.department] : [])
+      ];
+
+      const pDeptId = p.departmentId || p.department_id;
+      const pDeptName = p.department;
+      const pAssignedDocId = p.assignedDoctorId || p.assigned_doctor_id;
+
+      const isAssigned = pAssignedDocId && pAssignedDocId === authenticatedUser.id;
+      const isDeptIdAuthorized = pDeptId && authDeptIds.includes(pDeptId);
+      const isDeptNameAuthorized = pDeptName && authDeptNames.some(dName => 
+        pDeptName.toLowerCase().includes(dName.toLowerCase()) || dName.toLowerCase().includes(pDeptName.toLowerCase())
+      );
+
+      // If doctor has explicit authorized departments configured, enforce them
+      if (authDeptIds.length > 0 || authDeptNames.length > 0) {
+        return Boolean(isAssigned || isDeptIdAuthorized || isDeptNameAuthorized);
+      }
+      return Boolean(isAssigned);
+    }
+
+    return true;
   });
 
   const selectedPatient = hospitalScopedPatients.find((p) => p.id === selectedPatientId) || null;
@@ -929,10 +1051,12 @@ export const PatientProvider = ({ children }) => {
     if (!currentHospitalId) {
       if (selectedPatientId !== null) setSelectedPatientId(null);
     } else if (selectedPatientId) {
-      const existsInActiveHospital = hospitalScopedPatients.some(p => p.id === selectedPatientId);
-      if (!existsInActiveHospital) {
+      const existsInScope = hospitalScopedPatients.some(p => p.id === selectedPatientId);
+      if (!existsInScope) {
         setSelectedPatientId(hospitalScopedPatients.length > 0 ? hospitalScopedPatients[0].id : null);
       }
+    } else if (hospitalScopedPatients.length > 0) {
+      setSelectedPatientId(hospitalScopedPatients[0].id);
     }
   }, [currentHospitalId, hospitalScopedPatients, selectedPatientId]);
 
