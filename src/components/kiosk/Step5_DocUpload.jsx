@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   Cpu,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { 
@@ -18,6 +19,7 @@ import {
   processDocumentWithOcr 
 } from '../../services/documentDigitizationService';
 import { AudioPrompt } from '../common/AudioPrompt';
+import { getRouteUrl } from '../../utils/navigation';
 
 export const Step5_DocUpload = () => {
   const { kioskForm, setKioskForm, t, setKioskStep } = usePatient();
@@ -283,8 +285,20 @@ export const Step5_DocUpload = () => {
             </div>
             <button
               type="button"
-              onClick={() => setKioskStep(6)}
-              className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+              onClick={() => {
+                const isAyush = Boolean(
+                  kioskForm.selectedDepartmentName?.toLowerCase().includes('ayush') ||
+                  kioskForm.selectedDepartmentName?.toLowerCase().includes('ayurveda') ||
+                  kioskForm.selectedDepartmentId?.toLowerCase().includes('ayush') ||
+                  kioskForm.department_id?.toLowerCase().includes('ayush') ||
+                  kioskForm.isAyushCase
+                );
+                const extractionStep = isAyush ? 10 : 9;
+                setKioskStep(extractionStep);
+                window.history.pushState({ screen: 'patient', step: extractionStep }, '', getRouteUrl('patient', extractionStep));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
             >
               <span>View Extractions & Timeline</span>
               <ArrowRight size={14} />
@@ -292,49 +306,79 @@ export const Step5_DocUpload = () => {
           </div>
 
           <div className="space-y-2">
-            {kioskForm.uploadedDocs.map((doc) => (
-              <div
-                key={doc.id}
-                className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-cyan-100 text-cyan-800 rounded-xl">
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h5 className="text-xs font-extrabold text-slate-900">{doc.title}</h5>
-                      <span className="text-[10px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200 px-2 py-0.2 rounded">
-                        {doc.year || '2026'}
-                      </span>
+            {kioskForm.uploadedDocs.map((doc) => {
+              const hasReadableText = Boolean(doc.rawOcrText && doc.rawOcrText.trim().length > 0);
+              const entitiesCount = (doc.medicines?.length || 0) + (doc.investigations?.length || 0);
+
+              return (
+                <div
+                  key={doc.id}
+                  className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-cyan-100 text-cyan-800 rounded-xl">
+                      <FileText size={20} />
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {doc.hospital} • {doc.typeName || doc.type}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right text-[11px]">
-                    <span className="text-emerald-700 font-bold block">
-                      ✓ Extracted: {doc.medicines?.length || 0} Rx • {doc.investigations?.length || 0} Labs
-                    </span>
-                    <span className="text-slate-400 text-[10px]">
-                      Confidence: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-extrabold text-slate-900">{doc.title}</h5>
+                        <span className="text-[10px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200 px-2 py-0.2 rounded">
+                          {doc.year ? doc.year : (doc.date ? doc.date : 'Date not detected')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {doc.hospital || 'Healthcare facility not detected'} • {doc.typeName || doc.type}
+                      </p>
+                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDoc(doc.id)}
-                    className="text-slate-400 hover:text-red-600 p-2 rounded-xl hover:bg-red-50 transition-colors"
-                    title="Remove document"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-[11px] space-y-0.5">
+                      {!hasReadableText ? (
+                        <span className="text-amber-800 font-bold block text-xs">
+                          Text could not be reliably recognized (Manual verification required)
+                        </span>
+                      ) : (doc.ocrConfidence != null && doc.ocrConfidence < 40) ? (
+                        <span className="text-amber-800 font-bold block text-xs">
+                          Low OCR readability — manual verification required
+                        </span>
+                      ) : entitiesCount > 0 ? (
+                        <span className="text-emerald-700 font-bold block text-xs">
+                          ✓ Extracted: {doc.medicines?.length || 0} Rx • {doc.investigations?.length || 0} Labs
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 font-medium block text-xs">
+                          Text recognized • No structured entities identified
+                        </span>
+                      )}
+
+                      <div 
+                        className="flex items-center justify-end gap-1 text-[10px] text-slate-500 cursor-help"
+                        title="This score reflects how confidently the OCR engine recognized text. It is not a measure of medical accuracy. All extracted information requires verification."
+                      >
+                        <span>OCR readability: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Not provided'}</span>
+                        <Info size={11} className="text-slate-400" />
+                      </div>
+
+                      {doc.handwritingNotice && (
+                        <span className="text-[10px] text-amber-700 font-medium block">
+                          {doc.handwritingNotice}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDoc(doc.id)}
+                      className="text-slate-400 hover:text-red-600 p-2 rounded-xl hover:bg-red-50 transition-colors"
+                      title="Remove document"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

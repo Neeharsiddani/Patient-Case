@@ -37,7 +37,10 @@ export const Step6_OcrExtraction = () => {
   // Initialize uploaded docs if present
   useEffect(() => {
     if (kioskForm.uploadedDocs && kioskForm.uploadedDocs.length > 0) {
-      setSelectedDocId(kioskForm.uploadedDocs[0].id);
+      setSelectedDocId((prev) => {
+        const stillExists = kioskForm.uploadedDocs.some((d) => d.id === prev);
+        return stillExists ? prev : kioskForm.uploadedDocs[0].id;
+      });
     } else {
       setSelectedDocId(null);
     }
@@ -98,12 +101,15 @@ export const Step6_OcrExtraction = () => {
         <AudioPrompt promptText="Review your digitized medical records, extracted prescription medicines, laboratory tests, and health timeline." />
       </div>
 
-      {/* Document Selector Pills (If multiple documents uploaded) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <span className="text-xs font-bold text-slate-500 pl-2">Select Document:</span>
+      {/* Top Controls: Document Switcher & View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+        {/* Document Selector Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">
+            Documents ({documents.length}):
+          </span>
           {documents.map((doc) => {
-            const isSelected = currentDoc?.id === doc.id;
+            const isSelected = doc.id === currentDoc?.id;
             return (
               <button
                 key={doc.id}
@@ -122,7 +128,7 @@ export const Step6_OcrExtraction = () => {
               >
                 <FileText size={14} />
                 <span>{doc.title}</span>
-                <span className="opacity-80 text-[10px] font-mono">({doc.year})</span>
+                {doc.year && <span className="opacity-80 text-[10px] font-mono">({doc.year})</span>}
               </button>
             );
           })}
@@ -188,25 +194,31 @@ export const Step6_OcrExtraction = () => {
                   {isProcessingScan ? 'Processing Document OCR...' : 'OCR & Clinical Extraction Ready'}
                 </span>
               </div>
-              <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded text-[10px] font-mono font-bold">
-                Confidence: {currentDoc.ocrConfidence != null ? `${currentDoc.ocrConfidence}%` : 'Confidence unavailable'}
-              </span>
+              <div 
+                className="flex items-center gap-1 cursor-help"
+                title="This score reflects how confidently the OCR engine recognized text. It is not a measure of medical accuracy. All extracted information requires verification."
+              >
+                <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1">
+                  OCR readability: {currentDoc.ocrConfidence != null ? `${currentDoc.ocrConfidence}%` : 'Not provided'}
+                  <Info size={11} className="text-cyan-400" />
+                </span>
+              </div>
             </div>
 
             {/* Scanned Paper Layout */}
             <div className="bg-slate-800/90 rounded-2xl p-4 my-3 font-mono text-[11px] space-y-2.5 border border-slate-700 select-none">
               <div className="text-slate-400 text-[10px] border-b border-slate-700 pb-1.5 flex justify-between">
                 <span>[DOCUMENT TYPE]: {currentDoc.typeName || currentDoc.type}</span>
-                <span className="text-cyan-400">DATE: {currentDoc.date}</span>
+                <span className="text-cyan-400">DATE: {currentDoc.date || 'Not identified'}</span>
               </div>
 
               <div className="text-slate-200">
-                <span className="text-slate-400">FACILITY:</span> {currentDoc.hospital}
+                <span className="text-slate-400">FACILITY:</span> {currentDoc.hospital || 'Healthcare facility not identified from document'}
               </div>
 
               <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-200">
                 <span className="font-bold text-cyan-400 block text-[10px]">DIAGNOSIS / IMPRESSION:</span>
-                <span>{currentDoc.diagnosis}</span>
+                <span>{currentDoc.diagnosis || 'Clinical impression pending physician evaluation'}</span>
               </div>
 
               {/* Extracted Labs Snippet */}
@@ -230,9 +242,9 @@ export const Step6_OcrExtraction = () => {
 
             {/* Bottom Engine Note */}
             <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck size={14} className="text-emerald-400" />
-                <span>FHIR R4 DiagnosticReport Validated</span>
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <ShieldCheck size={13} className="text-cyan-400" />
+                <span>FHIR R4 Structure Valid — Clinician verification required</span>
               </div>
               <span className="text-slate-400 text-[10px] font-mono">ID: {currentDoc.id}</span>
             </div>
@@ -240,6 +252,46 @@ export const Step6_OcrExtraction = () => {
 
           {/* Right Column: Structured Extracted Information Fields (7 Cols) */}
           <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
+            {/* Unreliable / Missing OCR Text Banner */}
+            {(!currentDoc.rawOcrText || !currentDoc.rawOcrText.trim()) && (
+              <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-start gap-3">
+                <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="text-xs font-bold text-amber-900">
+                    Text could not be reliably recognized
+                  </h5>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    This document may be handwritten, low-contrast, or non-standard. Manual verification is required. The original scanned file has been securely retained for clinician examination.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Low OCR Readability Banner */}
+            {currentDoc.rawOcrText && currentDoc.rawOcrText.trim() && currentDoc.ocrConfidence != null && currentDoc.ocrConfidence < 40 && (
+              <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-start gap-3">
+                <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="text-xs font-bold text-amber-900">
+                    Low OCR readability ({currentDoc.ocrConfidence}%) — Character recognition is uncertain
+                  </h5>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    Text clarity is low or handwritten script was detected. All extracted entities must be manually verified or corrected by a clinician.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Handwriting Advisory */}
+            {currentDoc.handwritingNotice && (
+              <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl flex items-start gap-2.5 text-xs text-blue-900">
+                <Info size={16} className="text-blue-700 flex-shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed">
+                  <strong>Handwriting Notice:</strong> {currentDoc.handwritingNotice}
+                </p>
+              </div>
+            )}
+
             {/* Header: Document Date, Hospital & Diagnosis */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -247,7 +299,11 @@ export const Step6_OcrExtraction = () => {
                   <span className="text-slate-400 block text-[10px] font-bold uppercase">Document Date</span>
                   <div className="flex items-center gap-1.5 font-bold text-slate-900 mt-0.5">
                     <Calendar size={14} className="text-cyan-700" />
-                    <span>{currentDoc.date} ({currentDoc.year})</span>
+                    <span>
+                      {currentDoc.date
+                        ? `${currentDoc.date}${currentDoc.year && !currentDoc.date.includes(currentDoc.year) ? ` (${currentDoc.year})` : ''}`
+                        : (currentDoc.year ? `Year: ${currentDoc.year}` : 'Date not detected')}
+                    </span>
                   </div>
                 </div>
 
@@ -255,7 +311,7 @@ export const Step6_OcrExtraction = () => {
                   <span className="text-slate-400 block text-[10px] font-bold uppercase">Hospital / Clinic</span>
                   <div className="flex items-center gap-1.5 font-bold text-slate-900 mt-0.5 truncate">
                     <Building2 size={14} className="text-cyan-700 flex-shrink-0" />
-                    <span className="truncate">{currentDoc.hospital}</span>
+                    <span className="truncate">{currentDoc.hospital || 'Healthcare facility not detected'}</span>
                   </div>
                 </div>
               </div>
@@ -263,7 +319,7 @@ export const Step6_OcrExtraction = () => {
               <div className="border-t border-slate-200 pt-2">
                 <span className="text-slate-400 block text-[10px] font-bold uppercase">Extracted Diagnosis</span>
                 <span className="text-sm font-extrabold text-cyan-950 block mt-0.5">
-                  {currentDoc.diagnosis}
+                  {currentDoc.diagnosis || 'Diagnosis not detected in document'}
                 </span>
               </div>
             </div>
@@ -362,11 +418,11 @@ export const Step6_OcrExtraction = () => {
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {currentDoc.medicines.map((med, idx) => (
                         <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2.5 font-bold text-slate-900">{med.name}</td>
-                          <td className="p-2.5 text-cyan-800 font-bold">{med.dosage}</td>
-                          <td className="p-2.5 font-mono text-slate-700">{med.freq}</td>
-                          <td className="p-2.5 text-slate-600">{med.duration}</td>
-                          <td className="p-2.5 text-slate-500 text-[11px]">{med.instructions}</td>
+                          <td className="p-2.5 font-bold text-slate-900">{med.name || med.drugName}</td>
+                          <td className="p-2.5 text-cyan-800 font-bold">{med.dosage || '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-700">{med.freq || med.frequency || '—'}</td>
+                          <td className="p-2.5 text-slate-600">{med.duration || '—'}</td>
+                          <td className="p-2.5 text-slate-500 text-[11px]">{med.instructions || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -495,11 +551,11 @@ export const Step6_OcrExtraction = () => {
         <div className="flex items-center gap-2">
           <Info size={16} className="text-cyan-700 flex-shrink-0" />
           <span>
-            <strong>Document Processing Standards:</strong> Structured via MediMitra Clinical Extraction Engine. Formatted according to HL7 FHIR DiagnosticReport guidelines.
+            <strong>Document Processing Standards:</strong> Structured via MediMitra Clinical Extraction Engine according to HL7 FHIR DiagnosticReport guidelines. Clinician verification required.
           </span>
         </div>
-        <span className="text-emerald-700 font-bold whitespace-nowrap">
-          FHIR R4 Standard ✓
+        <span className="text-slate-600 font-bold whitespace-nowrap text-[11px]">
+          FHIR R4 Structure Valid • Clinician Verification Required
         </span>
       </div>
     </div>

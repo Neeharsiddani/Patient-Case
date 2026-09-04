@@ -523,16 +523,34 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
           advice: '',
           followUp: ''
         },
-        documents: documents.map(d => ({
-          id: d.id,
-          originalFilename: d.original_filename,
-          storedFilename: d.stored_filename,
-          docType: d.doc_type,
-          hospitalName: d.hospital_name,
-          docDate: d.doc_date,
-          ocrConfidence: d.ocr_confidence,
-          extractedData: d.extracted_data ? JSON.parse(d.extracted_data) : {}
-        })),
+        documents: documents.map(d => {
+          const ext = d.extracted_data ? (typeof d.extracted_data === 'string' ? JSON.parse(d.extracted_data) : d.extracted_data) : {};
+          return {
+            id: d.id,
+            title: d.original_filename,
+            originalFilename: d.original_filename,
+            storedFilename: d.stored_filename,
+            docType: d.doc_type,
+            type: d.doc_type,
+            hospital: d.hospital_name,
+            hospitalName: d.hospital_name,
+            doctor: d.doctor_name,
+            doctorName: d.doctor_name,
+            date: d.doc_date,
+            docDate: d.doc_date,
+            year: d.doc_year,
+            docYear: d.doc_year,
+            diagnosis: d.diagnosis,
+            ocrConfidence: d.ocr_confidence,
+            rawOcrText: d.raw_ocr_text,
+            extractedData: ext,
+            medicines: ext.medicines || [],
+            investigations: ext.investigations || [],
+            procedures: ext.procedures || [],
+            verificationStatus: d.verification_status,
+            uploadedAt: d.uploaded_at
+          };
+        }),
         ayushHistory: row.ayush_history ? JSON.parse(row.ayush_history) : null
       };
     }));
@@ -706,16 +724,34 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
           advice: '',
           followUp: ''
         },
-        documents: documents.map(d => ({
-          id: d.id,
-          originalFilename: d.original_filename,
-          storedFilename: d.stored_filename,
-          docType: d.doc_type,
-          hospitalName: d.hospital_name,
-          docDate: d.doc_date,
-          ocrConfidence: d.ocr_confidence,
-          extractedData: JSON.parse(d.extracted_data || '{}')
-        })),
+        documents: documents.map(d => {
+          const ext = d.extracted_data ? (typeof d.extracted_data === 'string' ? JSON.parse(d.extracted_data) : d.extracted_data) : {};
+          return {
+            id: d.id,
+            title: d.original_filename,
+            originalFilename: d.original_filename,
+            storedFilename: d.stored_filename,
+            docType: d.doc_type,
+            type: d.doc_type,
+            hospital: d.hospital_name,
+            hospitalName: d.hospital_name,
+            doctor: d.doctor_name,
+            doctorName: d.doctor_name,
+            date: d.doc_date,
+            docDate: d.doc_date,
+            year: d.doc_year,
+            docYear: d.doc_year,
+            diagnosis: d.diagnosis,
+            ocrConfidence: d.ocr_confidence,
+            rawOcrText: d.raw_ocr_text,
+            extractedData: ext,
+            medicines: ext.medicines || [],
+            investigations: ext.investigations || [],
+            procedures: ext.procedures || [],
+            verificationStatus: d.verification_status,
+            uploadedAt: d.uploaded_at
+          };
+        }),
         ayushHistory: patient.ayush_history ? JSON.parse(patient.ayush_history) : null,
         consent: consent || null
       }

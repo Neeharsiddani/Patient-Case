@@ -137,6 +137,19 @@ export const PatientProvider = ({ children }) => {
   const [selectedPatientId, setSelectedPatientId] = useState(null);
 
   // Kiosk In-Progress Patient State (10 Steps)
+  const KIOSK_DOCS_KEY = 'medimitra_kiosk_uploaded_docs';
+  const getInitialUploadedDocs = () => {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const saved = window.sessionStorage.getItem(KIOSK_DOCS_KEY);
+        return saved ? JSON.parse(saved) : [];
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  };
+
   const [kioskStep, setKioskStep] = useState(1);
   const [kioskForm, setKioskForm] = useState({
     abhaId: '',
@@ -190,7 +203,7 @@ export const PatientProvider = ({ children }) => {
       height: '',
       bmi: ''
     },
-    uploadedDocs: [],
+    uploadedDocs: getInitialUploadedDocs(),
     activeOcrDoc: null,
     triageLevel: 4,
     triageCategory: 'Routine / Standard (Green)',
@@ -203,6 +216,21 @@ export const PatientProvider = ({ children }) => {
     isAyushCase: false,
     ayushHistory: createInitialAyushState()
   });
+
+  // Persist uploaded docs to sessionStorage so they survive page refresh
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        if (kioskForm.uploadedDocs && kioskForm.uploadedDocs.length > 0) {
+          window.sessionStorage.setItem(KIOSK_DOCS_KEY, JSON.stringify(kioskForm.uploadedDocs));
+        } else {
+          window.sessionStorage.removeItem(KIOSK_DOCS_KEY);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [kioskForm.uploadedDocs]);
 
   // Load Hospitals and Patient Queue from Backend Server
   const fetchQueueAndHospitals = useCallback(async () => {
@@ -666,6 +694,13 @@ export const PatientProvider = ({ children }) => {
       isAyushCase: false,
       ayushHistory: createInitialAyushState()
     });
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        window.sessionStorage.removeItem(KIOSK_DOCS_KEY);
+      }
+    } catch {
+      // ignore
+    }
   };
 
   // Doctor Action: Save edits to any clinical section

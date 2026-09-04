@@ -43,30 +43,116 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = 'prescriptio
     /\b(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})\b/
   ];
 
+  // Pass 1: High priority clinical/report dates (strictly prefer Report/Prescription/Visit/Consultation dates)
+  const clinicalDateLabelRegex = /(?:Report\s*Date|Prescription\s*Date|Visit\s*Date|Consultation\s*Date|Collection\s*Date|Admission\s*Date|Discharge\s*Date|Date\s*of\s*Consultation|Date\s*of\s*Visit)\s*[:\-]\s*([^\n\r;]+)/i;
   for (const line of lines) {
-    for (const pattern of datePatterns) {
-      const match = line.match(pattern);
-      if (match) {
-        docDate = match[0];
-        // Extract 4-digit year
-        const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
-        if (yearMatch) {
-          docYear = yearMatch[1];
+    const labelMatch = line.match(clinicalDateLabelRegex);
+    if (labelMatch && labelMatch[1]) {
+      for (const pattern of datePatterns) {
+        const match = labelMatch[1].match(pattern);
+        if (match) {
+          docDate = match[0];
+          const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
+          if (yearMatch) {
+            docYear = yearMatch[1];
+          }
+          break;
         }
-        break;
       }
     }
     if (docDate) break;
   }
 
+  // Pass 2: Generic "Date:" label (excluding Birthdate, Registration, Expiry, MFG)
+  if (!docDate) {
+    const genericDateLabelRegex = /(?<!(?:Birth|Registration|Expiry|MFG|Valid)\s*)\bDate\s*[:\-]\s*([^\n\r;]+)/i;
+    for (const line of lines) {
+      if (!/birth|dob|registration|expiry/i.test(line)) {
+        const labelMatch = line.match(genericDateLabelRegex);
+        if (labelMatch && labelMatch[1]) {
+          for (const pattern of datePatterns) {
+            const match = labelMatch[1].match(pattern);
+            if (match) {
+              docDate = match[0];
+              const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
+              if (yearMatch) {
+                docYear = yearMatch[1];
+              }
+              break;
+            }
+          }
+        }
+      }
+      if (docDate) break;
+    }
+  }
+
+  // Pass 3: Fallback to any line containing a valid date pattern (excluding birthdate lines)
+  if (!docDate) {
+    for (const line of lines) {
+      if (!/birth|dob|born/i.test(line)) {
+        for (const pattern of datePatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            docDate = match[0];
+            const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
+            if (yearMatch) {
+              docYear = yearMatch[1];
+            }
+            break;
+          }
+        }
+      }
+      if (docDate) break;
+    }
+  }
+
   // 2. Genuinely Extract Hospital / Healthcare Facility Header
   let hospitalName = null;
-  const hospitalKeywords = ['hospital', 'clinic', 'laboratory', 'pathology', 'institute', 'aiims', 'medical college', 'health centre', 'diagnostics'];
-  for (let i = 0; i < Math.min(lines.length, 8); i++) {
-    const lineLower = lines[i].toLowerCase();
-    if (hospitalKeywords.some(kw => lineLower.includes(kw))) {
-      hospitalName = lines[i].replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+  const facilityRegex = /\b(?:hospital(?:s)?|clinic(?:s)?|polyclinic|dispensary|nursing\s+home|medical\s+cent(?:er|re)|health\s+cent(?:er|re)|healthcare|pathlab(?:s)?|laboratory|laboratories|pathology|diagnostics?|diagnostic\s+cent(?:er|re)|institute|medical\s+college|aiims|super\s*speciality|care\s+hospital(?:s)?|multispeciality|multi-speciality)\b/i;
+
+  // Helper to validate a candidate facility line
+  const isValidFacilityLine = (line) => {
+    if (!line || typeof line !== 'string') return false;
+    const clean = line.replace(/^[#*•\-\s:]+/, '').trim();
+    if (clean.length < 4 || clean.length > 90) return false;
+    const lower = clean.toLowerCase();
+    if (/^(?:patient|name|age|sex|gender|date|rx|diagnosis|dx|imp|chief complaint|clinical history|history|past history|vitals|weight|height|allergies)/i.test(lower)) return false;
+    if (/^(?:dr\.?|doctor)\s+(?!.*(?:pathlab|clinic|hospital|centre|center|diagnostics|laboratory))/i.test(lower)) return false;
+    if (/^\d+$/.test(clean)) return false;
+    return true;
+  };
+
+  // Pass 1: Contextual labeled facility patterns anywhere in the document
+  const facilityLabelRegex = /(?:Facility(?:\s+Name)?|Hospital(?:\s+Name)?|Clinic(?:\s+Name)?|Medical\s+Cent(?:er|re)|Health\s+Cent(?:er|re)|Healthcare(?:\s+Facility)?|Laboratory|Laboratories|PathLabs?|Pathology(?:\s+Lab)?|Diagnostics(?:\s+Cent(?:er|re))?|Diagnostic\s+Centre|Diagnostic\s+Center|Institute|Institution|Medical\s+College)\s*[:\-]\s*([^\n\r,;]{3,80})/i;
+  for (const line of lines) {
+    const labelMatch = line.match(facilityLabelRegex);
+    if (labelMatch && labelMatch[1] && isValidFacilityLine(labelMatch[1])) {
+      hospitalName = labelMatch[1].replace(/[^\w\s\.,\-\(\)]/g, '').trim();
       break;
+    }
+  }
+
+  // Pass 2: Inspect header lines (lines 0 to 12) ranked by top position
+  if (!hospitalName) {
+    const headerLimit = Math.min(lines.length, 12);
+    for (let i = 0; i < headerLimit; i++) {
+      const line = lines[i];
+      if (isValidFacilityLine(line) && facilityRegex.test(line)) {
+        hospitalName = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+        break;
+      }
+    }
+  }
+
+  // Pass 3: Search complete document text for prominent facility keywords
+  if (!hospitalName) {
+    for (let i = 12; i < lines.length; i++) {
+      const line = lines[i];
+      if (isValidFacilityLine(line) && facilityRegex.test(line)) {
+        hospitalName = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+        break;
+      }
     }
   }
 
@@ -106,29 +192,66 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = 'prescriptio
 
   // 5. Genuinely Extract Medications (Drug name, dosage strength, frequency, instructions)
   const medicines = [];
-  const drugFormPatterns = /\b(Tab|Tablet|Cap|Capsule|Inj|Injection|Syr|Syrup|Oint|Ointment|Drops|Gel|Suspension|Inhaler)\.?\s+([A-Za-z0-9\+\-\/\s]{3,35})/i;
+  const drugFormRegex = /\b(Tab(?:let)?|Cap(?:sule)?|Inj(?:ection)?|Syr(?:up)?|Oint(?:ment)?|Drops|Gel|Susp(?:ension)?|Inhaler)\.?\s+/i;
   const dosagePattern = /\b(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|IU|units|%))\b/i;
-  const frequencyPattern = /\b(1-0-1|1-1-1|1-0-0|0-0-1|0-1-0|OD|BD|TDS|QID|HS|SOS|once daily|twice daily|thrice daily|stat)\b/i;
+  const frequencyPattern = /\b(1-0-1|1-1-1|1-0-0|0-0-1|0-1-0|OD|BD|TDS|QID|HS|SOS|once\s+daily|twice\s+daily|thrice\s+daily|stat)\b/i;
   const durationPattern = /\b(\d+\s*(?:days|weeks|months|d|w|m))\b/i;
-  const instructionPattern = /\b(after meals|before meals|with meals|empty stomach|at bedtime|before breakfast|after food)\b/i;
+  const instructionPattern = /\b(after\s+meals|before\s+meals|with\s+meals|empty\s+stomach|at\s+bedtime|before\s+breakfast|after\s+food)\b/i;
+
+  // Validation function to reject garbled OCR fragments like "Cap 0 it sa"
+  const isValidDrugName = (name) => {
+    if (!name || typeof name !== 'string') return false;
+    const clean = name.replace(/^(?:Tab(?:let)?|Cap(?:sule)?|Inj(?:ection)?|Syr(?:up)?|Oint(?:ment)?|Drops|Gel|Susp(?:ension)?|Inhaler)\.?\s*/i, '').trim();
+    if (clean.length < 3) return false;
+    // Must start with an alphabetical letter (not digits or symbols)
+    if (!/^[A-Za-z]/.test(clean)) return false;
+    // Split into words
+    const words = clean.split(/[\s\+\-\/]+/).filter(Boolean);
+    if (words.length === 0) return false;
+    // Must have at least one substantial word (>= 3 letters)
+    const hasSubstantialWord = words.some(w => /^[A-Za-z]{3,}$/.test(w));
+    if (!hasSubstantialWord) return false;
+    // Check if candidate consists mostly of 1-2 character tokens or isolated digits
+    const shortWords = words.filter(w => w.length <= 2 || /\d/.test(w));
+    if (shortWords.length >= 2 && shortWords.length >= words.length * 0.6) return false;
+    // Disallow common non-drug headers
+    if (/^(?:date|name|age|sex|gender|history|diagnosis|vitals|investigation|test|rx|advice|review|follow|patient|doctor)/i.test(clean)) return false;
+    return true;
+  };
 
   for (const line of lines) {
-    const drugMatch = line.match(drugFormPatterns);
-    if (drugMatch) {
-      const fullDrugName = `${drugMatch[1]} ${drugMatch[2]}`.trim();
-      const dosageMatch = line.match(dosagePattern);
-      const freqMatch = line.match(frequencyPattern);
-      const durMatch = line.match(durationPattern);
-      const instMatch = line.match(instructionPattern);
+    const formMatch = line.match(drugFormRegex);
+    if (formMatch) {
+      const form = formMatch[1].replace(/\.$/, '');
+      const afterForm = line.slice(formMatch.index + formMatch[0].length);
 
-      medicines.push({
-        drugName: fullDrugName,
-        dosage: dosageMatch ? dosageMatch[1] : null,
-        frequency: freqMatch ? freqMatch[1] : null,
-        duration: durMatch ? durMatch[1] : null,
-        instructions: instMatch ? instMatch[1] : null,
-        rawLine: line
-      });
+      // Stop candidate name at first occurrence of dosage, frequency, duration, instructions, or trailing punctuation
+      const stopPattern = /\b(?:\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|IU|units|%)|1-0-1|1-1-1|1-0-0|0-0-1|0-1-0|OD|BD|TDS|QID|HS|SOS|once\s+daily|twice\s+daily|thrice\s+daily|stat|\d+\s*(?:days|weeks|months|d|w|m)|after\s+meals|before\s+meals|with\s+meals|empty\s+stomach|at\s+bedtime|before\s+breakfast|after\s+food)\b/i;
+      const stopIndex = afterForm.search(stopPattern);
+      const rawCandidateName = (stopIndex !== -1 ? afterForm.slice(0, stopIndex) : afterForm)
+        .replace(/[^\w\s\+\-\/\.]/g, '')
+        .trim();
+
+      const fullDrugName = `${form}. ${rawCandidateName}`;
+      if (isValidDrugName(fullDrugName)) {
+        const dosageMatch = line.match(dosagePattern);
+        const freqMatch = line.match(frequencyPattern);
+        const durMatch = line.match(durationPattern);
+        const instMatch = line.match(instructionPattern);
+
+        medicines.push({
+          name: fullDrugName,
+          drugName: fullDrugName,
+          dosage: dosageMatch ? dosageMatch[1] : null,
+          frequency: freqMatch ? freqMatch[1] : null,
+          freq: freqMatch ? freqMatch[1] : null,
+          duration: durMatch ? durMatch[1] : null,
+          instructions: instMatch ? instMatch[1] : null,
+          rawLine: line.trim(),
+          isClinicianVerified: false,
+          verificationStatus: 'MACHINE_EXTRACTED_UNVERIFIED'
+        });
+      }
     }
   }
 

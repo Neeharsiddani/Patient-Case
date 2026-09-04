@@ -307,6 +307,14 @@ export class ApiService {
     return await this.request(`/documents/patient/${patientId}`);
   }
 
+  // Document Clinical Verification by Doctor
+  static async verifyDocument(docId, diagnosis, docDate) {
+    return await this.request(`/documents/${docId}/verify`, {
+      method: 'PATCH',
+      body: JSON.stringify({ diagnosis, docDate })
+    });
+  }
+
   // ABDM FHIR R4 Bundle Export & Validation
   static async exportFhirBundle(patientId) {
     return await this.request(`/fhir/patient/${patientId}`);

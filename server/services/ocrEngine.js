@@ -77,7 +77,7 @@ class OcrEngineService {
           success: true,
           provider: 'PDF_PARSE',
           rawText: '',
-          confidence: 70,
+          confidence: null,
           pageCount: numPages,
           warning: 'PDF has no embedded text stream. If this is a scanned document, OCR on converted raster pages is required.'
         };
@@ -85,9 +85,9 @@ class OcrEngineService {
 
       return {
         success: true,
-        provider: 'PDF_PARSE',
+        provider: 'PDF_TEXT_STREAM',
         rawText,
-        confidence: 95,
+        confidence: null, // Digital text streams have direct character data, not OCR recognition confidence
         pageCount: numPages
       };
     } catch (err) {
@@ -96,7 +96,7 @@ class OcrEngineService {
         success: false,
         provider: 'PDF_PARSE',
         rawText: '',
-        confidence: 0,
+        confidence: null,
         error: `Failed to extract text from PDF: ${err.message}`
       };
     }
@@ -106,8 +106,9 @@ class OcrEngineService {
    * Extract text from image files using genuine Tesseract.js OCR engine
    */
   async extractFromImage(filePathOrBuffer) {
-    // 1. If Google Cloud Vision is configured and requested
-    if (this.provider === 'GOOGLE_VISION' && this.googleApiKey) {
+    // 1. If Google Cloud Vision or a handwriting-capable cloud provider is configured
+    const handwritingProviderConfigured = (this.provider === 'GOOGLE_VISION' || process.env.ENABLE_HANDWRITING_OCR === 'true') && Boolean(this.googleApiKey);
+    if (handwritingProviderConfigured) {
       try {
         return await this.extractWithGoogleVision(filePathOrBuffer);
       } catch (gErr) {
@@ -126,18 +127,27 @@ class OcrEngineService {
       }
 
       worker = await createWorker('eng');
+      await worker.setParameters({
+        tessedit_pageseg_mode: '3', // PSM.AUTO (Fully automatic page segmentation)
+        preserve_interword_spaces: '1'
+      });
       const ret = await worker.recognize(imageInput);
       await worker.terminate();
 
-      const rawText = ret.data.text || '';
-      const confidence = Math.round(ret.data.confidence || 0);
+      const rawText = ret.data?.text || '';
+      const rawConf = ret.data?.confidence;
+      const confidence = typeof rawConf === 'number' && !isNaN(rawConf) && rawConf >= 0
+        ? Math.round(rawConf)
+        : null;
 
       return {
         success: true,
         provider: 'TESSERACT_JS',
+        isHandwritingCapable: false,
+        handwritingNotice: 'Handwritten text may require manual verification. Current OCR is optimized for clear printed text.',
         rawText,
         confidence,
-        wordsCount: ret.data.words ? ret.data.words.length : 0
+        wordsCount: ret.data?.words ? ret.data.words.length : rawText.split(/\s+/).filter(Boolean).length
       };
     } catch (err) {
       if (worker) {
@@ -147,8 +157,10 @@ class OcrEngineService {
       return {
         success: false,
         provider: 'TESSERACT_JS',
+        isHandwritingCapable: false,
+        handwritingNotice: 'Handwritten text may require manual verification. Current OCR is optimized for clear printed text.',
         rawText: '',
-        confidence: 0,
+        confidence: null,
         error: `OCR engine error: ${err.message}`
       };
     }
@@ -185,20 +197,33 @@ class OcrEngineService {
     const data = await response.json();
     const textAnnotation = data.responses?.[0]?.fullTextAnnotation;
 
-    if (!textAnnotation) {
+    if (!textAnnotation || !textAnnotation.text) {
       return {
         success: true,
         provider: 'GOOGLE_CLOUD_VISION',
+        isHandwritingCapable: true,
+        handwritingNotice: null,
         rawText: '',
-        confidence: 0
+        confidence: null,
+        wordsCount: 0
       };
+    }
+
+    // Google Cloud Vision returns page-level confidence as a float (0.0 - 1.0) when calculated
+    let genuineConfidence = null;
+    const pageConfidence = data.responses?.[0]?.fullTextAnnotation?.pages?.[0]?.confidence;
+    if (typeof pageConfidence === 'number' && !isNaN(pageConfidence) && pageConfidence > 0) {
+      genuineConfidence = Math.round(pageConfidence * 100);
     }
 
     return {
       success: true,
       provider: 'GOOGLE_CLOUD_VISION',
+      isHandwritingCapable: true,
+      handwritingNotice: null,
       rawText: textAnnotation.text || '',
-      confidence: 96
+      confidence: genuineConfidence,
+      wordsCount: textAnnotation.text.split(/\s+/).filter(Boolean).length
     };
   }
 }

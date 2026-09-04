@@ -26,13 +26,15 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = 'prescr
   const ocrResult = await ocrEngine.extractText(filePath || fileMetadata.buffer, mimeType, originalName);
 
   const rawText = ocrResult.rawText || '';
-  const ocrConfidence = ocrResult.confidence || 0;
+  const ocrConfidence = typeof ocrResult.confidence === 'number' && !isNaN(ocrResult.confidence) ? ocrResult.confidence : null;
   const ocrProvider = ocrResult.provider || 'UNKNOWN';
+  const isHandwritingCapable = Boolean(ocrResult.isHandwritingCapable);
+  const handwritingNotice = ocrResult.handwritingNotice || null;
 
   // 2. Perform Real Clinical Entity Extraction from the actual OCR text
   const entities = extractClinicalEntities(rawText, docTypeHint);
 
-  const requiresManualReview = ocrConfidence < 75 || !entities.hasStructuredEntities || !entities.docDate;
+  const requiresManualReview = (ocrConfidence != null && ocrConfidence < 75) || !entities.hasStructuredEntities || !entities.docDate || !isHandwritingCapable;
 
   const docDate = entities.docDate || null;
   const docYear = entities.docYear || (docDate ? docDate.split(/[\/\-\.]/)[2] : null);
@@ -40,13 +42,15 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = 'prescr
   return {
     docType: entities.docType,
     category: entities.category,
-    hospitalName: entities.hospitalName || 'Unspecified Healthcare Facility',
-    doctorName: entities.doctorName || 'Attending Medical Officer',
+    hospitalName: entities.hospitalName || null,
+    doctorName: entities.doctorName || null,
     docDate: docDate,
     docYear: docYear,
-    diagnosis: entities.diagnosis || 'Clinical Consultation Record',
+    diagnosis: entities.diagnosis || null,
     ocrConfidence,
     ocrProvider,
+    isHandwritingCapable,
+    handwritingNotice,
     requiresManualReview,
     verificationStatus: 'MACHINE_EXTRACTED_UNVERIFIED',
     extractedData: {
@@ -56,11 +60,13 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = 'prescr
       rawOcrText: rawText,
       rawTextSummary: entities.rawTextSummary,
       hasStructuredEntities: entities.hasStructuredEntities,
+      isHandwritingCapable,
+      handwritingNotice,
       processedAt: new Date().toISOString()
     },
     timelineEntry: {
-      year: docYear || 'Recent',
-      date: docDate || 'Unspecified Date',
+      year: docYear || null,
+      date: docDate || 'Date not detected',
       title: `${entities.docType}${entities.hospitalName ? ` - ${entities.hospitalName}` : ''}`,
       category: entities.category,
       badgeColor: entities.category === 'Surgery' ? 'purple' : entities.category === 'Investigation' ? 'cyan' : 'emerald',

@@ -18,6 +18,7 @@ import {
 import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
 import { MediMitraLogo } from '../common/MediMitraLogo';
+import { getApiBaseUrl } from '../../services/api';
 
 export const Step1_Identification = () => {
   const { kioskForm, setKioskForm, t, language } = usePatient();
@@ -86,7 +87,11 @@ export const Step1_Identification = () => {
 
   const handleCheckAbdmGateway = async () => {
     try {
-      const res = await fetch('/api/abdm/status');
+      const baseUrl = getApiBaseUrl();
+      if (!baseUrl) {
+        throw new Error('API Base URL not configured');
+      }
+      const res = await fetch(`${baseUrl}/abdm/status`);
       const data = await res.json();
       setGatewayNotice(data);
     } catch (err) {

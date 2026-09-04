@@ -32,10 +32,10 @@ const normalizeDoc = (d) => {
     title: d.title || d.originalFilename || 'Medical Record',
     docType: d.docType || d.type || 'document',
     typeName: d.typeName || (d.docType === 'lab_report' ? 'Lab Test Report' : d.docType === 'prescription' ? 'Prescription Slip' : d.docType === 'discharge_summary' ? 'Discharge Summary' : 'Clinical Document'),
-    date: d.date || d.docDate || '',
-    year: d.year || d.docYear || (d.docDate ? d.docDate.slice(0, 4) : (d.date ? d.date.split(/[\/\-\.]/)[2] : 'Recent')),
-    hospital: d.hospital || d.hospitalName || 'Healthcare Facility',
-    doctor: d.doctor || d.doctorName || 'Attending Physician',
+    date: d.date || d.docDate || null,
+    year: d.year || d.docYear || (d.docDate ? d.docDate.slice(0, 4) : (d.date ? d.date.split(/[\/\-\.]/)[2] : null)),
+    hospital: d.hospital || d.hospitalName || 'Healthcare facility not detected',
+    doctor: d.doctor || d.doctorName || null,
     diagnosis: d.diagnosis || extracted.diagnosis || 'Digitized clinical record',
     ocrConfidence: d.ocrConfidence ?? d.ocr_confidence ?? null,
     verificationStatus: d.verificationStatus || d.verification_status || 'MACHINE_EXTRACTED_UNVERIFIED',
@@ -125,14 +125,7 @@ export const DocumentTimeline = ({ patient }) => {
   const handleVerifyDocument = async (docId, diagnosis, docDate) => {
     try {
       if (docId) {
-        await fetch(`/api/documents/${docId}/verify`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(ApiService.getAuthToken() ? { Authorization: `Bearer ${ApiService.getAuthToken()}` } : {})
-          },
-          body: JSON.stringify({ diagnosis, docDate })
-        });
+        await ApiService.verifyDocument(docId, diagnosis, docDate);
       }
       setDocuments((prev) =>
         prev.map((d) => (d.id === docId ? { ...d, verificationStatus: 'VERIFIED_BY_CLINICIAN' } : d))
