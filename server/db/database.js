@@ -6,21 +6,45 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbDir = path.resolve(__dirname, '../data');
+const defaultDbDir = path.resolve(__dirname, '../data');
+const rawDbPath = process.env.DATABASE_PATH || path.join(defaultDbDir, 'medimitra.db');
+const dbPath = path.resolve(rawDbPath);
+const dbDir = path.dirname(dbPath);
+
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const dbPath = process.env.DATABASE_PATH || path.join(dbDir, 'medimitra.db');
+let dbReadyResolve;
+let dbReadyReject;
+export const dbReadyPromise = new Promise((resolve, reject) => {
+  dbReadyResolve = resolve;
+  dbReadyReject = reject;
+});
 
 export const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error('❌ Failed to connect to SQLite Database:', err.message);
+    console.error(`❌ Failed to connect to SQLite Database at ${dbPath}:`, err.message);
+    dbReadyReject(err);
   } else {
-    // Enable WAL mode & foreign keys for high reliability and concurrency
-    db.run('PRAGMA foreign_keys = ON;');
-    db.run('PRAGMA journal_mode = WAL;');
+    // Enable foreign keys
+    db.run('PRAGMA foreign_keys = ON;', (fkErr) => {
+      if (fkErr) console.warn('⚠️ Warning: Failed to enable foreign keys PRAGMA:', fkErr.message);
+    });
+    // Enable WAL mode with graceful fallback to TRUNCATE for network/volume filesystems
+    db.run('PRAGMA journal_mode = WAL;', (walErr) => {
+      if (walErr) {
+        console.warn('⚠️ Warning: WAL journal mode not supported on filesystem, falling back to TRUNCATE:', walErr.message);
+        db.run('PRAGMA journal_mode = TRUNCATE;', () => {});
+      }
+    });
+    dbReadyResolve();
   }
+});
+
+// Prevent unhandled error event terminations on SQLite event emitter
+db.on('error', (err) => {
+  console.error('❌ SQLite Database error event:', err.message);
 });
 
 // Promisified DB helpers
@@ -52,6 +76,7 @@ export const run = (sql, params = []) => {
 };
 
 export const initDb = async () => {
+  await dbReadyPromise;
   const schemaSql = `
     -- 1. Healthcare Facilities / Hospitals (ABDM Health Facility Registry HFR Architecture Ready)
     CREATE TABLE IF NOT EXISTS hospitals (

@@ -179,13 +179,13 @@ router.get('/', async (req, res, next) => {
 });
 
 /**
- * GET /api/hospitals/:id
- * Retrieve details for a specific healthcare facility
- */
+  * GET /api/hospitals/:id
+  * Retrieve details for a specific healthcare facility
+  */
 router.get('/:id', async (req, res, next) => {
   try {
     const hospital = await get(
-      `SELECT id, name, code, location, city, state, facility_type, hfr_id, phone, email, status FROM hospitals WHERE id = ?`,
+      `SELECT id, name, code, location, district, city, state, pincode, latitude, longitude, facility_type, hfr_id, external_facility_id, data_source, phone, email, status FROM hospitals WHERE id = ?`,
       [req.params.id]
     );
 
@@ -217,9 +217,19 @@ router.get('/:id', async (req, res, next) => {
 /**
  * GET /api/hospitals/:id/departments
  * Retrieve active clinical departments/OPDs for a specific hospital
+ * Enforces strict multi-hospital tenant scoping for hospital admins and doctors
  */
-router.get('/:id/departments', async (req, res, next) => {
+router.get('/:id/departments', optionalAuth, async (req, res, next) => {
   try {
+    // Cross-hospital scoping check for authenticated staff
+    if (req.user && (req.user.role === 'HOSPITAL_ADMIN' || req.user.role === 'DOCTOR') && req.user.hospital_id && req.user.hospital_id !== req.params.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view departments for another healthcare facility.'
+      });
+    }
+
     const departments = await query(
       `SELECT id, hospital_id, name, code, room_number, description, status 
        FROM departments 
@@ -242,9 +252,19 @@ router.get('/:id/departments', async (req, res, next) => {
 /**
  * GET /api/hospitals/:id/doctors
  * Retrieve doctors registered at a specific hospital with authorized departments
+ * Enforces strict multi-hospital tenant scoping for hospital admins and doctors
  */
 router.get('/:id/doctors', optionalAuth, async (req, res, next) => {
   try {
+    // Cross-hospital scoping check for authenticated staff
+    if (req.user && (req.user.role === 'HOSPITAL_ADMIN' || req.user.role === 'DOCTOR') && req.user.hospital_id && req.user.hospital_id !== req.params.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view doctor rosters for another healthcare facility.'
+      });
+    }
+
     const doctors = await query(
       `SELECT u.id, u.username, u.full_name, u.email, u.phone, u.hospital_id, u.department, u.license_number, u.status
        FROM users u
@@ -289,13 +309,23 @@ router.get('/:id/stats', requireAuth, requireRole('HOSPITAL_ADMIN', 'DOCTOR', 'A
   try {
     const hospitalId = req.params.id;
 
-    // Verify hospital exists
-    const hospital = await get('SELECT id, name, code, location, city, state FROM hospitals WHERE id = ?', [hospitalId]);
+    // Verify hospital exists with complete metadata
+    const hospital = await get(
+      'SELECT id, name, code, location, district, city, state, pincode, latitude, longitude, facility_type, hfr_id, phone, email, status FROM hospitals WHERE id = ?',
+      [hospitalId]
+    );
     if (!hospital) {
       return res.status(404).json({ success: false, error: 'Hospital Not Found' });
     }
 
-    // Role check: Ensure hospital match for authenticated staff
+    // Role check: Ensure hospital match for authenticated staff (Fail closed if hospital_id missing or mismatched)
+    if (req.user.role === 'HOSPITAL_ADMIN' && (!req.user.hospital_id || req.user.hospital_id !== hospitalId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view statistics for another hospital.'
+      });
+    }
     if (req.user.hospital_id && req.user.hospital_id !== hospitalId) {
       return res.status(403).json({
         success: false,

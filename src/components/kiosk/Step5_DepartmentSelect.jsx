@@ -24,7 +24,9 @@ export const Step5_DepartmentSelect = () => {
   const [loading, setLoading] = useState(false);
 
   const selectedHospId = kioskForm.selectedHospitalId || 'hosp-ggh-hyd';
-  const hospital = hospitals.find(h => h.id === selectedHospId) || hospitals[0];
+  const hospital = hospitals.find(h => h.id === selectedHospId) || (
+    kioskForm.selectedHospitalName ? { id: selectedHospId, name: kioskForm.selectedHospitalName } : null
+  );
 
   useEffect(() => {
     const fetchDepartments = async () => {

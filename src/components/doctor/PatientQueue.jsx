@@ -13,11 +13,13 @@ import {
   ShieldCheck,
   XCircle,
   Stethoscope,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { isPatientInHospital } from '../../utils/hospitalResolver';
+import { DeletePatientModal } from './DeletePatientModal';
 
 export { isPatientInHospital };
 
@@ -30,12 +32,14 @@ export const PatientQueue = () => {
     activeHospitalId,
     queueLoading,
     queueError,
-    refreshQueue
+    refreshQueue,
+    deletePatient
   } = usePatient();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('ALL');
   const [activeFilterTab, setActiveFilterTab] = useState('ALL'); // 'ALL' | 'WAITING' | 'RED_FLAG' | 'ASSIGNED_TO_ME' | 'VERIFIED'
+  const [patientToDelete, setPatientToDelete] = useState(null);
 
   const currentHospId = authenticatedUser?.hospitalId || activeHospitalId || null;
 
@@ -212,28 +216,45 @@ export const PatientQueue = () => {
                     </span>
                   </div>
 
-                  {/* Status Indicator */}
-                  {isVerified ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
-                      <ShieldCheck size={12} />
-                      <span>History Verified ✓</span>
-                    </span>
-                  ) : isCompleted ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
-                      <CheckCircle2 size={12} />
-                      <span>Completed</span>
-                    </span>
-                  ) : isRejected ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-800 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">
-                      <XCircle size={12} />
-                      <span>Rejected</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      <Clock size={11} />
-                      <span>Waiting for Review</span>
-                    </span>
-                  )}
+                  {/* Status Indicator & Delete Action */}
+                  <div className="flex items-center gap-1.5">
+                    {isVerified ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                        <ShieldCheck size={12} />
+                        <span>History Verified ✓</span>
+                      </span>
+                    ) : isCompleted ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
+                        <CheckCircle2 size={12} />
+                        <span>Completed</span>
+                      </span>
+                    ) : isRejected ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-red-800 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">
+                        <XCircle size={12} />
+                        <span>Rejected</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        <Clock size={11} />
+                        <span>Waiting for Review</span>
+                      </span>
+                    )}
+
+                    {/* Delete Option for Doctor */}
+                    <button
+                      type="button"
+                      id={`delete-patient-btn-${p.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPatientToDelete(p);
+                      }}
+                      title={`Remove ${p.name} from queue`}
+                      aria-label={`Remove patient ${p.name} from queue`}
+                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Patient Name, Age, Gender & Department */}
@@ -279,6 +300,16 @@ export const PatientQueue = () => {
           })
         )}
       </div>
+
+      {/* Confirmation Modal to Delete Patient */}
+      {patientToDelete && (
+        <DeletePatientModal
+          patient={patientToDelete}
+          isOpen={Boolean(patientToDelete)}
+          onClose={() => setPatientToDelete(null)}
+          onConfirm={deletePatient}
+        />
+      )}
     </div>
   );
 };

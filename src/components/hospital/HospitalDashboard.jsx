@@ -18,7 +18,9 @@ import {
   ChevronRight,
   AlertTriangle,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { ApiService } from '../../services/api';
@@ -27,17 +29,19 @@ import { TriageBadge } from '../common/TriageBadge';
 export const HospitalDashboard = () => {
   const { 
     hospitals, 
-    activeHospitalId, 
-    setActiveHospitalId, 
     authenticatedUser, 
     patients,
     refreshQueue 
   } = usePatient();
 
+  // Authoritative hospital ID strictly derived from the authenticated administrator profile
+  const authoritativeHospitalId = authenticatedUser?.hospitalId || null;
+
   const [stats, setStats] = useState(null);
+  const [facilityMetadata, setFacilityMetadata] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'queue' | 'doctors' | 'settings'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'queue' | 'doctors'
 
   // Assign Doctor Modal
   const [assignModalPatient, setAssignModalPatient] = useState(null);
@@ -52,38 +56,69 @@ export const HospitalDashboard = () => {
   const [newDeptRoom, setNewDeptRoom] = useState('Room 101');
   const [newDeptDesc, setNewDeptDesc] = useState('');
 
-  // Hospital selection for admin (if user has access to multiple or testing)
-  const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || 'hosp-ggh-hyd';
-  const hospital = hospitals.find(h => h.id === currentHospitalId) || hospitals[0];
+  // Authoritative facility resolution - NEVER use dangerous || hospitals[0] fallback
+  const hospital = facilityMetadata 
+    || hospitals.find(h => h.id === authoritativeHospitalId) 
+    || authenticatedUser?.hospital
+    || (authoritativeHospitalId ? {
+        id: authoritativeHospitalId,
+        name: authenticatedUser?.hospitalName || 'Authorized Healthcare Facility',
+        code: authenticatedUser?.hospitalCode || '',
+        hfr_id: authenticatedUser?.hospitalCode || 'HFR-AUTH',
+        location: 'Official Healthcare Facility',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        phone: authenticatedUser?.phone || '+91 40 2460 0121'
+      } : null);
 
   const fetchStatsAndDoctors = async () => {
+    if (!authoritativeHospitalId) return;
     setLoading(true);
     try {
-      const statsRes = await ApiService.getHospitalStats(currentHospitalId);
+      // 1. Authoritative analytics and facility record from backend
+      const statsRes = await ApiService.getHospitalStats(authoritativeHospitalId);
       if (statsRes?.success) {
         setStats(statsRes.stats);
+        if (statsRes.hospital) {
+          setFacilityMetadata(statsRes.hospital);
+        }
       }
 
-      const docRes = await ApiService.getHospitalDoctors(currentHospitalId);
+      // 2. Fetch full hospital details if not complete
+      if (!statsRes?.hospital?.phone || !statsRes?.hospital?.location) {
+        try {
+          const hospRes = await ApiService.getHospitalById(authoritativeHospitalId);
+          if (hospRes?.success && hospRes.hospital) {
+            setFacilityMetadata(prev => ({ ...(prev || {}), ...hospRes.hospital }));
+          }
+        } catch (e) {
+          console.warn('[MediMitra] Facility lookup notice:', e.message);
+        }
+      }
+
+      // 3. Authorized doctors roster strictly for this hospital
+      const docRes = await ApiService.getHospitalDoctors(authoritativeHospitalId);
       if (docRes?.success && Array.isArray(docRes.doctors)) {
         setAvailableDoctors(docRes.doctors);
       }
     } catch (err) {
-      console.warn('Could not fetch hospital stats from backend:', err.message);
+      console.warn('[MediMitra] Could not fetch authoritative hospital stats:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStatsAndDoctors();
-  }, [currentHospitalId]);
+    if (authoritativeHospitalId) {
+      fetchStatsAndDoctors();
+    }
+  }, [authoritativeHospitalId]);
 
-  // Filter hospital patients strictly fail-closed
+  // Filter hospital patients strictly fail-closed by authoritativeHospitalId
   const hospitalPatients = patients.filter(p => {
-    if (!p || !currentHospitalId) return false;
+    if (!p || !authoritativeHospitalId) return false;
     const pId = p.hospitalId || p.hospital_id || p.hospital?.id;
-    const matchesHosp = typeof pId === 'string' && pId.trim() === currentHospitalId.trim();
+    const matchesHosp = typeof pId === 'string' && pId.trim() === authoritativeHospitalId.trim();
     const matchesDept = selectedDeptFilter === 'all' || p.departmentId === selectedDeptFilter || p.department === selectedDeptFilter;
     return matchesHosp && matchesDept;
   });
@@ -94,16 +129,16 @@ export const HospitalDashboard = () => {
   const completedPatients = hospitalPatients.filter(p => p.status === 'Completed');
 
   const handleAssignDoctor = async () => {
-    if (!assignModalPatient || !selectedDoctorId) return;
+    if (!assignModalPatient || !selectedDoctorId || !authoritativeHospitalId) return;
     setAssignLoading(true);
     try {
-      await ApiService.assignDoctorToCase(currentHospitalId, assignModalPatient.id, selectedDoctorId);
+      await ApiService.assignDoctorToCase(authoritativeHospitalId, assignModalPatient.id, selectedDoctorId);
       setAssignModalPatient(null);
       setSelectedDoctorId('');
       refreshQueue();
       fetchStatsAndDoctors();
     } catch (err) {
-      console.warn(`Assignment notice: ${err.message}`);
+      console.warn(`[MediMitra] Assignment notice: ${err.message}`);
     } finally {
       setAssignLoading(false);
     }
@@ -111,9 +146,9 @@ export const HospitalDashboard = () => {
 
   const handleCreateDepartment = async (e) => {
     e.preventDefault();
-    if (!newDeptName || !newDeptCode) return;
+    if (!newDeptName || !newDeptCode || !authoritativeHospitalId) return;
     try {
-      await ApiService.createDepartment(currentHospitalId, {
+      await ApiService.createDepartment(authoritativeHospitalId, {
         name: newDeptName,
         code: newDeptCode,
         roomNumber: newDeptRoom,
@@ -125,9 +160,32 @@ export const HospitalDashboard = () => {
       setNewDeptDesc('');
       fetchStatsAndDoctors();
     } catch (err) {
-      console.warn(`Error creating department: ${err.message}`);
+      console.warn(`[MediMitra] Error creating department: ${err.message}`);
     }
   };
+
+  // Fail-closed authentication guard: Non-admin or unauthenticated staff blocked from facility administration
+  if (!authenticatedUser || authenticatedUser.role !== 'HOSPITAL_ADMIN' || !authoritativeHospitalId) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-3xl p-8 shadow-sm">
+          <ShieldAlert size={48} className="mx-auto text-red-600 mb-4" />
+          <h2 className="text-xl font-extrabold text-red-900 mb-2">Hospital Administrator Authentication Required</h2>
+          <p className="text-sm text-red-700 max-w-md mx-auto mb-6">
+            You must be authenticated as an authorized Hospital Administrator to access facility analytics, staff rosters, and patient administration queues.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.hash = '#/doctor/login'}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm inline-flex items-center gap-2"
+          >
+            <Lock size={15} />
+            <span>Go to Staff Login</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -140,44 +198,45 @@ export const HospitalDashboard = () => {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-extrabold font-heading text-white">
-                {hospital?.name}
+                {hospital?.name || authenticatedUser?.hospitalName || 'Authorized Healthcare Facility'}
               </h1>
               <span className="bg-cyan-900/80 text-cyan-300 border border-cyan-700 text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full">
-                HFR ID: {hospital?.hfr_id || hospital?.code}
+                HFR ID: {hospital?.hfr_id || hospital?.code || authenticatedUser?.hospitalCode || 'HFR-AUTH'}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
               <MapPin size={13} className="text-cyan-400" />
-              <span>{hospital?.location}, {hospital?.city}, {hospital?.state}</span>
+              <span>{hospital?.location || 'Campus'}, {hospital?.city || 'Hyderabad'}, {hospital?.state || 'Telangana'}</span>
               <span>•</span>
               <Phone size={13} className="text-cyan-400" />
-              <span>{hospital?.phone}</span>
+              <span>{hospital?.phone || authenticatedUser?.phone || '+91 40 2460 0121'}</span>
             </p>
           </div>
         </div>
 
-        {/* Hospital Switcher for Admin Testing */}
+        {/* Authoritative Single-Tenant Identity Badge (Arbitrary cross-hospital switching disabled) */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
-            <span className="text-xs text-slate-400 px-2 font-bold">Facility:</span>
-            <select
-              value={currentHospitalId}
-              onChange={(e) => setActiveHospitalId(e.target.value)}
-              className="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer"
-            >
-              {hospitals.map(h => (
-                <option key={h.id} value={h.id}>{h.name} ({h.city})</option>
-              ))}
-            </select>
+          <div className="flex items-center bg-slate-800/90 px-3.5 py-2 rounded-2xl border border-slate-700 shadow-inner">
+            <ShieldCheck size={18} className="text-emerald-400 mr-2 flex-shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-extrabold">Authoritative Facility</span>
+              <span className="text-xs text-white font-extrabold truncate max-w-[200px] sm:max-w-xs" title={hospital?.name}>
+                {hospital?.name || authenticatedUser?.hospitalName || 'Verified Facility'}
+              </span>
+            </div>
+            <span className="ml-2.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap">
+              Single Tenant
+            </span>
           </div>
 
           <button
             type="button"
             onClick={() => { refreshQueue(); fetchStatsAndDoctors(); }}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors"
-            title="Refresh statistics"
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            title="Refresh statistics & clinical queue"
           >
-            <RotateCcw size={16} />
+            <RotateCcw size={15} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { run } from '../db/database.js';
 export const recordAuditLog = async ({
   userId = 'ANONYMOUS',
   userRole = 'KIOSK_GUEST',
+  hospitalId = null,
   action,
   resourceType,
   resourceId = null,
@@ -16,12 +17,13 @@ export const recordAuditLog = async ({
   try {
     const id = uuidv4();
     await run(`
-      INSERT INTO audit_logs (id, user_id, user_role, action, resource_type, resource_id, details, ip_address)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO audit_logs (id, user_id, user_role, hospital_id, action, resource_type, resource_id, details, ip_address)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       userId,
       userRole,
+      hospitalId,
       action,
       resourceType,
       resourceId,
@@ -45,6 +47,7 @@ export const auditMiddleware = (actionName, resourceType) => {
         recordAuditLog({
           userId: req.user ? req.user.id : 'KIOSK_SESSION',
           userRole: req.user ? req.user.role : 'PATIENT_KIOSK',
+          hospitalId: req.user ? req.user.hospital_id : (req.body?.hospitalId || null),
           action: actionName,
           resourceType: resourceType,
           resourceId: req.params.id || req.params.patientId || req.body.patientId || null,

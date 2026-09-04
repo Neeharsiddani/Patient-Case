@@ -172,13 +172,16 @@ const AppContent = () => {
   const patientHospitalName = (kioskForm?.selectedHospitalId && (kioskForm?.selectedHospitalName || hospitals.find(h => h.id === kioskForm.selectedHospitalId)?.name)) || null;
 
   // Selected hospital for staff workflow (Doctor / Admin):
-  const staffHospital = hospitals.find(h => h.id === (authenticatedUser?.hospitalId || activeHospitalId));
+  const staffHospitalId = authenticatedUser?.hospitalId || activeHospitalId;
+  const staffHospital = hospitals.find(h => h.id === staffHospitalId) || authenticatedUser?.hospital;
   const staffHospitalName = staffHospital?.name || authenticatedUser?.hospitalName || null;
 
   const headerBadge = currentScreen === 'patient'
     ? 'Patient Intake'
     : currentScreen === 'doctor_login'
     ? 'Hospital Authentication'
+    : currentScreen === 'hospital_admin'
+    ? 'Hospital Administration'
     : 'Hospital Clinical Workstation';
 
   const headerHospitalText = currentScreen === 'patient'

@@ -24,6 +24,9 @@ const __dirname = path.dirname(__filename);
 
 export const app = express();
 
+// Trust Railway and production reverse proxies (enables correct req.ip resolution for rate limiters)
+app.set('trust proxy', 1);
+
 // 1. Security Headers via Helmet
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
@@ -128,6 +131,16 @@ for (const [subpath, router] of routes) {
   app.use(`/api${subpath}`, router);
   app.use(subpath, router);
 }
+
+// Root container health probe endpoint for Railway default healthchecks
+app.get(['/', '/api'], (req, res) => {
+  res.status(200).json({
+    status: 'HEALTHY',
+    service: 'MediMitra Clinical Backend',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 6. 404 Handler for Unmatched API Endpoints
 const handleNotFound = (req, res) => {

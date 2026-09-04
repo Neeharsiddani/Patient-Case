@@ -15,7 +15,8 @@ import {
   Calendar, 
   AlertTriangle, 
   Sparkles,
-  FileCheck2
+  FileCheck2,
+  Trash2
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { PatientQueue } from './PatientQueue';
@@ -24,6 +25,7 @@ import { ClinicalSummary } from './ClinicalSummary';
 import { DocumentTimeline } from './DocumentTimeline';
 import { PrescriptionEditor } from './PrescriptionEditor';
 import { TriageBadge } from '../common/TriageBadge';
+import { DeletePatientModal } from './DeletePatientModal';
 
 const PrintableOpdSlip = React.lazy(() => import('./PrintableOpdSlip').then(m => ({ default: m.PrintableOpdSlip })));
 const FhirBundleModal = React.lazy(() => import('./FhirBundleModal').then(m => ({ default: m.FhirBundleModal })));
@@ -37,15 +39,19 @@ export const DoctorDashboard = () => {
     speakText,
     authenticatedUser,
     activeHospitalId,
-    hospitals
+    hospitals,
+    deletePatient
   } = usePatient();
 
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'timeline' | 'rx'
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showFhirModal, setShowFhirModal] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState(null);
 
   const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
-  const currentHospital = hospitals.find(h => h.id === currentHospitalId) || (currentHospitalId ? { id: currentHospitalId, name: 'Assigned Healthcare Facility' } : hospitals[0]);
+  const currentHospital = hospitals.find(h => h.id === currentHospitalId) || (
+    currentHospitalId ? { id: currentHospitalId, name: authenticatedUser?.hospitalName || 'Assigned Healthcare Facility' } : null
+  );
   const doctorName = authenticatedUser?.fullName || 'Attending Clinician';
   const doctorDept = authenticatedUser?.department || 'Outpatient Department';
 
@@ -220,6 +226,17 @@ export const DoctorDashboard = () => {
                       <Printer size={15} />
                       <span>Print Slip</span>
                     </button>
+
+                    <button
+                      type="button"
+                      id="doctor-dashboard-delete-patient-btn"
+                      onClick={() => setPatientToDelete(selectedPatient)}
+                      className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                      title="Remove patient from queue"
+                    >
+                      <Trash2 size={15} />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -314,6 +331,16 @@ export const DoctorDashboard = () => {
             onClose={() => setShowFhirModal(false)}
           />
         </React.Suspense>
+      )}
+
+      {/* Confirmation Modal to Delete Patient */}
+      {patientToDelete && (
+        <DeletePatientModal
+          patient={patientToDelete}
+          isOpen={Boolean(patientToDelete)}
+          onClose={() => setPatientToDelete(null)}
+          onConfirm={deletePatient}
+        />
       )}
     </div>
   );

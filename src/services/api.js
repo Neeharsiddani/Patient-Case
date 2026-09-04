@@ -56,6 +56,10 @@ export class ApiService {
     localStorage.removeItem('medimitra_auth_user');
   }
 
+  static clearAuthToken() {
+    this.logout();
+  }
+
   static async request(endpoint, options = {}) {
     const baseUrl = getApiBaseUrl();
     if (baseUrl === null) {
@@ -249,6 +253,12 @@ export class ApiService {
     return await this.request('/patients/intake', {
       method: 'POST',
       body: JSON.stringify(intakeData)
+    });
+  }
+
+  static async deletePatient(id) {
+    return await this.request(`/patients/${id}`, {
+      method: 'DELETE'
     });
   }
 

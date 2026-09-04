@@ -102,10 +102,6 @@ export const PatientProvider = ({ children }) => {
   const [language, setLanguage] = useState('en'); // 'en', 'hi', 'te', 'ta', 'mr', 'bn'
   const [serverOnline, setServerOnline] = useState(false);
   
-  // Hospital Facility Management
-  const [hospitals, setHospitals] = useState(fallbackHospitals);
-  const [activeHospitalId, setActiveHospitalId] = useState(null);
-  
   // Authenticated Staff User Profile (Doctor or Hospital Admin)
   const [authenticatedUser, setAuthenticatedUser] = useState(() => {
     const saved = localStorage.getItem(AUTH_USER_KEY);
@@ -118,6 +114,65 @@ export const PatientProvider = ({ children }) => {
     }
     return null;
   });
+
+  // Hospital Facility Management - authoritative identity from authenticated user
+  const [hospitals, setHospitals] = useState(fallbackHospitals);
+  const [activeHospitalId, setActiveHospitalId] = useState(() => {
+    const saved = localStorage.getItem(AUTH_USER_KEY);
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        return u.hospitalId || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Keep activeHospitalId synchronized with authenticatedUser
+  useEffect(() => {
+    if (authenticatedUser?.hospitalId) {
+      setActiveHospitalId(authenticatedUser.hospitalId);
+    }
+  }, [authenticatedUser?.hospitalId]);
+
+  // Synchronize authenticated identity from backend on startup
+  useEffect(() => {
+    const syncAuth = async () => {
+      const token = ApiService.getAuthToken();
+      if (!token) {
+        setAuthenticatedUser(null);
+        setActiveHospitalId(null);
+        return;
+      }
+      try {
+        const meRes = await ApiService.getMe();
+        if (meRes?.success && meRes.user) {
+          setAuthenticatedUser(meRes.user);
+          if (meRes.user.hospitalId) {
+            setActiveHospitalId(meRes.user.hospitalId);
+          }
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(meRes.user));
+        } else {
+          ApiService.logout();
+          setAuthenticatedUser(null);
+          setActiveHospitalId(null);
+        }
+      } catch {
+        const saved = localStorage.getItem(AUTH_USER_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed?.hospitalId) {
+              setActiveHospitalId(parsed.hospitalId);
+            }
+          } catch {}
+        }
+      }
+    };
+    syncAuth();
+  }, []);
 
   // In-Memory Patients Queue (Live synced with authorized hospital API)
   const [patients, setPatients] = useState([]);
@@ -243,9 +298,34 @@ export const PatientProvider = ({ children }) => {
         
         // Fetch active hospitals from centralized directory
         const hospRes = await ApiService.getHospitals({ limit: 100 });
+        let loadedHospitals = [];
         if (hospRes?.success && Array.isArray(hospRes.hospitals) && hospRes.hospitals.length > 0) {
-          setHospitals(hospRes.hospitals);
+          loadedHospitals = [...hospRes.hospitals];
+        } else {
+          loadedHospitals = [...fallbackHospitals];
         }
+
+        // Always ensure fallbackHospitals (core facilities like GGH, Apollo, Yashoda, AIIMS) are present
+        for (const fb of fallbackHospitals) {
+          if (!loadedHospitals.some(h => h.id === fb.id)) {
+            loadedHospitals.push(fb);
+          }
+        }
+
+        // If authenticated user belongs to a hospital not in the loaded list, fetch it directly by ID
+        const userHospId = authenticatedUser?.hospitalId;
+        if (userHospId && !loadedHospitals.some(h => h.id === userHospId)) {
+          try {
+            const singleHospRes = await ApiService.getHospitalById(userHospId);
+            if (singleHospRes?.success && singleHospRes.hospital) {
+              loadedHospitals.unshift(singleHospRes.hospital);
+            }
+          } catch (e) {
+            console.warn('[MediMitra] Could not pre-fetch authenticated facility by ID:', e.message);
+          }
+        }
+
+        setHospitals(loadedHospitals);
 
         // Fetch patients based on role & auth (only when authenticated)
         if (ApiService.getAuthToken()) {
@@ -283,7 +363,7 @@ export const PatientProvider = ({ children }) => {
     } finally {
       setQueueLoading(false);
     }
-  }, [selectedPatientId]);
+  }, [selectedPatientId, authenticatedUser?.hospitalId]);
 
   useEffect(() => {
     fetchQueueAndHospitals();
@@ -809,6 +889,30 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
+  // Delete/dismiss patient from queue (Authoritative Backend Deletion & State Cleanup)
+  const deletePatient = async (patientId) => {
+    if (!patientId) {
+      throw new Error('Patient ID is required for deletion.');
+    }
+
+    const response = await ApiService.deletePatient(patientId);
+
+    // Remove from local patients state
+    setPatients((prev) => prev.filter((p) => p.id !== patientId));
+
+    // Deselect if active
+    setSelectedPatientId((prev) => (prev === patientId ? null : prev));
+
+    // Trigger queue refresh to re-sync with backend
+    try {
+      await fetchQueueAndHospitals();
+    } catch (err) {
+      console.warn('Queue sync after patient deletion:', err.message);
+    }
+
+    return response;
+  };
+
   const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
 
   // Strict Fail-Closed Hospital Scoping for Doctor / Staff Context
@@ -866,6 +970,7 @@ export const PatientProvider = ({ children }) => {
         confirmPatientSummary,
         rejectPatientSummary,
         updateDoctorNotes,
+        deletePatient,
         speakText,
         refreshQueue: fetchQueueAndHospitals
       }}

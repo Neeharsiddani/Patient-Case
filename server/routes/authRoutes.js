@@ -14,7 +14,10 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const buildUserProfile = async (user) => {
   let hospital = null;
   if (user.hospital_id) {
-    hospital = await get('SELECT id, name, code, location, city, state FROM hospitals WHERE id = ?', [user.hospital_id]);
+    hospital = await get(
+      'SELECT id, name, code, location, district, city, state, pincode, facility_type, hfr_id, phone, email, status FROM hospitals WHERE id = ?',
+      [user.hospital_id]
+    );
   }
 
   let authorizedDepartments = [];
@@ -43,6 +46,7 @@ const buildUserProfile = async (user) => {
     hospitalId: user.hospital_id,
     hospitalName: hospital?.name || 'Healthcare Facility',
     hospitalCode: hospital?.code || '',
+    hospital: hospital || null,
     department: user.department,
     licenseNumber: user.license_number,
     authorizedDepartments
