@@ -1,19 +1,208 @@
 /**
  * MediMitra Client-Side Clinical NLP & Entity Extraction Engine
  * 
- * Extracts structured medical data (dates, medicines, lab values, reference ranges, diagnoses)
- * directly from raw OCR text output.
+ * Strict Clinical Safety Rules:
+ * 1. NEVER invent or fabricate missing dates, diagnoses, medicines, dosages, or reference ranges.
+ * 2. If an entity is not present in the raw OCR text, return null / empty list.
+ * 3. Abnormal lab values are ONLY flagged when a valid reference range is present in the document text itself.
+ * 4. Preserves 100% of the raw OCR text alongside extracted entities.
+ * 5. Supported Classifications:
+ *    - Prescription
+ *    - Consultation Note
+ *    - Lab Report
+ *    - Diagnostic Report
+ *    - Pharmacy / Medication Receipt
+ *    - Discharge Summary
+ *    - Imaging Report
+ *    - Referral
+ *    - Other Medical Document
+ *    - Unknown / Unclassified
  */
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_MAP = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11
+};
+
+/**
+ * Robust clinical date parser and formatter
+ * Formats valid dates as "DD MMM YYYY" (e.g., "08 Jun 2026")
+ * Eliminates malformed truncated labels like "08-J" or "29-M".
+ */
+export const parseAndFormatClinicalDate = (dateInput) => {
+  if (!dateInput || typeof dateInput !== 'string') {
+    return {
+      docDate: null,
+      docYear: null,
+      formattedDate: 'Date not detected',
+      year: 'Undated',
+      timestamp: 0
+    };
+  }
+
+  const clean = dateInput.trim();
+  let day = null;
+  let month = null; // 0-11
+  let year = null;
+
+  // 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = clean.match(/^(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);
+  if (isoMatch) {
+    year = parseInt(isoMatch[1], 10);
+    month = parseInt(isoMatch[2], 10) - 1;
+    day = parseInt(isoMatch[3], 10);
+  }
+
+  // 2. Named month: 08-Jun-2026 or 08 Jun 2026 or 08/Jun/2026
+  if (!day) {
+    const namedMatch1 = clean.match(/\b(\d{1,2})[\s\-\/\.]([A-Za-z]{3,9})[\s\-\/\.](\d{2,4})\b/);
+    if (namedMatch1) {
+      day = parseInt(namedMatch1[1], 10);
+      const mStr = namedMatch1[2].toLowerCase();
+      if (MONTH_MAP[mStr] !== undefined) {
+        month = MONTH_MAP[mStr];
+        let y = parseInt(namedMatch1[3], 10);
+        if (y < 100) y = y < 50 ? 2000 + y : 1900 + y;
+        year = y;
+      }
+    }
+  }
+
+  // 3. Named month prefix: Jun 08, 2026 or June 8 2026
+  if (!day) {
+    const namedMatch2 = clean.match(/\b([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{2,4})\b/);
+    if (namedMatch2) {
+      const mStr = namedMatch2[1].toLowerCase();
+      if (MONTH_MAP[mStr] !== undefined) {
+        month = MONTH_MAP[mStr];
+        day = parseInt(namedMatch2[2], 10);
+        let y = parseInt(namedMatch2[3], 10);
+        if (y < 100) y = y < 50 ? 2000 + y : 1900 + y;
+        year = y;
+      }
+    }
+  }
+
+  // 4. Numeric DD/MM/YYYY or DD-MM-YYYY
+  if (!day) {
+    const numMatch = clean.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b/);
+    if (numMatch) {
+      day = parseInt(numMatch[1], 10);
+      month = parseInt(numMatch[2], 10) - 1;
+      let y = parseInt(numMatch[3], 10);
+      if (y < 100) y = y < 50 ? 2000 + y : 1900 + y;
+      year = y;
+
+      // Handle MM/DD/YYYY if month > 11 and day <= 12
+      if (month > 11 && day <= 12) {
+        const temp = day;
+        day = month + 1;
+        month = temp - 1;
+      }
+    }
+  }
+
+  if (day && month !== null && month >= 0 && month <= 11 && year && year >= 1900 && year <= 2100) {
+    const paddedDay = String(day).padStart(2, '0');
+    const monthName = MONTH_NAMES[month];
+    const formattedDate = `${paddedDay} ${monthName} ${year}`;
+    const timestamp = new Date(year, month, day).getTime();
+    return {
+      docDate: formattedDate,
+      docYear: String(year),
+      formattedDate,
+      year: String(year),
+      timestamp: isNaN(timestamp) ? 0 : timestamp
+    };
+  }
+
+  // Fallback: search for 4-digit year in string
+  const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
+  const fallbackYear = yearMatch ? yearMatch[1] : null;
+  return {
+    docDate: clean,
+    docYear: fallbackYear,
+    formattedDate: clean,
+    year: fallbackYear || 'Undated',
+    timestamp: fallbackYear ? new Date(parseInt(fallbackYear, 10), 0, 1).getTime() : 0
+  };
+};
+
+/**
+ * Normalizes healthcare facility names across OCR variations
+ * e.g. "SUVIDHA HOSPITALS", "(Inside Suvidha Hospitals)", "Suvidha Hospitals" -> "Suvidha Hospitals"
+ */
+export const normalizeFacilityName = (rawFacility) => {
+  if (!rawFacility || typeof rawFacility !== 'string') return null;
+  let clean = rawFacility.trim();
+  clean = clean.replace(/^[\(\[\{]+|[\)\]\}]+$/g, '').trim();
+  clean = clean.replace(/^(?:inside|at|near|opp(?:\.|\s+)|opposite|beside)\s+/i, '').trim();
+  clean = clean.replace(/^[#*•\-\s:]+|[#*•\-\s:,;]+$/g, '').trim();
+  if (clean.length < 4 || clean.length > 100) return null;
+
+  const words = clean.split(/\s+/);
+  const normalizedWords = words.map(word => {
+    if (/^[A-Z]{2,5}$/.test(word)) return word;
+    if (/^[A-Za-z0-9\-\.]+$/.test(word)) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+    return word;
+  });
+
+  return normalizedWords.join(' ') || null;
+};
+
+/**
+ * Normalizes doctor names from OCR text
+ * e.g. "Dr. Priya Nair, MD", "Consultant: Dr Priya Nair" -> "Dr. Priya Nair, MD"
+ */
+export const normalizeDoctorName = (rawDoctor) => {
+  if (!rawDoctor || typeof rawDoctor !== 'string') return null;
+  let clean = rawDoctor.trim();
+  clean = clean.replace(/^[\(\[\{]+|[\)\]\}]+$/g, '').trim();
+  clean = clean.replace(/^(?:physician|doctor|consultant|treating\s+doctor|attending\s+physician)\s*[:\-]\s*/i, '').trim();
+
+  if (!/^dr\.?\s+/i.test(clean)) {
+    clean = `Dr. ${clean}`;
+  } else {
+    clean = clean.replace(/^dr\.?\s*/i, 'Dr. ');
+  }
+  clean = clean.replace(/[#*•\-\s:,;]+$/, '').trim();
+
+  const knownDegrees = new Set(['MD', 'MS', 'MBBS', 'BAMS', 'BHMS', 'DM', 'MCH', 'FRCS', 'DNB', 'MRCP', 'DGO', 'DCH']);
+  clean = clean.split(/(\s+|,\s*)/).map(part => {
+    const upper = part.trim().toUpperCase();
+    if (knownDegrees.has(upper)) return upper;
+    if (/^[A-Z]{2,}$/.test(part) && part !== 'DR.') {
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }
+    return part;
+  }).join('');
+
+  return clean || null;
+};
 
 export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
   if (!rawText || !rawText.trim()) {
     return {
-      docType: 'Document type not detected',
+      docType: 'Unknown / Unclassified',
       category: 'Uncategorized',
       hospitalName: null,
       doctorName: null,
       docDate: null,
       docYear: null,
+      docTimestamp: 0,
       diagnosis: null,
       medicines: [],
       investigations: [],
@@ -29,10 +218,8 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     .map(line => line.trim())
     .filter(line => line.length > 0);
 
-  // 1. Genuinely Extract Document Date
-  let docDate = null;
-  let docYear = null;
-
+  // 1. Genuinely Extract Clinical Document Date
+  let rawDateCandidate = null;
   const datePatterns = [
     /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b/,
     /\b(\d{1,2})[\s\-](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-](\d{2,4})\b/i,
@@ -40,75 +227,64 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     /\b(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})\b/
   ];
 
-  // Pass 1: High priority clinical/report dates (strictly prefer Report/Prescription/Visit/Consultation dates)
-  const clinicalDateLabelRegex = /(?:Report\s*Date|Prescription\s*Date|Visit\s*Date|Consultation\s*Date|Collection\s*Date|Admission\s*Date|Discharge\s*Date|Date\s*of\s*Consultation|Date\s*of\s*Visit)\s*[:\-]\s*([^\n\r;]+)/i;
+  const clinicalDateLabelRegex = /(?:Report\s*Date|Prescription\s*Date|Visit\s*Date|Consultation\s*Date|Collection\s*Date|Admission\s*Date|Discharge\s*Date|Date\s*of\s*Consultation|Date\s*of\s*Visit|Investigation\s*Date)\s*[:\-]\s*([^\n\r;]+)/i;
   for (const line of lines) {
     const labelMatch = line.match(clinicalDateLabelRegex);
     if (labelMatch && labelMatch[1]) {
       for (const pattern of datePatterns) {
         const match = labelMatch[1].match(pattern);
         if (match) {
-          docDate = match[0];
-          const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
-          if (yearMatch) {
-            docYear = yearMatch[1];
-          }
+          rawDateCandidate = match[0];
           break;
         }
       }
     }
-    if (docDate) break;
+    if (rawDateCandidate) break;
   }
 
-  // Pass 2: Generic "Date:" label (excluding Birthdate, Registration, Expiry, MFG)
-  if (!docDate) {
-    const genericDateLabelRegex = /(?<!(?:Birth|Registration|Expiry|MFG|Valid)\s*)\bDate\s*[:\-]\s*([^\n\r;]+)/i;
+  if (!rawDateCandidate) {
+    const genericDateLabelRegex = /(?<!(?:Birth|Registration|Expiry|MFG|Valid|DOB)\s*)\bDate\s*[:\-]\s*([^\n\r;]+)/i;
     for (const line of lines) {
-      if (!/birth|dob|registration|expiry/i.test(line)) {
+      if (!/birth|dob|born|registration|expiry|mfg/i.test(line)) {
         const labelMatch = line.match(genericDateLabelRegex);
         if (labelMatch && labelMatch[1]) {
           for (const pattern of datePatterns) {
             const match = labelMatch[1].match(pattern);
             if (match) {
-              docDate = match[0];
-              const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
-              if (yearMatch) {
-                docYear = yearMatch[1];
-              }
+              rawDateCandidate = match[0];
               break;
             }
           }
         }
       }
-      if (docDate) break;
+      if (rawDateCandidate) break;
     }
   }
 
-  // Pass 3: Fallback to any line containing a valid date pattern (excluding birthdate lines)
-  if (!docDate) {
+  if (!rawDateCandidate) {
     for (const line of lines) {
-      if (!/birth|dob|born/i.test(line)) {
+      if (!/birth|dob|born|registered|registration|valid\s+till|expiry/i.test(line)) {
         for (const pattern of datePatterns) {
           const match = line.match(pattern);
           if (match) {
-            docDate = match[0];
-            const yearMatch = match[0].match(/\b(19\d\d|20\d\d)\b/);
-            if (yearMatch) {
-              docYear = yearMatch[1];
-            }
+            rawDateCandidate = match[0];
             break;
           }
         }
       }
-      if (docDate) break;
+      if (rawDateCandidate) break;
     }
   }
 
-  // 2. Genuinely Extract Hospital / Healthcare Facility Header
-  let hospitalName = null;
+  const dateParsed = parseAndFormatClinicalDate(rawDateCandidate);
+  const docDate = dateParsed.docDate;
+  const docYear = dateParsed.docYear;
+  const docTimestamp = dateParsed.timestamp;
+
+  // 2. Genuinely Extract Facility Name
+  let rawHospitalCandidate = null;
   const facilityRegex = /\b(?:hospital(?:s)?|clinic(?:s)?|polyclinic|dispensary|nursing\s+home|medical\s+cent(?:er|re)|health\s+cent(?:er|re)|healthcare|pathlab(?:s)?|laboratory|laboratories|pathology|diagnostics?|diagnostic\s+cent(?:er|re)|institute|medical\s+college|aiims|super\s*speciality|care\s+hospital(?:s)?|multispeciality|multi-speciality)\b/i;
 
-  // Helper to validate a candidate facility line
   const isValidFacilityLine = (line) => {
     if (!line || typeof line !== 'string') return false;
     const clean = line.replace(/^[#*•\-\s:]+/, '').trim();
@@ -120,74 +296,82 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     return true;
   };
 
-  // Pass 1: Contextual labeled facility patterns anywhere in the document
   const facilityLabelRegex = /(?:Facility(?:\s+Name)?|Hospital(?:\s+Name)?|Clinic(?:\s+Name)?|Medical\s+Cent(?:er|re)|Health\s+Cent(?:er|re)|Healthcare(?:\s+Facility)?|Laboratory|Laboratories|PathLabs?|Pathology(?:\s+Lab)?|Diagnostics(?:\s+Cent(?:er|re))?|Diagnostic\s+Centre|Diagnostic\s+Center|Institute|Institution|Medical\s+College)\s*[:\-]\s*([^\n\r,;]{3,80})/i;
   for (const line of lines) {
     const labelMatch = line.match(facilityLabelRegex);
     if (labelMatch && labelMatch[1] && isValidFacilityLine(labelMatch[1])) {
-      hospitalName = labelMatch[1].replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+      rawHospitalCandidate = labelMatch[1].replace(/[^\w\s\.,\-\(\)]/g, '').trim();
       break;
     }
   }
 
-  // Pass 2: Inspect header lines (lines 0 to 12) ranked by top position
-  if (!hospitalName) {
+  if (!rawHospitalCandidate) {
     const headerLimit = Math.min(lines.length, 12);
     for (let i = 0; i < headerLimit; i++) {
       const line = lines[i];
       if (isValidFacilityLine(line) && facilityRegex.test(line)) {
-        hospitalName = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+        rawHospitalCandidate = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
         break;
       }
     }
   }
 
-  // Pass 3: Search complete document text for prominent facility keywords
-  if (!hospitalName) {
+  if (!rawHospitalCandidate) {
     for (let i = 12; i < lines.length; i++) {
       const line = lines[i];
       if (isValidFacilityLine(line) && facilityRegex.test(line)) {
-        hospitalName = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
+        rawHospitalCandidate = line.replace(/^(?:Facility|Hospital|Clinic|Centre|Center)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
         break;
       }
     }
   }
 
+  const hospitalName = normalizeFacilityName(rawHospitalCandidate);
+
   // 3. Genuinely Extract Doctor Name
-  let doctorName = null;
+  let rawDoctorCandidate = null;
   const docPatterns = [
-    /\bDr\.?\s+([A-Za-z\s\.]+)(?:,\s*(MD|MS|MBBS|BAMS|BHMS|DM|MCh|FRCS))?/i,
+    /\bDr\.?\s+([A-Za-z\s\.]+)(?:,\s*(MD|MS|MBBS|BAMS|BHMS|DM|MCh|FRCS|DNB))?/i,
     /\b(?:Physician|Doctor|Consultant)\s*[:\-]\s*([^\n,]+)/i
   ];
   for (const line of lines) {
     for (const pattern of docPatterns) {
       const match = line.match(pattern);
       if (match) {
-        doctorName = match[0].trim();
+        rawDoctorCandidate = match[0].trim();
         break;
       }
     }
-    if (doctorName) break;
+    if (rawDoctorCandidate) break;
   }
 
-  // 4. Genuinely Extract Diagnosis
+  const doctorName = normalizeDoctorName(rawDoctorCandidate);
+
+  // 4. Genuinely Extract Diagnosis / Clinical Impression
   let diagnosis = null;
   const diagnosisPatterns = [
-    /(?:Diagnosis|Provisional Diagnosis|Impression|Clinical Evaluation|Known case of)\s*[:\-]\s*([^\n\r;]+)/i,
-    /(?:Dx|Imp)\s*[:\-]\s*([^\n\r;]+)/i
+    /(?:Provisional\s+Diagnosis|Final\s+Diagnosis|Diagnosis|Impression|Clinical\s+Evaluation|Known\s+case\s+of)\s*[:\-]\s*([^\n\r;]+)/i,
+    /(?<![A-Za-z0-9])(?:Dx|Imp)\s*[:\-]\s*([^\n\r;]+)/i
   ];
+
   for (const line of lines) {
+    if (/^(?:chief\s+complaint|complaint|c\/o|symptoms?|reason\s+for\s+visit|history\s+of\s+present)/i.test(line)) {
+      continue;
+    }
     for (const pattern of diagnosisPatterns) {
       const match = line.match(pattern);
       if (match && match[1]) {
-        diagnosis = match[1].trim();
-        break;
+        const candidate = match[1].trim().replace(/[#*•;]+$/, '').trim();
+        if (!/^(?:digitized\s+clinical\s+record|clinical\s+record|medical\s+document|record|document|n\/a|nil|none)$/i.test(candidate) && candidate.length >= 3) {
+          diagnosis = candidate;
+          break;
+        }
       }
     }
     if (diagnosis) break;
   }
 
-  // 5. Genuinely Extract Medications
+  // 5. Genuinely Extract Prescription Medications
   const medicines = [];
   const drugFormRegex = /\b(Tab(?:let)?|Cap(?:sule)?|Inj(?:ection)?|Syr(?:up)?|Oint(?:ment)?|Drops|Gel|Susp(?:ension)?|Inhaler)\.?\s+/i;
   const dosagePattern = /\b(\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|IU|units|%))\b/i;
@@ -195,23 +379,17 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
   const durationPattern = /\b(\d+\s*(?:days|weeks|months|d|w|m))\b/i;
   const instructionPattern = /\b(after\s+meals|before\s+meals|with\s+meals|empty\s+stomach|at\s+bedtime|before\s+breakfast|after\s+food)\b/i;
 
-  // Validation function to reject garbled OCR fragments like "Cap 0 it sa"
   const isValidDrugName = (name) => {
     if (!name || typeof name !== 'string') return false;
     const clean = name.replace(/^(?:Tab(?:let)?|Cap(?:sule)?|Inj(?:ection)?|Syr(?:up)?|Oint(?:ment)?|Drops|Gel|Susp(?:ension)?|Inhaler)\.?\s*/i, '').trim();
     if (clean.length < 3) return false;
-    // Must start with an alphabetical letter (not digits or symbols)
     if (!/^[A-Za-z]/.test(clean)) return false;
-    // Split into words
     const words = clean.split(/[\s\+\-\/]+/).filter(Boolean);
     if (words.length === 0) return false;
-    // Must have at least one substantial word (>= 3 letters)
     const hasSubstantialWord = words.some(w => /^[A-Za-z]{3,}$/.test(w));
     if (!hasSubstantialWord) return false;
-    // Check if candidate consists mostly of 1-2 character tokens or isolated digits
     const shortWords = words.filter(w => w.length <= 2 || /\d/.test(w));
     if (shortWords.length >= 2 && shortWords.length >= words.length * 0.6) return false;
-    // Disallow common non-drug headers
     if (/^(?:date|name|age|sex|gender|history|diagnosis|vitals|investigation|test|rx|advice|review|follow|patient|doctor)/i.test(clean)) return false;
     return true;
   };
@@ -222,7 +400,6 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
       const form = formMatch[1].replace(/\.$/, '');
       const afterForm = line.slice(formMatch.index + formMatch[0].length);
 
-      // Stop candidate name at first occurrence of dosage, frequency, duration, instructions, or trailing punctuation
       const stopPattern = /\b(?:\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|IU|units|%)|1-0-1|1-1-1|1-0-0|0-0-1|0-1-0|OD|BD|TDS|QID|HS|SOS|once\s+daily|twice\s+daily|thrice\s+daily|stat|\d+\s*(?:days|weeks|months|d|w|m)|after\s+meals|before\s+meals|with\s+meals|empty\s+stomach|at\s+bedtime|before\s+breakfast|after\s+food)\b/i;
       const stopIndex = afterForm.search(stopPattern);
       const rawCandidateName = (stopIndex !== -1 ? afterForm.slice(0, stopIndex) : afterForm)
@@ -237,11 +414,11 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
         const instMatch = line.match(instructionPattern);
 
         medicines.push({
-          drugName: fullDrugName,
           name: fullDrugName,
+          drugName: fullDrugName,
           dosage: dosageMatch ? dosageMatch[1] : null,
-          freq: freqMatch ? freqMatch[1] : null,
           frequency: freqMatch ? freqMatch[1] : null,
+          freq: freqMatch ? freqMatch[1] : null,
           duration: durMatch ? durMatch[1] : null,
           instructions: instMatch ? instMatch[1] : null,
           rawLine: line.trim(),
@@ -252,7 +429,7 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     }
   }
 
-  // 6. Genuinely Extract Laboratory Investigations
+  // 6. Genuinely Extract Lab Investigations
   const investigations = [];
   const commonLabTerms = [
     { key: 'FBS', name: 'Fasting Blood Sugar (FBS)', unit: 'mg/dL' },
@@ -314,9 +491,9 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
             value: observedValue,
             observedValue,
             unit: lab.unit,
-            refRange, // null if not in document
-            status: isAbnormal ? 'HIGH' : isAbnormal === false ? 'NORMAL' : 'UNSPECIFIED',
-            isAbnormal: Boolean(isAbnormal),
+            refRange,
+            isAbnormal: isAbnormal === true,
+            status: isAbnormal === true ? 'HIGH' : isAbnormal === false ? 'NORMAL' : 'RECORDED',
             rawLine: line
           });
           break;
@@ -325,30 +502,25 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     }
   }
 
-  // 7. Genuinely Extract Procedures
+  // 7. Genuinely Extract Procedures / Surgeries
   const procedures = [];
   const procedureKeywords = ['procedure', 'laparoscopic', 'appendectomy', 'cholecystectomy', 'excision', 'biopsy', 'angioplasty', 'hernioplasty', 'intubation', 'surgery:'];
   for (const line of lines) {
     const lineLower = line.toLowerCase();
     const isHeaderOrDiag = lineLower.includes('hospital') || lineLower.includes('department of') || lineLower.startsWith('diagnosis:') || lineLower.startsWith('dx:') || lineLower.startsWith('dr.');
     if (!isHeaderOrDiag && procedureKeywords.some(kw => lineLower.includes(kw))) {
-      const cleanName = line.replace(/^(?:Procedure|Surgery)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim();
       procedures.push({
-        name: cleanName,
-        procedureName: cleanName,
+        procedureName: line.replace(/^(?:Procedure|Surgery)\s*[:\-]\s*/i, '').replace(/[^\w\s\.,\-\(\)]/g, '').trim(),
         date: docDate,
         rawLine: line
       });
     }
   }
 
-  // 8. Classify Document Type & Category (Strictly Evidence-Based)
+  // 8. Evidence-Based 10-Class Document Classification
   const textLower = rawText.toLowerCase();
 
-  let docType = 'Document type not detected';
-  let category = 'Uncategorized';
-
-  // 1. Discharge Summary / Inpatient Record
+  // 1. Discharge Summary
   const isDischarge = (
     textLower.includes('discharge summary') ||
     textLower.includes('discharge card') ||
@@ -356,45 +528,45 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     textLower.includes('discharge note') ||
     textLower.includes('post-operative') ||
     textLower.includes('post-op') ||
-    (procedures.length > 0 && (textLower.includes('surgery') || textLower.includes('cholecystectomy') || textLower.includes('appendectomy') || docTypeHint === 'discharge_summary')) ||
-    (docTypeHint === 'discharge_summary') ||
+    (procedures.length > 0 && (textLower.includes('surgery') || textLower.includes('cholecystectomy') || textLower.includes('appendectomy'))) ||
     (textLower.includes('date of admission') && textLower.includes('date of discharge')) ||
-    (textLower.includes('inpatient') && (textLower.includes('course in hospital') || textLower.includes('admission')))
+    (textLower.includes('inpatient') && (textLower.includes('course in hospital') || textLower.includes('admission note')))
   );
 
-  // 2. Laboratory Report
+  // 2. Pharmacy / Medication Receipt
+  const isPharmacyReceipt = (
+    /\b(?:pharmacy|chemist(?:s)?|drug\s+store|medical\s+store|retail\s+invoice|cash\s+memo|bill\s+of\s+supply|tax\s+invoice|medication\s+receipt|pharmacy\s+bill)\b/i.test(textLower) ||
+    ((textLower.includes('total amount') || textLower.includes('net amount')) && (textLower.includes('mrp') || textLower.includes('batch') || textLower.includes('qty')))
+  );
+
+  // 3. Lab Report
   const isLab = (
     textLower.includes('laboratory report') ||
     textLower.includes('lab report') ||
     textLower.includes('pathology report') ||
     textLower.includes('biochemistry report') ||
     textLower.includes('hematology report') ||
-    textLower.includes('test report') ||
     textLower.includes('blood examination') ||
     textLower.includes('urine examination') ||
-    textLower.includes('culture & sensitivity') ||
-    textLower.includes('culture and sensitivity') ||
     textLower.includes('lipid profile') ||
     textLower.includes('complete blood count') ||
     textLower.includes('liver function test') ||
     textLower.includes('kidney function test') ||
     textLower.includes('thyroid profile') ||
-    (docTypeHint === 'lab_report') ||
     (investigations.length > 0 && (
       textLower.includes('reference interval') ||
       textLower.includes('biological reference') ||
       textLower.includes('reference range') ||
       textLower.includes('specimen') ||
       textLower.includes('laboratory') ||
-      textLower.includes('pathology') ||
-      textLower.includes('biochemistry')
+      textLower.includes('pathology')
     ))
   );
 
-  // 3. Diagnostic / Imaging / Scan Report
-  const isImagingDiagnostic = (
-    textLower.includes('radiology') ||
+  // 4. Imaging Report
+  const isImaging = (
     textLower.includes('imaging report') ||
+    textLower.includes('radiology report') ||
     textLower.includes('x-ray') ||
     textLower.includes('ultrasound') ||
     textLower.includes('ultrasonography') ||
@@ -403,27 +575,36 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     textLower.includes('computed tomography') ||
     textLower.includes('mri report') ||
     textLower.includes('magnetic resonance') ||
-    textLower.includes('echocardiogram') ||
-    textLower.includes('2d echo') ||
-    textLower.includes('electrocardiogram') ||
-    textLower.includes('ecg report') ||
-    textLower.includes('eeg report') ||
     textLower.includes('mammography') ||
-    textLower.includes('endoscopy report') ||
-    textLower.includes('colonoscopy report') ||
     textLower.includes('doppler study')
   );
 
-  // 4. Referral
+  // 5. Diagnostic Report
+  const isDiagnostic = (
+    textLower.includes('diagnostic report') ||
+    textLower.includes('electrocardiogram') ||
+    textLower.includes('ecg report') ||
+    textLower.includes('echocardiogram') ||
+    textLower.includes('2d echo') ||
+    textLower.includes('eeg report') ||
+    textLower.includes('endoscopy report') ||
+    textLower.includes('colonoscopy report') ||
+    textLower.includes('tmt report') ||
+    textLower.includes('spirometry') ||
+    textLower.includes('audiometry')
+  );
+
+  // 6. Referral
   const isReferral = (
     textLower.includes('referral letter') ||
     textLower.includes('referral note') ||
+    textLower.includes('referral slip') ||
     textLower.includes('referred to') ||
     textLower.includes('referred by') ||
     textLower.includes('kindly evaluate')
   );
 
-  // 5. Consultation / Clinical Note
+  // 7. Consultation Note
   const isConsultationNote = (
     textLower.includes('consultation note') ||
     textLower.includes('clinical note') ||
@@ -434,10 +615,11 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     textLower.includes('case sheet') ||
     textLower.includes('history & physical') ||
     textLower.includes('history and physical') ||
-    (textLower.includes('chief complaint') && textLower.includes('assessment'))
+    (textLower.includes('chief complaint') && textLower.includes('assessment')) ||
+    (textLower.includes('plan of care') && doctorName)
   );
 
-  // 6. Prescription (Explicit prescription markers required - NOT merely because medicines were found)
+  // 8. Prescription (Explicit Rx markers required - never default)
   const rxSymbolRegex = /(?:℞|\brx\b|\brx\s*:|\br\/x\b)/i;
   const isPrescription = (
     rxSymbolRegex.test(rawText) ||
@@ -445,19 +627,26 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     textLower.includes('prescribed by') ||
     textLower.includes('rx order') ||
     textLower.includes('prescription slip') ||
-    textLower.includes('opd slip') ||
     textLower.includes('treatment sheet') ||
-    textLower.includes('medication order') ||
-    (docTypeHint === 'prescription' && medicines.length > 0)
+    textLower.includes('medication order')
   );
+
+  let docType = 'Unknown / Unclassified';
+  let category = 'Uncategorized';
 
   if (isDischarge) {
     docType = 'Discharge Summary';
     category = 'Discharge / Inpatient';
+  } else if (isPharmacyReceipt) {
+    docType = 'Pharmacy / Medication Receipt';
+    category = 'Pharmacy';
   } else if (isLab) {
-    docType = 'Laboratory Report';
+    docType = 'Lab Report';
     category = 'Investigation';
-  } else if (isImagingDiagnostic) {
+  } else if (isImaging) {
+    docType = 'Imaging Report';
+    category = 'Investigation';
+  } else if (isDiagnostic) {
     docType = 'Diagnostic Report';
     category = 'Investigation';
   } else if (isReferral) {
@@ -469,11 +658,11 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
   } else if (isPrescription) {
     docType = 'Prescription';
     category = 'Prescription';
-  } else if (procedures.length > 0 || investigations.length > 0 || hospitalName || doctorName || diagnosis) {
+  } else if (procedures.length > 0 || investigations.length > 0 || medicines.length > 0 || hospitalName || doctorName || diagnosis) {
     docType = 'Other Medical Document';
     category = 'Medical Record';
   } else {
-    docType = 'Document type not detected';
+    docType = 'Unknown / Unclassified';
     category = 'Uncategorized';
   }
 
@@ -484,6 +673,7 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
     doctorName,
     docDate,
     docYear,
+    docTimestamp,
     diagnosis,
     medicines,
     investigations,

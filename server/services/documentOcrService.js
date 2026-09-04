@@ -37,7 +37,8 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = null) =
   const requiresManualReview = (ocrConfidence != null && ocrConfidence < 75) || !entities.hasStructuredEntities || !entities.docDate || !isHandwritingCapable;
 
   const docDate = entities.docDate || null;
-  const docYear = entities.docYear || (docDate ? docDate.split(/[\/\-\.]/)[2] : null);
+  const docYear = entities.docYear || null;
+  const docTimestamp = entities.docTimestamp || 0;
 
   return {
     docType: entities.docType,
@@ -46,6 +47,7 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = null) =
     doctorName: entities.doctorName || null,
     docDate: docDate,
     docYear: docYear,
+    docTimestamp: docTimestamp,
     diagnosis: entities.diagnosis || null,
     ocrConfidence,
     ocrProvider,
@@ -67,6 +69,7 @@ export const processMedicalDocument = async (fileMetadata, docTypeHint = null) =
     timelineEntry: {
       year: docYear || null,
       date: docDate || 'Date not detected',
+      timestamp: docTimestamp,
       title: `${entities.docType}${entities.hospitalName ? ` - ${entities.hospitalName}` : ''}`,
       category: entities.category,
       badgeColor: entities.category === 'Surgery' ? 'purple' : entities.category === 'Investigation' ? 'cyan' : 'emerald',

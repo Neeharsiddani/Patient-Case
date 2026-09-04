@@ -496,7 +496,7 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         cs.subjective_summary, cs.objective_summary, cs.preliminary_risk_assessment,
         cs.differential_diagnosis, cs.suggested_next_steps, cs.is_ai_draft, cs.clinician_verified,
         cs.verified_at, cs.verified_by_doctor_id,
-        dn.provisional_diagnosis, dn.icd10_codes, dn.prescriptions, dn.investigations, dn.advice, dn.follow_up
+        dn.provisional_diagnosis, dn.icd10_codes, dn.prescriptions, dn.investigations, dn.advice, dn.follow_up, dn.signed_at, dn.doctor_id
       FROM patients p
       LEFT JOIN vitals v ON p.id = v.patient_id
       LEFT JOIN clinical_histories ch ON p.id = ch.patient_id
@@ -509,7 +509,7 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
         HAVING MAX(rowid)
       ) cs ON p.id = cs.patient_id
       LEFT JOIN (
-        SELECT patient_id, provisional_diagnosis, icd10_codes, prescriptions, investigations, advice, follow_up
+        SELECT patient_id, provisional_diagnosis, icd10_codes, prescriptions, investigations, advice, follow_up, signed_at, doctor_id
         FROM doctor_notes
         GROUP BY patient_id
         HAVING MAX(rowid)
@@ -681,13 +681,15 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
           differentialDiagnosisDraft: row.differential_diagnosis ? JSON.parse(row.differential_diagnosis) : [],
           suggestedNextSteps: row.suggested_next_steps ? JSON.parse(row.suggested_next_steps) : []
         } : null,
-        doctorNotes: row.provisional_diagnosis || row.prescriptions || row.advice ? {
-          provisionalDiagnosis: row.provisional_diagnosis || '',
-          icd10: row.icd10_codes ? JSON.parse(row.icd10_codes) : [],
-          prescriptions: row.prescriptions ? JSON.parse(row.prescriptions) : [],
-          investigations: row.investigations ? JSON.parse(row.investigations) : [],
+        doctorNotes: (row.provisional_diagnosis != null || row.icd10_codes != null || row.prescriptions != null || row.investigations != null || row.advice != null || row.follow_up != null) ? {
+          provisionalDiagnosis: (row.provisional_diagnosis && row.provisional_diagnosis !== 'Clinical Assessment Recorded' && row.provisional_diagnosis !== 'Clinical History Verified') ? row.provisional_diagnosis : '',
+          icd10: row.icd10_codes ? (typeof row.icd10_codes === 'string' ? JSON.parse(row.icd10_codes) : row.icd10_codes) : [],
+          prescriptions: row.prescriptions ? (typeof row.prescriptions === 'string' ? JSON.parse(row.prescriptions) : row.prescriptions) : [],
+          investigations: row.investigations ? (typeof row.investigations === 'string' ? JSON.parse(row.investigations) : row.investigations) : [],
           advice: row.advice || '',
-          followUp: row.follow_up || ''
+          followUp: row.follow_up || '',
+          signedAt: row.signed_at || null,
+          doctorId: row.doctor_id || null
         } : {
           provisionalDiagnosis: '',
           icd10: [],
@@ -721,6 +723,9 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
             investigations: ext.investigations || [],
             procedures: ext.procedures || [],
             verificationStatus: d.verification_status,
+            verifiedByDoctorId: d.verified_by_doctor_id,
+            verifiedByDoctorName: d.verified_by_doctor_name,
+            verifiedAt: d.verified_at,
             uploadedAt: d.uploaded_at
           };
         }),
@@ -884,12 +889,14 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
           suggestedNextSteps: JSON.parse(aiSummary.suggested_next_steps || '[]')
         } : null,
         doctorNotes: doctorNotes ? {
-          provisionalDiagnosis: doctorNotes.provisional_diagnosis || '',
-          icd10: doctorNotes.icd10_codes ? JSON.parse(doctorNotes.icd10_codes) : [],
-          prescriptions: doctorNotes.prescriptions ? JSON.parse(doctorNotes.prescriptions) : [],
-          investigations: doctorNotes.investigations ? JSON.parse(doctorNotes.investigations) : [],
+          provisionalDiagnosis: (doctorNotes.provisional_diagnosis && doctorNotes.provisional_diagnosis !== 'Clinical Assessment Recorded' && doctorNotes.provisional_diagnosis !== 'Clinical History Verified') ? doctorNotes.provisional_diagnosis : '',
+          icd10: doctorNotes.icd10_codes ? (typeof doctorNotes.icd10_codes === 'string' ? JSON.parse(doctorNotes.icd10_codes) : doctorNotes.icd10_codes) : [],
+          prescriptions: doctorNotes.prescriptions ? (typeof doctorNotes.prescriptions === 'string' ? JSON.parse(doctorNotes.prescriptions) : doctorNotes.prescriptions) : [],
+          investigations: doctorNotes.investigations ? (typeof doctorNotes.investigations === 'string' ? JSON.parse(doctorNotes.investigations) : doctorNotes.investigations) : [],
           advice: doctorNotes.advice || '',
-          followUp: doctorNotes.follow_up || ''
+          followUp: doctorNotes.follow_up || '',
+          signedAt: doctorNotes.signed_at || null,
+          doctorId: doctorNotes.doctor_id || null
         } : {
           provisionalDiagnosis: '',
           icd10: [],
@@ -923,6 +930,9 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
             investigations: ext.investigations || [],
             procedures: ext.procedures || [],
             verificationStatus: d.verification_status,
+            verifiedByDoctorId: d.verified_by_doctor_id,
+            verifiedByDoctorName: d.verified_by_doctor_name,
+            verifiedAt: d.verified_at,
             uploadedAt: d.uploaded_at
           };
         }),

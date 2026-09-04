@@ -109,7 +109,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 
 /**
  * PATCH /api/documents/:id/verify
- * Doctor verifies and optionally edits extracted OCR entities
+ * Doctor verifies and signs extracted OCR entities
  */
 router.patch('/:id/verify', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
@@ -135,28 +135,57 @@ router.patch('/:id/verify', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN',
       });
     }
 
+    // Idempotent duplicate signing prevention
+    if (doc.verification_status === 'CLINICIAN_VERIFIED' && !editedData && !diagnosis && !docDate) {
+      return res.json({
+        success: true,
+        message: 'Medical document record is already verified and signed by clinician',
+        document: {
+          id,
+          verificationStatus: 'CLINICIAN_VERIFIED',
+          diagnosis: doc.diagnosis,
+          docDate: doc.doc_date,
+          verifiedByDoctorId: doc.verified_by_doctor_id,
+          verifiedByDoctorName: doc.verified_by_doctor_name,
+          verifiedAt: doc.verified_at,
+          extractedData: JSON.parse(doc.extracted_data || '{}')
+        }
+      });
+    }
+
     const currentExtracted = JSON.parse(doc.extracted_data || '{}');
     const updatedExtracted = editedData ? { ...currentExtracted, ...editedData } : currentExtracted;
-    const updatedDiagnosis = diagnosis || doc.diagnosis;
-    const updatedDate = docDate || doc.doc_date;
+    const updatedDiagnosis = diagnosis !== undefined ? diagnosis : doc.diagnosis;
+    const updatedDate = docDate !== undefined ? docDate : doc.doc_date;
+    const doctorId = req.user.id;
+    const doctorName = req.user.full_name || req.user.username || 'Attending Physician';
 
     await run(`
       UPDATE documents
-      SET verification_status = 'VERIFIED_BY_CLINICIAN',
+      SET verification_status = 'CLINICIAN_VERIFIED',
+          verified_by_doctor_id = ?,
+          verified_by_doctor_name = ?,
+          verified_at = CURRENT_TIMESTAMP,
           diagnosis = ?,
           doc_date = ?,
           extracted_data = ?
       WHERE id = ?
-    `, [updatedDiagnosis, updatedDate, JSON.stringify(updatedExtracted), id]);
+    `, [doctorId, doctorName, updatedDiagnosis, updatedDate, JSON.stringify(updatedExtracted), id]);
 
     await recordAuditLog({
-      userId: req.user.id,
+      userId: doctorId,
       userRole: req.user.role,
       hospitalId: req.user.hospital_id,
-      action: 'DOCUMENT_OCR_VERIFIED_BY_CLINICIAN',
+      action: 'DOCUMENT_OCR_VERIFIED_AND_SIGNED',
       resourceType: 'DOCUMENT',
       resourceId: id,
-      details: { documentId: id, diagnosis: updatedDiagnosis },
+      details: {
+        documentId: id,
+        patientId: doc.patient_id,
+        doctorId,
+        doctorName,
+        diagnosis: updatedDiagnosis
+      },
       ipAddress: req.ip || '127.0.0.1'
     });
 
@@ -165,9 +194,12 @@ router.patch('/:id/verify', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN',
       message: 'Medical document record verified and signed by clinician',
       document: {
         id,
-        verificationStatus: 'VERIFIED_BY_CLINICIAN',
+        verificationStatus: 'CLINICIAN_VERIFIED',
         diagnosis: updatedDiagnosis,
         docDate: updatedDate,
+        verifiedByDoctorId: doctorId,
+        verifiedByDoctorName: doctorName,
+        verifiedAt: new Date().toISOString(),
         extractedData: updatedExtracted
       }
     });
@@ -212,11 +244,15 @@ router.get('/patient/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL_A
         hospitalName: d.hospital_name,
         doctorName: d.doctor_name,
         docDate: d.doc_date,
+        docYear: d.doc_year,
         diagnosis: d.diagnosis,
         ocrConfidence: d.ocr_confidence,
         rawOcrText: d.raw_ocr_text,
         extractedData: JSON.parse(d.extracted_data || '{}'),
         verificationStatus: d.verification_status,
+        verifiedByDoctorId: d.verified_by_doctor_id,
+        verifiedByDoctorName: d.verified_by_doctor_name,
+        verifiedAt: d.verified_at,
         uploadedAt: d.uploaded_at
       }))
     });

@@ -1,22 +1,33 @@
-import { extractClinicalEntities } from './clinicalEntityExtractor.js';
+import { 
+  extractClinicalEntities, 
+  parseAndFormatClinicalDate, 
+  normalizeFacilityName, 
+  normalizeDoctorName 
+} from './clinicalEntityExtractor.js';
 import { ApiService } from './api.js';
 
 /**
  * MediMitra Medical Document Digitization & Genuine OCR Service
  * 
  * Pipeline:
- * 1. Uploads real File/Image to backend /documents/upload via ApiService (respecting VITE_API_BASE_URL) for server-side OCR.
- * 2. If client is in offline mode or backend is unreachable, performs in-browser Tesseract.js WASM OCR directly.
+ * 1. Uploads real File/Image to backend /documents/upload via ApiService for server-side OCR.
+ * 2. If client is offline or backend is unreachable, performs in-browser Tesseract.js WASM OCR directly.
  * 3. 0% Fake/Mock template output on real files.
  * 4. Preserves 100% of the raw OCR text.
  * 5. Flags all output as MACHINE-EXTRACTED (UNVERIFIED) pending clinician review.
  */
 
 export const documentTypes = [
-  { id: 'prescription', name: 'Prescription Slip', icon: 'Pill', desc: 'Outpatient prescriptions & Rx orders' },
-  { id: 'lab_report', name: 'Lab Test Report', icon: 'FlaskConical', desc: 'Blood, urine, biochemistry, pathology panels' },
+  { id: 'prescription', name: 'Prescription', icon: 'Pill', desc: 'Outpatient prescriptions & Rx orders' },
+  { id: 'consultation_note', name: 'Consultation Note', icon: 'FileText', desc: 'Clinical consultation & progress notes' },
+  { id: 'lab_report', name: 'Lab Report', icon: 'FlaskConical', desc: 'Blood, urine, biochemistry, pathology panels' },
+  { id: 'diagnostic_report', name: 'Diagnostic Report', icon: 'Activity', desc: 'ECG, EEG, clinical diagnostic impressions' },
+  { id: 'pharmacy_receipt', name: 'Pharmacy / Medication Receipt', icon: 'Receipt', desc: 'Pharmacy dispensing slips & bills' },
   { id: 'discharge_summary', name: 'Discharge Summary', icon: 'FileText', desc: 'Inpatient hospital admission & surgeries' },
-  { id: 'investigation', name: 'Diagnostic / Radiology', icon: 'Activity', desc: 'ECG, X-Ray, Ultrasound, CT/MRI impression' }
+  { id: 'imaging_report', name: 'Imaging Report', icon: 'Scan', desc: 'X-Ray, Ultrasound, CT Scan, MRI' },
+  { id: 'referral', name: 'Referral', icon: 'Share2', desc: 'Clinical referral & transfer letters' },
+  { id: 'other', name: 'Other Medical Document', icon: 'FileText', desc: 'Other structured health documents' },
+  { id: 'unclassified', name: 'Unknown / Unclassified', icon: 'HelpCircle', desc: 'Unclassified document requiring doctor review' }
 ];
 
 /**
@@ -28,7 +39,6 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
   }
 
   const originalName = file.name || 'Medical_Record.jpg';
-  const mimeType = file.type || 'image/jpeg';
   const customId = `doc-${Date.now().toString().slice(-6)}`;
 
   const updateStage = (stageNum, label) => {
@@ -44,7 +54,7 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
   let ocrConfidence = null;
   let ocrProvider = 'LOCAL_TESSERACT_WASM';
 
-  // 1. Attempt Backend Server OCR First (routes through VITE_API_BASE_URL to Railway backend)
+  // 1. Attempt Backend Server OCR First
   try {
     updateStage(2, 'Submitting document to MediMitra OCR & Clinical Entity Engine...');
     const data = await ApiService.uploadDocument(file, 'temp-patient', null);
@@ -56,37 +66,44 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
 
       const d = data.document;
       const rawText = d.rawOcrText || d.extractedData?.rawOcrText || '';
-      const docDate = d.docDate || null;
-      const docYear = d.docYear || (docDate ? docDate.split(/[\/\-\.]/)[2] : null);
+      const parsedDate = parseAndFormatClinicalDate(d.docDate);
+      const docType = d.docType || 'Unknown / Unclassified';
+      const hospital = normalizeFacilityName(d.hospitalName) || 'Healthcare facility not detected';
+      const doctor = normalizeDoctorName(d.doctorName);
+      const diagnosis = d.diagnosis && !/^(?:digitized\s+clinical\s+record|clinical\s+record|medical\s+document)$/i.test(d.diagnosis)
+        ? d.diagnosis
+        : null;
 
       return {
         id: d.id || customId,
         title: d.originalFilename || originalName,
-        type: d.docType || 'Document type not detected',
-        typeName: d.docType || 'Document type not detected',
-        date: docDate,
-        year: docYear,
-        hospital: d.hospitalName || 'Healthcare facility not detected',
-        doctor: d.doctorName || null,
-        diagnosis: d.diagnosis || null,
+        type: docType,
+        typeName: docType,
+        docType,
+        date: parsedDate.formattedDate !== 'Date not detected' ? parsedDate.formattedDate : null,
+        year: parsedDate.year !== 'Undated' ? parsedDate.year : null,
+        timestamp: parsedDate.timestamp,
+        hospital,
+        doctor,
+        diagnosis,
         ocrConfidence: d.ocrConfidence ?? d.ocr_confidence ?? null,
         ocrProvider: d.ocrProvider || 'SERVER_OCR',
         isHandwritingCapable: Boolean(d.isHandwritingCapable),
         handwritingNotice: d.handwritingNotice || (d.ocrProvider === 'TESSERACT_JS' ? 'Handwritten text may require manual verification. Current OCR is optimized for clear printed text.' : null),
-        verificationStatus: d.verificationStatus || 'MACHINE_EXTRACTED_UNVERIFIED',
+        verificationStatus: d.verificationStatus || 'MACHINE_EXTRACTED',
         isMachineExtracted: true,
         investigations: d.extractedData?.investigations || [],
         medicines: d.extractedData?.medicines || [],
         procedures: d.extractedData?.procedures || [],
         rawOcrText: rawText,
         hasReadableText: Boolean(rawText && rawText.trim().length > 0),
-        timelineEvent: d.timelineEntry || {
-          year: docYear || null,
-          date: docDate || 'Date not detected',
-          title: d.originalFilename || originalName,
+        timelineEvent: {
+          year: parsedDate.year !== 'Undated' ? parsedDate.year : null,
+          date: parsedDate.formattedDate,
+          title: `${docType}${hospital !== 'Healthcare facility not detected' ? ` - ${hospital}` : ''}`,
           category: d.category || 'Medical Record',
           badgeColor: 'cyan',
-          summary: d.diagnosis || 'Digitized medical record.'
+          summary: diagnosis ? `Impression: ${diagnosis}` : `${docType} recorded.`
         }
       };
     }
@@ -120,24 +137,29 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
 
   updateStage(6, 'Finalizing structured clinical document record...');
 
-  const docDate = entities.docDate || null;
-  const docYear = entities.docYear || (docDate ? docDate.split(/[\/\-\.]/)[2] : null);
+  const parsedDate = parseAndFormatClinicalDate(entities.docDate);
+  const docType = entities.docType;
+  const hospital = entities.hospitalName || 'Healthcare facility not detected';
+  const doctor = entities.doctorName;
+  const diagnosis = entities.diagnosis;
 
   return {
     id: customId,
     title: originalName,
-    type: entities.docType,
-    typeName: entities.docType,
-    date: docDate,
-    year: docYear,
-    hospital: entities.hospitalName || 'Healthcare facility not detected',
-    doctor: entities.doctorName || null,
-    diagnosis: entities.diagnosis || null,
+    type: docType,
+    typeName: docType,
+    docType,
+    date: parsedDate.formattedDate !== 'Date not detected' ? parsedDate.formattedDate : null,
+    year: parsedDate.year !== 'Undated' ? parsedDate.year : null,
+    timestamp: parsedDate.timestamp,
+    hospital,
+    doctor,
+    diagnosis,
     ocrConfidence,
     ocrProvider,
     isHandwritingCapable,
     handwritingNotice,
-    verificationStatus: 'MACHINE_EXTRACTED_UNVERIFIED',
+    verificationStatus: 'MACHINE_EXTRACTED',
     isMachineExtracted: true,
     investigations: entities.investigations || [],
     medicines: entities.medicines || [],
@@ -145,18 +167,19 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
     rawOcrText,
     hasReadableText: Boolean(rawOcrText && rawOcrText.trim().length > 0),
     timelineEvent: {
-      year: docYear || null,
-      date: docDate || 'Date not detected',
-      title: `${entities.docType}${entities.hospitalName ? ` - ${entities.hospitalName}` : ''}`,
+      year: parsedDate.year !== 'Undated' ? parsedDate.year : null,
+      date: parsedDate.formattedDate,
+      title: `${docType}${hospital !== 'Healthcare facility not detected' ? ` - ${hospital}` : ''}`,
       category: entities.category,
       badgeColor: entities.category === 'Surgery' ? 'purple' : entities.category === 'Investigation' ? 'cyan' : 'emerald',
-      summary: `${entities.rawTextSummary} [Machine-Extracted, Doctor Verification Required]`
+      summary: diagnosis ? `Impression: ${diagnosis}` : `${docType} recorded.`
     }
   };
 };
 
 /**
  * Builds a chronological medical timeline sorted by date/year descending
+ * Uses rock-solid epoch timestamps to avoid NaN sorting errors on hyphenated date strings
  */
 export const generateMedicalTimeline = (documentsList) => {
   if (!documentsList || documentsList.length === 0) {
@@ -164,31 +187,42 @@ export const generateMedicalTimeline = (documentsList) => {
   }
 
   return documentsList
-    .map((doc) => ({
-      docId: doc.id,
-      docTitle: doc.title,
-      docType: doc.typeName || doc.type,
-      hospital: doc.hospital || doc.hospitalName || 'Healthcare facility not detected',
-      date: doc.date || doc.docDate || null,
-      year: doc.year || doc.docYear || (doc.date ? doc.date.split(/[\/\-\.]/)[2] : null),
-      diagnosis: doc.diagnosis,
-      medicinesCount: doc.medicines?.length || doc.extractedData?.medicines?.length || 0,
-      abnormalLabs: (doc.investigations || doc.extractedData?.investigations || []).filter((inv) => inv.isAbnormal),
-      procedures: doc.procedures || doc.extractedData?.procedures || [],
-      verificationStatus: doc.verificationStatus || 'MACHINE_EXTRACTED_UNVERIFIED',
-      rawOcrText: doc.rawOcrText || doc.extractedData?.rawOcrText || '',
-      timelineEvent: doc.timelineEvent || {
-        year: doc.year || null,
-        date: doc.date || 'Date not detected',
-        title: doc.title,
-        category: doc.type,
-        badgeColor: 'cyan',
-        summary: doc.diagnosis || 'Clinical record.'
-      }
-    }))
+    .map((doc) => {
+      const parsedDate = parseAndFormatClinicalDate(doc.date || doc.docDate);
+      const hospital = normalizeFacilityName(doc.hospital || doc.hospitalName) || 'Healthcare facility not detected';
+      const docType = doc.typeName || doc.docType || doc.type || 'Medical Document';
+      const diagnosis = doc.diagnosis && !/^(?:digitized\s+clinical\s+record|clinical\s+record|medical\s+document)$/i.test(doc.diagnosis)
+        ? doc.diagnosis
+        : null;
+
+      return {
+        docId: doc.id,
+        docTitle: doc.title,
+        docType,
+        hospital,
+        date: parsedDate.formattedDate,
+        year: parsedDate.year,
+        timestamp: parsedDate.timestamp,
+        diagnosis,
+        medicinesCount: doc.medicines?.length || doc.extractedData?.medicines?.length || 0,
+        abnormalLabs: (doc.investigations || doc.extractedData?.investigations || []).filter((inv) => inv.isAbnormal),
+        procedures: doc.procedures || doc.extractedData?.procedures || [],
+        verificationStatus: doc.verificationStatus || doc.verification_status || 'MACHINE_EXTRACTED',
+        rawOcrText: doc.rawOcrText || doc.extractedData?.rawOcrText || '',
+        timelineEvent: doc.timelineEvent || {
+          year: parsedDate.year,
+          date: parsedDate.formattedDate,
+          title: `${docType} - ${hospital}`,
+          category: docType,
+          badgeColor: 'cyan',
+          summary: diagnosis ? `Impression: ${diagnosis}` : `${docType} recorded.`
+        }
+      };
+    })
     .sort((a, b) => {
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      return new Date(b.date) - new Date(a.date);
+      const timeA = a.timestamp || 0;
+      const timeB = b.timestamp || 0;
+      if (timeA !== timeB) return timeB - timeA; // Descending: latest first
+      return (b.docId || '').localeCompare(a.docId || '');
     });
 };

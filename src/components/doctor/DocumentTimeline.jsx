@@ -14,11 +14,19 @@ import {
   FlaskConical, 
   Activity, 
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { 
   generateMedicalTimeline 
 } from '../../services/documentDigitizationService';
+import { 
+  parseAndFormatClinicalDate, 
+  normalizeFacilityName, 
+  normalizeDoctorName 
+} from '../../services/clinicalEntityExtractor';
 import { ApiService } from '../../services/api';
 
 /**
@@ -27,18 +35,54 @@ import { ApiService } from '../../services/api';
  */
 const normalizeDoc = (d) => {
   const extracted = d.extractedData || {};
+  const parsedDate = parseAndFormatClinicalDate(d.date || d.docDate);
+  const hospital = normalizeFacilityName(d.hospital || d.hospitalName) || 'Healthcare facility not detected';
+  const doctor = normalizeDoctorName(d.doctor || d.doctorName);
+
+  // Standardize 10 canonical document classifications
+  let docType = d.docType || d.type || 'Unknown / Unclassified';
+  const lowerType = docType.toLowerCase();
+  if (lowerType.includes('prescription')) docType = 'Prescription';
+  else if (lowerType.includes('consultation')) docType = 'Consultation Note';
+  else if (lowerType.includes('lab') || lowerType.includes('pathology') || lowerType.includes('biochemistry')) docType = 'Lab Report';
+  else if (lowerType.includes('pharmacy') || lowerType.includes('receipt') || lowerType.includes('chemist')) docType = 'Pharmacy / Medication Receipt';
+  else if (lowerType.includes('discharge')) docType = 'Discharge Summary';
+  else if (lowerType.includes('imaging') || lowerType.includes('radiology') || lowerType.includes('x-ray') || lowerType.includes('mri') || lowerType.includes('ct scan') || lowerType.includes('ultrasound')) docType = 'Imaging Report';
+  else if (lowerType.includes('diagnostic') || lowerType.includes('ecg') || lowerType.includes('eeg')) docType = 'Diagnostic Report';
+  else if (lowerType.includes('referral')) docType = 'Referral';
+  else if (lowerType.includes('other')) docType = 'Other Medical Document';
+
+  // Strict Truthful Diagnosis: Reject synthetic placeholders
+  let rawDiag = d.diagnosis || extracted.diagnosis || null;
+  if (rawDiag && /^(?:digitized\s+clinical\s+record|clinical\s+record|medical\s+document|record|document|n\/a|nil|none)$/i.test(rawDiag)) {
+    rawDiag = null;
+  }
+
+  // Authoritative verification state
+  const isVerified = Boolean(
+    d.verificationStatus === 'CLINICIAN_VERIFIED' || 
+    d.verification_status === 'CLINICIAN_VERIFIED' || 
+    d.verificationStatus === 'VERIFIED_BY_CLINICIAN' || 
+    d.verification_status === 'VERIFIED_BY_CLINICIAN'
+  );
+
   return {
     id: d.id || `doc-${Math.random().toString(36).slice(2, 8)}`,
     title: d.title || d.originalFilename || 'Medical Record',
-    docType: d.docType || d.type || 'Document type not detected',
-    typeName: d.typeName || (d.docType === 'lab_report' ? 'Laboratory Report' : d.docType === 'prescription' ? 'Prescription' : d.docType === 'discharge_summary' ? 'Discharge Summary' : d.docType || d.type || 'Document type not detected'),
-    date: d.date || d.docDate || null,
-    year: d.year || d.docYear || (d.docDate ? d.docDate.slice(0, 4) : (d.date ? d.date.split(/[\/\-\.]/)[2] : null)),
-    hospital: d.hospital || d.hospitalName || 'Healthcare facility not detected',
-    doctor: d.doctor || d.doctorName || null,
-    diagnosis: d.diagnosis || extracted.diagnosis || 'Digitized clinical record',
+    docType,
+    typeName: docType,
+    date: parsedDate.formattedDate !== 'Date not detected' ? parsedDate.formattedDate : 'Date not detected',
+    year: parsedDate.year,
+    timestamp: parsedDate.timestamp,
+    hospital,
+    doctor: doctor || 'Doctor not detected',
+    diagnosis: rawDiag || 'Diagnosis not detected in OCR',
+    hasDetectedDiagnosis: Boolean(rawDiag),
     ocrConfidence: d.ocrConfidence ?? d.ocr_confidence ?? null,
-    verificationStatus: d.verificationStatus || d.verification_status || 'MACHINE_EXTRACTED_UNVERIFIED',
+    verificationStatus: isVerified ? 'CLINICIAN_VERIFIED' : 'MACHINE_EXTRACTED',
+    verifiedByDoctorId: d.verifiedByDoctorId || d.verified_by_doctor_id || null,
+    verifiedByDoctorName: d.verifiedByDoctorName || d.verified_by_doctor_name || null,
+    verifiedAt: d.verifiedAt || d.verified_at || null,
     investigations: d.investigations || extracted.investigations || [],
     medicines: d.medicines || extracted.medicines || [],
     procedures: d.procedures || extracted.procedures || [],
@@ -47,11 +91,18 @@ const normalizeDoc = (d) => {
   };
 };
 
-export const DocumentTimeline = ({ patient }) => {
+export const DocumentTimeline = ({ patient, onDocumentsCountChange }) => {
   const [documents, setDocuments] = useState(patient?.documents || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const [deletingDocId, setDeletingDocId] = useState(null);
+
+  useEffect(() => {
+    if (typeof onDocumentsCountChange === 'function') {
+      onDocumentsCountChange(documents.length);
+    }
+  }, [documents.length, onDocumentsCountChange]);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,12 +112,9 @@ export const DocumentTimeline = ({ patient }) => {
       return;
     }
 
-    // Initialize with patient.documents if already loaded in context/prop
-    if (Array.isArray(patient.documents)) {
+    if (Array.isArray(patient.documents) && patient.documents.length > 0) {
       setDocuments(patient.documents);
-      if (patient.documents.length > 0) {
-        setExpandedDocId(patient.documents[0].id);
-      }
+      setExpandedDocId(patient.documents[0].id);
     }
 
     // Fetch from backend API to ensure real-time synchronization
@@ -89,12 +137,11 @@ export const DocumentTimeline = ({ patient }) => {
         }
       } catch (err) {
         if (isMounted) {
-          // If we already have patient.documents in memory from context, keep them
           if (Array.isArray(patient.documents) && patient.documents.length > 0) {
             setDocuments(patient.documents);
           } else {
             setDocuments([]);
-            setError('Unable to load medical records. Please try again.');
+            setError('Unable to load medical records. Please verify facility network connection.');
           }
         }
       } finally {
@@ -128,10 +175,33 @@ export const DocumentTimeline = ({ patient }) => {
         await ApiService.verifyDocument(docId, diagnosis, docDate);
       }
       setDocuments((prev) =>
-        prev.map((d) => (d.id === docId ? { ...d, verificationStatus: 'VERIFIED_BY_CLINICIAN' } : d))
+        prev.map((d) => (d.id === docId ? { 
+          ...d, 
+          verificationStatus: 'CLINICIAN_VERIFIED', 
+          verification_status: 'CLINICIAN_VERIFIED' 
+        } : d))
       );
     } catch (err) {
       console.error('Verification failed:', err);
+      alert('Verification could not be saved: ' + (err.message || 'Network error'));
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    if (!docId) return;
+    const confirmDelete = window.confirm('Are you sure you want to delete this medical document from the hospital repository?');
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingDocId(docId);
+      await ApiService.request(`/documents/${docId}`, { method: 'DELETE' });
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      if (expandedDocId === docId) setExpandedDocId(null);
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+      alert(err.message || 'Failed to delete medical document.');
+    } finally {
+      setDeletingDocId(null);
     }
   };
 
@@ -144,7 +214,7 @@ export const DocumentTimeline = ({ patient }) => {
         </div>
         <div className="space-y-1">
           <h3 className="text-sm font-bold text-red-900">
-            Unable to load medical records. Please try again.
+            {error}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
             An error occurred while connecting to the medical records repository or verifying hospital permissions.
@@ -199,7 +269,7 @@ export const DocumentTimeline = ({ patient }) => {
             No past digitized medical records
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-            Documents uploaded during this consultation will appear here.
+            Documents uploaded during this consultation or past visits will appear here.
           </p>
         </div>
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-w-lg mx-auto text-left space-y-1.5">
@@ -208,7 +278,7 @@ export const DocumentTimeline = ({ patient }) => {
             <span>Consultation Record Status:</span>
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            No previous paper prescriptions, lab test reports, or diagnostic scans were attached by this patient during intake. If physical records are available, they can be digitized via the intake kiosk flatbed scanner or mobile document upload.
+            No previous paper prescriptions, lab test reports, or diagnostic scans were attached by this patient during intake. If physical records are available, they can be digitized via the intake station scanner or mobile document upload.
           </p>
         </div>
       </div>
@@ -294,7 +364,7 @@ export const DocumentTimeline = ({ patient }) => {
             </h4>
           </div>
           <span className="text-[11px] text-slate-400">
-            Digitized from physical hospital records
+            Digitized from physical clinical documents
           </span>
         </div>
 
@@ -302,7 +372,7 @@ export const DocumentTimeline = ({ patient }) => {
         <div className="relative pl-6 sm:pl-8 space-y-4 border-l-2 border-cyan-500/30 ml-2">
           {timeline.map((item, idx) => (
             <div key={idx} className="relative">
-              {/* Year Marker Pin */}
+              {/* Pin */}
               <div className="absolute -left-[33px] sm:-left-[41px] top-1 w-7 h-7 rounded-full bg-cyan-700 text-white font-black text-[10px] flex items-center justify-center shadow ring-4 ring-white">
                 {idx + 1}
               </div>
@@ -328,7 +398,7 @@ export const DocumentTimeline = ({ patient }) => {
                 </div>
 
                 <p className="text-xs text-slate-800 font-semibold">
-                  {item.timelineEvent?.summary || item.diagnosis}
+                  {item.hasDetectedDiagnosis ? `Impression: ${item.diagnosis}` : item.diagnosis}
                 </p>
 
                 {/* Badges */}
@@ -348,6 +418,13 @@ export const DocumentTimeline = ({ patient }) => {
                       🩺 Procedure Recorded
                     </span>
                   )}
+                  <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${
+                    item.verificationStatus === 'CLINICIAN_VERIFIED'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-50 text-amber-900 border-amber-300'
+                  }`}>
+                    {item.verificationStatus === 'CLINICIAN_VERIFIED' ? '✓ Clinician Verified' : '⚠️ Machine-Extracted'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -366,6 +443,7 @@ export const DocumentTimeline = ({ patient }) => {
           {rawDocs.map((doc) => {
             const isExpanded = expandedDocId === doc.id;
             const docAbnormalLabs = (doc.investigations || []).filter((inv) => inv.isAbnormal);
+            const isLowOcr = doc.ocrConfidence != null && doc.ocrConfidence < 70;
 
             return (
               <div
@@ -387,6 +465,9 @@ export const DocumentTimeline = ({ patient }) => {
                         <span className="text-[10px] font-bold bg-cyan-100 text-cyan-800 px-2 py-0.2 rounded">
                           {doc.year}
                         </span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          {doc.date}
+                        </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         {doc.hospital} • <span className="text-cyan-700 font-semibold">{doc.typeName || doc.docType}</span>
@@ -395,13 +476,21 @@ export const DocumentTimeline = ({ patient }) => {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {isLowOcr && (
+                      <span className="hidden sm:inline-block bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">
+                        ⚠️ Low Readability
+                      </span>
+                    )}
                     {docAbnormalLabs.length > 0 && (
                       <span className="hidden sm:inline-block bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded border border-red-200">
                         {docAbnormalLabs.length} Abnormal Labs
                       </span>
                     )}
-                    <span className="text-[10px] font-mono text-slate-400">
-                      OCR: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
+                    <span 
+                      title="Optical Character Recognition character clarity score (OCR engine readability, NOT medical diagnostic accuracy)"
+                      className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
+                    >
+                      OCR Readability: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Unavailable'}
                     </span>
                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </div>
@@ -410,10 +499,39 @@ export const DocumentTimeline = ({ patient }) => {
                 {/* Expanded Details Body */}
                 {isExpanded && (
                   <div className="p-5 bg-white border-t border-slate-200 space-y-4 text-xs">
-                    {/* Diagnosis & Facility */}
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Extracted Diagnosis:</span>
-                      <span className="font-extrabold text-slate-900 text-sm">{doc.diagnosis}</span>
+                    {/* Facility & Doctor Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Healthcare Facility:</span>
+                        <span className="font-semibold text-slate-800">{doc.hospital}</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Prescribing / Treating Clinician:</span>
+                        <span className="font-semibold text-slate-800">{doc.doctor}</span>
+                      </div>
+                    </div>
+
+                    {/* Extracted Diagnosis - Strict Truthful State */}
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Extracted Diagnosis:
+                        </span>
+                        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          doc.hasDetectedDiagnosis 
+                            ? (doc.verificationStatus === 'CLINICIAN_VERIFIED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800')
+                            : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {doc.hasDetectedDiagnosis
+                            ? (doc.verificationStatus === 'CLINICIAN_VERIFIED' ? 'Clinician Verified' : 'Machine Extracted')
+                            : 'Not Detected'}
+                        </span>
+                      </div>
+                      <span className={`text-sm block ${
+                        doc.hasDetectedDiagnosis ? 'font-extrabold text-slate-900' : 'font-medium text-slate-500 italic'
+                      }`}>
+                        {doc.diagnosis}
+                      </span>
                     </div>
 
                     {/* Labs Table */}
@@ -436,18 +554,18 @@ export const DocumentTimeline = ({ patient }) => {
                             <tbody className="divide-y divide-slate-100">
                               {doc.investigations.map((inv, iIdx) => (
                                 <tr key={iIdx} className={inv.isAbnormal ? 'bg-red-50/60 font-bold' : ''}>
-                                  <td className="p-2 text-slate-900">{inv.name}</td>
+                                  <td className="p-2 text-slate-900">{inv.name || inv.testName}</td>
                                   <td className="p-2">
                                     <span className={inv.isAbnormal ? 'text-red-700 font-black' : 'text-slate-800'}>
-                                      {inv.value} {inv.unit}
+                                      {inv.value || inv.observedValue} {inv.unit}
                                     </span>
                                   </td>
-                                  <td className="p-2 text-slate-500 font-mono">{inv.refRange} {inv.unit}</td>
+                                  <td className="p-2 text-slate-500 font-mono">{inv.refRange || 'Not in document'} {inv.unit}</td>
                                   <td className="p-2 text-right">
                                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
                                       inv.status === 'HIGH' ? 'bg-red-100 text-red-800' : inv.status === 'LOW' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                                     }`}>
-                                      {inv.status}
+                                      {inv.status || (inv.isAbnormal ? 'ABNORMAL' : 'NORMAL')}
                                     </span>
                                   </td>
                                 </tr>
@@ -479,11 +597,11 @@ export const DocumentTimeline = ({ patient }) => {
                             <tbody className="divide-y divide-slate-100 font-medium">
                               {doc.medicines.map((med, mIdx) => (
                                 <tr key={mIdx}>
-                                  <td className="p-2 font-bold text-slate-900">{med.name}</td>
-                                  <td className="p-2 text-cyan-800 font-bold">{med.dosage}</td>
-                                  <td className="p-2 font-mono text-slate-700">{med.freq}</td>
-                                  <td className="p-2 text-slate-600">{med.duration}</td>
-                                  <td className="p-2 text-slate-500 text-[11px]">{med.instructions}</td>
+                                  <td className="p-2 font-bold text-slate-900">{med.name || med.drugName}</td>
+                                  <td className="p-2 text-cyan-800 font-bold">{med.dosage || '--'}</td>
+                                  <td className="p-2 font-mono text-slate-700">{med.freq || med.frequency || '--'}</td>
+                                  <td className="p-2 text-slate-600">{med.duration || '--'}</td>
+                                  <td className="p-2 text-slate-500 text-[11px]">{med.instructions || '--'}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -499,8 +617,11 @@ export const DocumentTimeline = ({ patient }) => {
                           <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase flex items-center gap-1">
                             <span>📄 Preserved Raw OCR Text Stream</span>
                           </span>
-                          <span className="text-[9px] font-mono text-slate-400">
-                            Engine Confidence: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Confidence unavailable'}
+                          <span 
+                            title="Optical Character Recognition character clarity score (OCR engine readability, NOT medical diagnostic accuracy)"
+                            className="text-[9px] font-mono text-slate-400"
+                          >
+                            Engine Readability: {doc.ocrConfidence != null ? `${doc.ocrConfidence}%` : 'Readability unavailable'}
                           </span>
                         </div>
                         <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
@@ -511,23 +632,40 @@ export const DocumentTimeline = ({ patient }) => {
 
                     {/* Clinician Review & Verification Footer */}
                     <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
-                          doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
+                          doc.verificationStatus === 'CLINICIAN_VERIFIED'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                            : 'bg-amber-50 text-amber-900 border-amber-300'
                         }`}>
-                          {doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
-                            ? '✓ Clinician Verified Record'
+                          {doc.verificationStatus === 'CLINICIAN_VERIFIED'
+                            ? `✓ Clinician Verified Record${doc.verifiedByDoctorName ? ` (${doc.verifiedByDoctorName})` : ''}`
                             : '⚠️ Machine-Extracted (Pending Doctor Review)'}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ID: {doc.id}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {doc.verificationStatus !== 'VERIFIED_BY_CLINICIAN' && (
+                        {/* Delete Document Action */}
+                        <button
+                          type="button"
+                          disabled={deletingDocId === doc.id}
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          className="px-3 py-1.5 bg-white hover:bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50"
+                          title="Delete medical document record"
+                        >
+                          <Trash2 size={13} />
+                          <span>{deletingDocId === doc.id ? 'Deleting...' : 'Delete'}</span>
+                        </button>
+
+                        {/* Verify & Sign Document Action */}
+                        {doc.verificationStatus !== 'CLINICIAN_VERIFIED' && (
                           <button
                             type="button"
-                            onClick={() => handleVerifyDocument(doc.id, doc.diagnosis, doc.date)}
+                            onClick={() => handleVerifyDocument(doc.id, doc.hasDetectedDiagnosis ? doc.diagnosis : null, doc.date)}
                             className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                           >
                             <ShieldCheck size={14} />

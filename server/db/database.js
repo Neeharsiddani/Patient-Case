@@ -292,6 +292,9 @@ export const initDb = async () => {
       raw_ocr_text TEXT, -- Complete raw extracted OCR text stream
       extracted_data TEXT, -- JSON object
       verification_status TEXT DEFAULT 'MACHINE_EXTRACTED_UNVERIFIED',
+      verified_by_doctor_id TEXT,
+      verified_by_doctor_name TEXT,
+      verified_at DATETIME,
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
@@ -330,6 +333,8 @@ export const initDb = async () => {
       FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE
     );
 
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_doctor_notes_patient ON doctor_notes(patient_id);
+
     -- 13. Immutable Audit Trail for Healthcare Data Protection
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
@@ -342,6 +347,22 @@ export const initDb = async () => {
       resource_id TEXT,
       details TEXT, -- JSON object
       ip_address TEXT
+    );
+
+    -- 14. Hospital Information System (HIS) / EMR Interoperability Dispatch Log
+    CREATE TABLE IF NOT EXISTS his_dispatches (
+      id TEXT PRIMARY KEY,
+      patient_id TEXT NOT NULL,
+      hospital_id TEXT NOT NULL,
+      fhir_bundle_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      http_status INTEGER,
+      transaction_id TEXT,
+      message TEXT,
+      dispatched_by_user_id TEXT,
+      dispatched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+      FOREIGN KEY(hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
     );
   `;
 
@@ -391,6 +412,12 @@ export const initDb = async () => {
           if (!patCols.some(c => c.name === 'ayush_history')) {
             try { await run("ALTER TABLE patients ADD COLUMN ayush_history TEXT"); } catch {}
           }
+          if (!patCols.some(c => c.name === 'updated_at')) {
+            try { await run("ALTER TABLE patients ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch {}
+          }
+          if (!patCols.some(c => c.name === 'created_at')) {
+            try { await run("ALTER TABLE patients ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch {}
+          }
         }
 
         // Auto-migration for consents table
@@ -402,8 +429,34 @@ export const initDb = async () => {
 
         // Auto-migration for documents table
         const docCols = await query("PRAGMA table_info(documents)");
-        if (docCols && !docCols.some(c => c.name === 'raw_ocr_text')) {
-          try { await run("ALTER TABLE documents ADD COLUMN raw_ocr_text TEXT"); } catch {}
+        if (docCols) {
+          if (!docCols.some(c => c.name === 'raw_ocr_text')) {
+            try { await run("ALTER TABLE documents ADD COLUMN raw_ocr_text TEXT"); } catch {}
+          }
+          if (!docCols.some(c => c.name === 'verified_by_doctor_id')) {
+            try { await run("ALTER TABLE documents ADD COLUMN verified_by_doctor_id TEXT"); } catch {}
+          }
+          if (!docCols.some(c => c.name === 'verified_by_doctor_name')) {
+            try { await run("ALTER TABLE documents ADD COLUMN verified_by_doctor_name TEXT"); } catch {}
+          }
+          if (!docCols.some(c => c.name === 'verified_at')) {
+            try { await run("ALTER TABLE documents ADD COLUMN verified_at DATETIME"); } catch {}
+          }
+        }
+
+        // Auto-migration & clinical data integrity cleanup for doctor_notes
+        try {
+          await run("UPDATE doctor_notes SET provisional_diagnosis = NULL WHERE provisional_diagnosis = 'Clinical History Verified'");
+          await run("UPDATE doctor_notes SET provisional_diagnosis = NULL WHERE provisional_diagnosis = 'Clinical Assessment Recorded'");
+          await run(`
+            DELETE FROM doctor_notes 
+            WHERE rowid NOT IN (
+              SELECT MAX(rowid) FROM doctor_notes GROUP BY patient_id
+            )
+          `);
+          await run("CREATE UNIQUE INDEX IF NOT EXISTS idx_doctor_notes_patient ON doctor_notes(patient_id)");
+        } catch (err) {
+          // Non-blocking cleanup
         }
 
         resolve();

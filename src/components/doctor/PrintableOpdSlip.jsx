@@ -19,10 +19,13 @@ import { resolveHospitalName } from '../../utils/hospitalResolver';
 export const PrintableOpdSlip = ({ patient, onClose }) => {
   const slipRef = useRef(null);
   const [showQrModal, setShowQrModal] = useState(false);
+  const { authenticatedUser } = usePatient();
   if (!patient) return null;
 
   const hospitalName = resolveHospitalName(patient);
   const notes = patient.doctorNotes || {};
+  const doctorName = notes.doctorName || patient.assignedDoctor || patient.assigned_doctor_name || authenticatedUser?.fullName || 'Attending Clinician';
+  const doctorLicense = authenticatedUser?.licenseNumber || patient.doctorLicense || null;
 
   const handlePrint = () => {
     if (slipRef.current) {
@@ -39,7 +42,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
         <div className="no-print p-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck size={18} className="text-cyan-400" />
-            <span className="text-xs font-bold">Official ABDM OPD Consultation Slip Preview</span>
+            <span className="text-xs font-bold">Official Outpatient (OPD) Consultation Slip Preview</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -75,7 +78,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                   {hospitalName}
                 </h1>
                 <p className="text-xs text-slate-600 font-semibold mt-0.5">
-                  Ayushman Bharat Digital Mission (ABDM) • Clinical Care Record
+                  MediMitra Outpatient Healthcare Record • ABDM Interoperability Ready
                 </p>
                 <p className="text-[11px] text-slate-500">
                   {patient.department} • {patient.roomNumber || 'Room pending assignment'}
@@ -150,20 +153,37 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           {/* Provisional Diagnosis & ICD-10 */}
           <div className="space-y-1 text-xs">
             <span className="font-bold text-slate-700 block uppercase text-[11px]">Diagnosis & ICD-10:</span>
-            <div className="p-2.5 bg-cyan-50/60 rounded-lg border border-cyan-200 flex items-center justify-between">
-              <span className="font-bold text-cyan-950 text-sm">
-                {notes.provisionalDiagnosis || 'Clinical Assessment Recorded'}
-              </span>
-              {notes.icd10 && notes.icd10.length > 0 && (
-                <div className="flex gap-1">
-                  {notes.icd10.map((code) => (
-                    <span key={code} className="bg-cyan-800 text-white font-mono text-[10px] px-2 py-0.5 rounded font-bold">
-                      ICD-10: {code}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {notes.provisionalDiagnosis ? (
+              <div className="p-2.5 bg-cyan-50/60 rounded-lg border border-cyan-200 flex items-center justify-between">
+                <span className="font-bold text-cyan-950 text-sm">
+                  {notes.provisionalDiagnosis}
+                </span>
+                {notes.icd10 && notes.icd10.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {notes.icd10.map((code) => (
+                      <span key={code} className="bg-cyan-800 text-white font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                        ICD-10: {code}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
+                <span className="font-medium text-slate-500 text-xs italic">
+                  No provisional diagnosis recorded during this encounter.
+                </span>
+                {notes.icd10 && notes.icd10.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {notes.icd10.map((code) => (
+                      <span key={code} className="bg-cyan-800 text-white font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                        ICD-10: {code}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Prescription (Rx) Table */}
@@ -223,11 +243,11 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
           <div className="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-200">
             <div>
               <span className="font-bold text-slate-700 block uppercase text-[10px]">Advice & Lifestyle:</span>
-              <p className="text-slate-800 mt-0.5 font-medium">{notes.advice || 'As advised by attending clinician.'}</p>
+              <p className="text-slate-800 mt-0.5 font-medium">{notes.advice || 'No specific lifestyle or dietary advice recorded.'}</p>
             </div>
             <div>
               <span className="font-bold text-slate-700 block uppercase text-[10px]">Follow-Up Date:</span>
-              <p className="text-slate-900 mt-0.5 font-bold">{notes.followUp || 'As needed / SOS'}</p>
+              <p className="text-slate-900 mt-0.5 font-bold">{notes.followUp || 'None scheduled (Review SOS as needed).'}</p>
             </div>
           </div>
 
@@ -243,13 +263,15 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
                 <QRCodeSVG 
                   value={JSON.stringify({
                     app: 'MediMitra',
-                    type: 'VERIFIED_CLINICAL_CONSULTATION',
+                    type: 'MEDIMITRA_CLINICAL_RECORD',
                     token: patient.tokenNumber,
                     patientName: patient.name,
-                    abhaId: patient.abhaId,
+                    abhaId: patient.abhaId || null,
                     hospital: hospitalName,
-                    doctor: patient.assignedDoctor || patient.assignedDoctorName || patient.assigned_doctor_name || 'Attending Clinician',
-                    diagnosis: notes.provisionalDiagnosis || 'Encounter Documented',
+                    doctor: doctorName,
+                    diagnosis: notes.provisionalDiagnosis || 'None recorded',
+                    icd10: notes.icd10 || [],
+                    abdmSyncStatus: 'LOCAL_STORAGE_ONLY',
                     date: new Date().toISOString()
                   })}
                   size={56}
@@ -262,7 +284,7 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
               </button>
               <div className="text-[10px] text-slate-500 font-mono">
                 <div className="flex items-center gap-1">
-                  <span className="font-bold text-slate-800">ABDM VERIFIED RECORD</span>
+                  <span className="font-bold text-slate-800">MediMitra Clinical Record</span>
                   <span className="no-print text-[8px] bg-cyan-100 text-cyan-800 font-bold px-1 rounded">Tap QR</span>
                 </div>
                 <span>TOKEN: #{patient.tokenNumber}</span>
@@ -271,11 +293,11 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
 
             <div className="text-right space-y-1">
               <div className="font-script text-base text-cyan-900 font-serif italic border-b border-slate-300 pb-0.5 inline-block">
-                {patient.assignedDoctor || 'Attending Clinician'}
+                {doctorName}
               </div>
-              <p className="text-xs font-bold text-slate-900">{patient.assignedDoctor || 'Attending Clinician'}</p>
-              {patient.doctorLicense && (
-                <p className="text-[10px] text-slate-500">Reg: {patient.doctorLicense}</p>
+              <p className="text-xs font-bold text-slate-900">{doctorName}</p>
+              {doctorLicense && (
+                <p className="text-[10px] text-slate-500">Reg No: {doctorLicense}</p>
               )}
               <p className="text-[10px] text-slate-400">{patient.department || 'Outpatient Department'}</p>
             </div>
@@ -289,19 +311,21 @@ export const PrintableOpdSlip = ({ patient, onClose }) => {
         onClose={() => setShowQrModal(false)}
         value={JSON.stringify({
           app: 'MediMitra',
-          type: 'VERIFIED_CLINICAL_CONSULTATION',
+          type: 'MEDIMITRA_CLINICAL_RECORD',
           token: patient.tokenNumber,
           patientName: patient.name,
-          abhaId: patient.abhaId,
+          abhaId: patient.abhaId || null,
           hospital: hospitalName,
-          doctor: patient.assignedDoctor,
-          diagnosis: notes.provisionalDiagnosis,
+          doctor: doctorName,
+          diagnosis: notes.provisionalDiagnosis || 'None recorded',
+          icd10: notes.icd10 || [],
+          abdmSyncStatus: 'LOCAL_STORAGE_ONLY',
           date: new Date().toISOString()
         })}
-        title="Clinician Verified Consultation Pass"
+        title="MediMitra Consultation Record Pass"
         tokenNumber={patient.tokenNumber}
         patientName={patient.name}
-        subtitle={`${hospitalName} • ${patient.department} • Assessed by ${patient.assignedDoctor}`}
+        subtitle={`${hospitalName} • ${patient.department} • Assessed by ${doctorName}`}
       />
     </div>
   );

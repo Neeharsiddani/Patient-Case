@@ -223,13 +223,21 @@ router.post('/confirm-summary', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADM
       }
     }
 
-    // 4. Save doctor notes if provided (idempotent replacement for this patient)
+    // 4. Save doctor notes/advice if provided (without fabricating a fake provisional diagnosis)
     if (doctorNotes) {
-      await run('DELETE FROM doctor_notes WHERE patient_id = ?', [patientId]);
-      await run(`
-        INSERT INTO doctor_notes (id, patient_id, doctor_id, provisional_diagnosis, advice, signed_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `, [uuidv4(), patientId, doctorId, 'Clinical History Verified', doctorNotes]);
+      const existing = await get('SELECT id, provisional_diagnosis, icd10_codes, prescriptions, investigations, follow_up FROM doctor_notes WHERE patient_id = ?', [patientId]);
+      if (existing) {
+        await run(`
+          UPDATE doctor_notes
+          SET advice = ?, doctor_id = ?
+          WHERE patient_id = ?
+        `, [typeof doctorNotes === 'string' ? doctorNotes : JSON.stringify(doctorNotes), doctorId, patientId]);
+      } else {
+        await run(`
+          INSERT INTO doctor_notes (id, patient_id, doctor_id, provisional_diagnosis, advice, signed_at)
+          VALUES (?, ?, ?, NULL, ?, NULL)
+        `, [uuidv4(), patientId, doctorId, typeof doctorNotes === 'string' ? doctorNotes : JSON.stringify(doctorNotes)]);
+      }
     }
 
     // 5. Immutable Audit Log
@@ -549,20 +557,36 @@ router.post('/eprescribe', requireAuth, requireRole('DOCTOR', 'ADMIN'), async (r
       });
     }
 
+    const finalize = Boolean(req.body.finalize || req.body.isFinalSign);
     const noteId = uuidv4();
     const doctorId = req.user.id;
 
-    // Insert or replace doctor notes (idempotent replacement for this patient)
-    await run('DELETE FROM doctor_notes WHERE patient_id = ?', [patientId]);
+    // Defense-in-depth: Never persist synthetic or placeholder diagnoses
+    let cleanDiagnosis = typeof provisionalDiagnosis === 'string' ? provisionalDiagnosis.trim() : null;
+    if (cleanDiagnosis === 'Clinical Assessment Recorded' || cleanDiagnosis === 'Clinical History Verified' || cleanDiagnosis === 'Digitized clinical record') {
+      cleanDiagnosis = null;
+    }
+
+    // Atomic upsert doctor notes (idempotent replacement for this patient)
     await run(`
       INSERT INTO doctor_notes (
         id, patient_id, doctor_id, provisional_diagnosis, icd10_codes,
         prescriptions, investigations, advice, follow_up, signed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(patient_id) DO UPDATE SET
+        doctor_id = excluded.doctor_id,
+        provisional_diagnosis = excluded.provisional_diagnosis,
+        icd10_codes = excluded.icd10_codes,
+        prescriptions = excluded.prescriptions,
+        investigations = excluded.investigations,
+        advice = excluded.advice,
+        follow_up = excluded.follow_up,
+        signed_at = excluded.signed_at
     `, [
-      noteId, patientId, doctorId, provisionalDiagnosis,
+      noteId, patientId, doctorId, cleanDiagnosis,
       JSON.stringify(icd10Codes), JSON.stringify(prescriptions),
-      JSON.stringify(investigations), advice, followUp
+      JSON.stringify(investigations), advice, followUp,
+      finalize ? new Date().toISOString() : null
     ]);
 
     const verificationTimestamp = new Date().toLocaleString('en-IN', {
@@ -574,42 +598,78 @@ router.post('/eprescribe', requireAuth, requireRole('DOCTOR', 'ADMIN'), async (r
       minute: '2-digit'
     });
 
-    // Authoritative state update: Completing consultation affirms history verification and sets consultation completed
-    await run(`
-      UPDATE patients
-      SET status = 'Completed',
-          case_status = 'Consultation Completed',
-          verification_status = 'History Verified',
-          verification_timestamp = COALESCE(verification_timestamp, ?),
-          assigned_doctor_name = COALESCE(assigned_doctor_name, ?),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [verificationTimestamp, req.user.full_name || 'Attending Physician', patientId]);
+    if (finalize) {
+      // Authoritative finalization: Completing consultation affirms history verification and sets consultation completed
+      await run(`
+        UPDATE patients
+        SET status = 'Completed',
+            case_status = 'Consultation Completed',
+            verification_status = 'History Verified',
+            verification_timestamp = COALESCE(verification_timestamp, ?),
+            assigned_doctor_id = COALESCE(assigned_doctor_id, ?),
+            assigned_doctor_name = COALESCE(assigned_doctor_name, ?),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [verificationTimestamp, doctorId, req.user.full_name || 'Attending Physician', patientId]);
 
-    // Synchronize clinical_summaries verification status
-    await run(`
-      UPDATE clinical_summaries
-      SET clinician_verified = 1,
-          verified_by_doctor_id = ?,
-          verified_at = COALESCE(verified_at, CURRENT_TIMESTAMP)
-      WHERE patient_id = ?
-    `, [doctorId, patientId]);
+      // Synchronize clinical_summaries verification status
+      await run(`
+        UPDATE clinical_summaries
+        SET clinician_verified = 1,
+            verified_by_doctor_id = ?,
+            verified_at = COALESCE(verified_at, CURRENT_TIMESTAMP)
+        WHERE patient_id = ?
+      `, [doctorId, patientId]);
 
-    await recordAuditLog({
-      userId: doctorId,
-      userRole: 'DOCTOR',
-      hospitalId: req.user.hospital_id,
-      action: 'DOCTOR_EPRESCRIBE_COMPLETED',
-      resourceType: 'PATIENT',
-      resourceId: patientId,
-      details: { provisionalDiagnosis, prescriptionsCount: prescriptions.length },
-      ipAddress: req.ip || '127.0.0.1'
-    });
+      await recordAuditLog({
+        userId: doctorId,
+        userRole: 'DOCTOR',
+        hospitalId: req.user.hospital_id,
+        action: 'DOCTOR_EPRESCRIBE_FINALIZED',
+        resourceType: 'PATIENT',
+        resourceId: patientId,
+        details: { provisionalDiagnosis: cleanDiagnosis, prescriptionsCount: prescriptions.length, finalized: true },
+        ipAddress: req.ip || '127.0.0.1'
+      });
 
-    res.json({
-      success: true,
-      message: 'e-Prescription and outpatient slip generated successfully'
-    });
+      return res.json({
+        success: true,
+        message: 'e-Prescription and diagnosis finalized and signed successfully.',
+        noteId,
+        finalized: true,
+        patientId
+      });
+    } else {
+      // Draft note saved without closing/completing consultation
+      await run(`
+        UPDATE patients
+        SET status = CASE WHEN status = 'Waiting' THEN 'In-Consultation' ELSE status END,
+            case_status = CASE WHEN case_status = 'Waiting for Review' THEN 'Under Review' ELSE case_status END,
+            assigned_doctor_id = COALESCE(assigned_doctor_id, ?),
+            assigned_doctor_name = COALESCE(assigned_doctor_name, ?),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [doctorId, req.user.full_name || 'Attending Physician', patientId]);
+
+      await recordAuditLog({
+        userId: doctorId,
+        userRole: 'DOCTOR',
+        hospitalId: req.user.hospital_id,
+        action: 'DOCTOR_SAVED_CONSULTATION_NOTE',
+        resourceType: 'PATIENT',
+        resourceId: patientId,
+        details: { provisionalDiagnosis: cleanDiagnosis, prescriptionsCount: prescriptions.length, finalized: false },
+        ipAddress: req.ip || '127.0.0.1'
+      });
+
+      return res.json({
+        success: true,
+        message: 'Consultation note saved as draft.',
+        noteId,
+        finalized: false,
+        patientId
+      });
+    }
   } catch (err) {
     next(err);
   }

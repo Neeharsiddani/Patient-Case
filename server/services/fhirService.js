@@ -473,12 +473,42 @@ export const generateFhirBundle = (patientData) => {
   // ==========================================
   // 8. FHIR DocumentReference Resources (Uploaded OCR Docs)
   // ==========================================
+  const getDocTypeCoding = (rawType) => {
+    const t = (rawType || '').toLowerCase();
+    if (t.includes('prescription')) {
+      return { code: '440545006', display: 'Prescription record' };
+    }
+    if (t.includes('consultation')) {
+      return { code: '371530004', display: 'Clinical consultation report' };
+    }
+    if (t.includes('lab') || t.includes('pathology') || t.includes('biochemistry')) {
+      return { code: '4241000179101', display: 'Laboratory report' };
+    }
+    if (t.includes('imaging') || t.includes('radiology') || t.includes('x-ray') || t.includes('mri') || t.includes('ct scan') || t.includes('ultrasound')) {
+      return { code: '4201000179104', display: 'Imaging report' };
+    }
+    if (t.includes('diagnostic') || t.includes('ecg') || t.includes('eeg')) {
+      return { code: '721981007', display: 'Diagnostic studies report' };
+    }
+    if (t.includes('pharmacy') || t.includes('receipt') || t.includes('chemist')) {
+      return { code: '404884008', display: 'Pharmacy dispensing note' };
+    }
+    if (t.includes('discharge')) {
+      return { code: '373942005', display: 'Discharge summary' };
+    }
+    if (t.includes('referral')) {
+      return { code: '787441000168102', display: 'Referral record' };
+    }
+    return { code: '371531000', display: 'Report of clinical finding' };
+  };
+
   const documentRefs = [];
   const docs = patientData.documents || patientData.uploaded_documents || [];
   if (Array.isArray(docs) && docs.length > 0) {
     docs.forEach((doc, idx) => {
       const docRefId = `docref-${patientId}-${doc.id || idx}`;
-      const isDocVerified = doc.verification_status === 'CLINICIAN_VERIFIED';
+      const isDocVerified = doc.verification_status === 'CLINICIAN_VERIFIED' || doc.verification_status === 'VERIFIED_BY_CLINICIAN';
+      const docTypeCoding = getDocTypeCoding(doc.doc_type || doc.typeName);
 
       documentRefs.push({
         fullUrl: `urn:uuid:${docRefId}`,
@@ -495,11 +525,11 @@ export const generateFhirBundle = (patientData) => {
             coding: [
               {
                 system: 'http://snomed.info/sct',
-                code: '371531000',
-                display: 'Report of clinical finding'
+                code: docTypeCoding.code,
+                display: docTypeCoding.display
               }
             ],
-            text: doc.doc_type_name || doc.doc_type || 'Medical Document'
+            text: doc.doc_type_name || doc.doc_type || docTypeCoding.display
           },
           category: [
             {
@@ -508,12 +538,13 @@ export const generateFhirBundle = (patientData) => {
           ],
           subject: { reference: `urn:uuid:${patientId}`, display: patientData.name },
           date: doc.uploaded_at || timestamp,
-          description: `Document: ${doc.original_filename || 'Uploaded Medical Record'}. Extraction: ${doc.doc_type || 'Report'}`,
+          description: `Document: ${doc.original_filename || 'Uploaded Medical Record'}. Classification: ${doc.doc_type || docTypeCoding.display}`,
           content: [
             {
               attachment: {
                 contentType: doc.mime_type || 'text/plain',
                 title: doc.original_filename || 'medical-report.txt',
+                url: doc.id ? `/api/documents/download/${doc.id}` : undefined,
                 data: doc.raw_ocr_text ? Buffer.from(doc.raw_ocr_text).toString('base64') : undefined
               }
             }

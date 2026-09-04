@@ -944,20 +944,21 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
-  // Doctor Consultation Updates & e-Prescriptions
-  const updateDoctorNotes = async (patientId, updatedNotes, shouldComplete = false) => {
+  // Doctor Consultation Updates & e-Prescriptions (Authoritative Persistence for Draft & Finalized Notes)
+  const updateDoctorNotes = async (patientId, updatedNotes, finalize = false) => {
     setPatients((prev) =>
       prev.map((p) => {
         if (p.id === patientId) {
           return {
             ...p,
-            status: shouldComplete ? 'Completed' : p.status,
-            caseStatus: shouldComplete ? 'Consultation Completed' : p.caseStatus,
-            verificationStatus: shouldComplete ? 'History Verified' : p.verificationStatus,
-            verificationTimestamp: shouldComplete ? (p.verificationTimestamp || new Date().toLocaleString('en-IN')) : p.verificationTimestamp,
+            status: finalize ? 'Completed' : p.status,
+            caseStatus: finalize ? 'Consultation Completed' : (p.caseStatus === 'Waiting for Review' ? 'In Consultation' : p.caseStatus),
+            verificationStatus: finalize ? 'History Verified' : p.verificationStatus,
+            verificationTimestamp: finalize ? (p.verificationTimestamp || new Date().toLocaleString('en-IN')) : p.verificationTimestamp,
             doctorNotes: {
               ...p.doctorNotes,
-              ...updatedNotes
+              ...updatedNotes,
+              signedAt: finalize ? new Date().toISOString() : (p.doctorNotes?.signedAt || null)
             }
           };
         }
@@ -965,20 +966,19 @@ export const PatientProvider = ({ children }) => {
       })
     );
 
-    if (shouldComplete) {
-      try {
-        await ApiService.ePrescribe({
-          patientId,
-          provisionalDiagnosis: updatedNotes.provisionalDiagnosis,
-          icd10Codes: updatedNotes.icd10,
-          prescriptions: updatedNotes.prescriptions,
-          investigations: updatedNotes.investigations,
-          advice: updatedNotes.advice,
-          followUp: updatedNotes.followUp
-        });
-      } catch (err) {
-        console.warn('Backend e-prescribe sync notice:', err.message);
-      }
+    try {
+      await ApiService.ePrescribe({
+        patientId,
+        provisionalDiagnosis: updatedNotes.provisionalDiagnosis,
+        icd10Codes: updatedNotes.icd10,
+        prescriptions: updatedNotes.prescriptions,
+        investigations: updatedNotes.investigations,
+        advice: updatedNotes.advice,
+        followUp: updatedNotes.followUp,
+        finalize
+      });
+    } catch (err) {
+      console.warn('Backend e-prescribe sync notice:', err.message);
     }
   };
 

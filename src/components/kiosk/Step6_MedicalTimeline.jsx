@@ -38,17 +38,21 @@ export const Step6_MedicalTimeline = () => {
     // 2. Genuine Uploaded Medical Documents
     if (kioskForm.uploadedDocs && kioskForm.uploadedDocs.length > 0) {
       kioskForm.uploadedDocs.forEach((doc) => {
+        const yearMatch = (doc.year || doc.date || '').toString().match(/\b(19\d\d|20\d\d)\b/);
+        const displayYear = yearMatch ? yearMatch[1] : (doc.year || 'Recent');
+        const docDiagnosis = doc.diagnosis && !/^(?:digitized\s+clinical\s+record|clinical\s+record|medical\s+document)$/i.test(doc.diagnosis) ? doc.diagnosis : null;
+
         events.push({
-          year: doc.year || (doc.date ? doc.date.split(/[\/\-\.]/)[2] : 'Recent'),
+          year: displayYear,
           date: doc.date || 'Digitized Document',
           title: doc.title,
           category: doc.typeName || doc.type || 'Medical Record',
           facility: doc.hospital || doc.hospitalName || 'Healthcare Facility',
-          details: doc.diagnosis ? `Impression/Diagnosis: ${doc.diagnosis}` : (doc.rawOcrText ? doc.rawOcrText.slice(0, 120) + '...' : 'Digitized clinical record.'),
+          details: docDiagnosis ? `Impression/Diagnosis: ${docDiagnosis}` : (doc.rawOcrText ? doc.rawOcrText.slice(0, 120) + '...' : 'Diagnosis not detected in OCR.'),
           icon: (doc.type === 'Prescription' || doc.typeName === 'Prescription' || doc.type === 'prescription') ? Pill : (doc.type?.toLowerCase().includes('lab') || doc.typeName?.toLowerCase().includes('lab')) ? FileText : Building2,
           color: (doc.type === 'Prescription' || doc.typeName === 'Prescription' || doc.type === 'prescription') ? 'blue' : 'amber',
           isCurrent: false,
-          verified: doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
+          verified: doc.verificationStatus === 'CLINICIAN_VERIFIED' || doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
         });
       });
     }

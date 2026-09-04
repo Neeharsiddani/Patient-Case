@@ -94,7 +94,7 @@ router.post('/dispatch/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL
       consent_status: consent ? consent.status : 'GRANTED'
     };
 
-    const result = await hisAdapterService.dispatchPatientRecordToHis(patientFull);
+    const result = await hisAdapterService.dispatchPatientRecordToHis(patientFull, req.user?.id);
 
     await recordAuditLog({
       userId: req.user.id,
@@ -103,11 +103,45 @@ router.post('/dispatch/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL
       action: 'HIS_DISPATCH_ATTEMPT',
       resourceType: 'HOSPITAL_HIS',
       resourceId: patientId,
-      details: { status: result.status, success: result.success },
+      details: { status: result.status, success: result.success, dispatchId: result.dispatchId },
       ipAddress: req.ip || '127.0.0.1'
     });
 
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/his/history/:patientId
+ * Retrieve persisted HIS dispatch logs for a patient
+ */
+router.get('/history/:patientId', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
+  try {
+    const { patientId } = req.params;
+    const patient = await get('SELECT id, hospital_id FROM patients WHERE id = ?', [patientId]);
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient Not Found'
+      });
+    }
+
+    if (req.user.hospital_id && patient.hospital_id !== req.user.hospital_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'You are not authorized to view HIS dispatch logs for another healthcare facility.'
+      });
+    }
+
+    const dispatches = await hisAdapterService.getRecentDispatches(patientId);
+    res.json({
+      success: true,
+      count: dispatches.length,
+      dispatches
+    });
   } catch (err) {
     next(err);
   }

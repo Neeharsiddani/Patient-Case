@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Stethoscope, 
   Users, 
@@ -48,6 +48,13 @@ export const DoctorDashboard = () => {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showFhirModal, setShowFhirModal] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
+
+  const [patientDocsCount, setPatientDocsCount] = useState(null);
+
+  // Reset doc count when selected patient changes
+  useEffect(() => {
+    setPatientDocsCount(selectedPatient?.documents?.length ?? null);
+  }, [selectedPatient?.id]);
 
   const currentHospitalId = authenticatedUser?.hospitalId || activeHospitalId || null;
   const currentHospital = hospitals.find(h => h.id === currentHospitalId) || (
@@ -267,7 +274,7 @@ export const DoctorDashboard = () => {
                   className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <History size={16} />
-                  <span>Records & OCR Timeline ({selectedPatient.documents?.length || 0})</span>
+                  <span>Records & OCR Timeline ({patientDocsCount ?? selectedPatient.documents?.length ?? 0})</span>
                 </button>
 
                 <button
@@ -290,7 +297,10 @@ export const DoctorDashboard = () => {
               )}
 
               {activeTab === 'timeline' && (
-                <DocumentTimeline patient={selectedPatient} />
+                <DocumentTimeline 
+                  patient={selectedPatient} 
+                  onDocumentsCountChange={(count) => setPatientDocsCount(count)}
+                />
               )}
 
               {activeTab === 'rx' && (
