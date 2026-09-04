@@ -284,7 +284,9 @@ export class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('patientId', patientId || 'temp-patient');
-    formData.append('docTypeHint', docTypeHint || 'prescription');
+    if (docTypeHint) {
+      formData.append('docTypeHint', docTypeHint);
+    }
 
     const token = this.getAuthToken();
     const headers = token ? { Authorization: `Bearer ${token}` } : {};

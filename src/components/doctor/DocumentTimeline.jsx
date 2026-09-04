@@ -30,8 +30,8 @@ const normalizeDoc = (d) => {
   return {
     id: d.id || `doc-${Math.random().toString(36).slice(2, 8)}`,
     title: d.title || d.originalFilename || 'Medical Record',
-    docType: d.docType || d.type || 'document',
-    typeName: d.typeName || (d.docType === 'lab_report' ? 'Lab Test Report' : d.docType === 'prescription' ? 'Prescription Slip' : d.docType === 'discharge_summary' ? 'Discharge Summary' : 'Clinical Document'),
+    docType: d.docType || d.type || 'Document type not detected',
+    typeName: d.typeName || (d.docType === 'lab_report' ? 'Laboratory Report' : d.docType === 'prescription' ? 'Prescription' : d.docType === 'discharge_summary' ? 'Discharge Summary' : d.docType || d.type || 'Document type not detected'),
     date: d.date || d.docDate || null,
     year: d.year || d.docYear || (d.docDate ? d.docDate.slice(0, 4) : (d.date ? d.date.split(/[\/\-\.]/)[2] : null)),
     hospital: d.hospital || d.hospitalName || 'Healthcare facility not detected',

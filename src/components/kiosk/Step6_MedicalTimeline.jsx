@@ -45,8 +45,8 @@ export const Step6_MedicalTimeline = () => {
           category: doc.typeName || doc.type || 'Medical Record',
           facility: doc.hospital || doc.hospitalName || 'Healthcare Facility',
           details: doc.diagnosis ? `Impression/Diagnosis: ${doc.diagnosis}` : (doc.rawOcrText ? doc.rawOcrText.slice(0, 120) + '...' : 'Digitized clinical record.'),
-          icon: doc.type === 'prescription' ? Pill : doc.type === 'lab_report' ? FileText : Building2,
-          color: doc.type === 'prescription' ? 'blue' : 'amber',
+          icon: (doc.type === 'Prescription' || doc.typeName === 'Prescription' || doc.type === 'prescription') ? Pill : (doc.type?.toLowerCase().includes('lab') || doc.typeName?.toLowerCase().includes('lab')) ? FileText : Building2,
+          color: (doc.type === 'Prescription' || doc.typeName === 'Prescription' || doc.type === 'prescription') ? 'blue' : 'amber',
           isCurrent: false,
           verified: doc.verificationStatus === 'VERIFIED_BY_CLINICIAN'
         });

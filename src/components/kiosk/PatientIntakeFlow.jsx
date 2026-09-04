@@ -15,6 +15,7 @@ import {
   Ticket, 
   ArrowLeft, 
   ArrowRight, 
+  ChevronRight,
   Check, 
   Lock, 
   RotateCcw,
@@ -40,10 +41,10 @@ import { MediMitraLogo } from '../common/MediMitraLogo';
 import { getRouteUrl } from '../../utils/navigation';
 
 export const PatientIntakeFlow = ({ onBackToWelcome }) => {
-  const { kioskStep, setKioskStep, kioskForm, submitKioskCase } = usePatient();
+  const { kioskStep, setKioskStep, kioskForm, setKioskForm, submitKioskCase } = usePatient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isAyush = Boolean(
+  const isAyushDepartment = Boolean(
     kioskForm.assignedDepartment?.toLowerCase().includes('ayush') ||
     kioskForm.assignedDepartment?.toLowerCase().includes('ayurveda') ||
     kioskForm.selectedDepartmentName?.toLowerCase().includes('ayush') ||
@@ -52,6 +53,8 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
     kioskForm.department_id?.toLowerCase().includes('ayush') ||
     kioskForm.isAyushCase
   );
+
+  const isAyush = isAyushDepartment && !kioskForm.skipAyushAssessment;
 
   // Complete patient journey step sequence
   const steps = isAyush ? [
@@ -123,6 +126,10 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const handleNext = async () => {
     if (!canProceed() || isSubmitting) return;
 
+    if (kioskStep === 6 && isAyushDepartment) {
+      setKioskForm((prev) => ({ ...prev, skipAyushAssessment: false }));
+    }
+
     if (kioskStep === reviewStepNum) {
       setIsSubmitting(true);
       try {
@@ -139,6 +146,15 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
       window.history.pushState({ screen: 'patient', step: nextStep }, '', getRouteUrl('patient', nextStep));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  };
+
+  const handleSkipAyush = () => {
+    if (!canProceed() || isSubmitting) return;
+    setKioskForm((prev) => ({ ...prev, skipAyushAssessment: true }));
+    const nextStep = 7;
+    setKioskStep(nextStep);
+    window.history.pushState({ screen: 'patient', step: nextStep }, '', getRouteUrl('patient', nextStep));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => {
@@ -346,26 +362,51 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
             </button>
 
             {kioskStep < reviewStepNum ? (
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!canProceed()}
-                style={{
-                  backgroundColor: canProceed() ? (isAyush && kioskStep === 6 ? '#047857' : '#088395') : '#cbd5e1'
-                }}
-                className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
-              >
-                <span>
-                  {kioskStep === 4 && !kioskForm.consentAgreed
-                    ? 'Consent Required to Proceed'
-                    : kioskStep === 1 && !kioskForm.selectedHospitalId
-                    ? 'Select a Healthcare Facility'
-                    : isAyush && kioskStep === 6
-                    ? 'Continue to AYUSH'
-                    : 'Continue'}
-                </span>
-                <ArrowRight size={18} />
-              </button>
+              isAyushDepartment && kioskStep === 6 ? (
+                <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={!canProceed()}
+                    style={{
+                      backgroundColor: canProceed() ? '#047857' : '#cbd5e1'
+                    }}
+                    className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <span>Continue to AYUSH</span>
+                    <ArrowRight size={18} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSkipAyush}
+                    disabled={!canProceed()}
+                    className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 hover:text-slate-900 font-bold rounded-2xl text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>Skip AYUSH</span>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  style={{
+                    backgroundColor: canProceed() ? '#088395' : '#cbd5e1'
+                  }}
+                  className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <span>
+                    {kioskStep === 4 && !kioskForm.consentAgreed
+                      ? 'Consent Required to Proceed'
+                      : kioskStep === 1 && !kioskForm.selectedHospitalId
+                      ? 'Select a Healthcare Facility'
+                      : 'Continue'}
+                  </span>
+                  <ArrowRight size={18} />
+                </button>
+              )
             ) : (
               <button
                 type="button"

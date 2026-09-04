@@ -77,7 +77,50 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
     const validatedHospitalId = hospital.id;
     const validatedHospitalName = hospital.name;
 
-    const dept = await get('SELECT id, name, room_number FROM departments WHERE id = ? AND hospital_id = ?', [departmentId, validatedHospitalId]);
+    // Resolve department strictly within the validated hospital
+    let dept = await get(
+      'SELECT id, name, room_number, code FROM departments WHERE id = ? AND hospital_id = ?',
+      [departmentId, validatedHospitalId]
+    );
+
+    if (!dept && departmentId) {
+      // Match by department code or ID suffix (e.g. 'genmed' -> 'GENMED', 'dept-genmed' -> '%genmed%')
+      const rawCode = departmentId.replace(/^dept-/, '').toUpperCase();
+      dept = await get(
+        `SELECT id, name, room_number, code FROM departments 
+         WHERE hospital_id = ? AND (
+           UPPER(code) = ? 
+           OR id LIKE ?
+           OR UPPER(code) = UPPER(?)
+         ) LIMIT 1`,
+        [validatedHospitalId, rawCode, `%${departmentId.replace(/^dept-/, '')}%`, department]
+      );
+    }
+
+    if (!dept && department) {
+      // Match by department name
+      dept = await get(
+        `SELECT id, name, room_number, code FROM departments 
+         WHERE hospital_id = ? AND (
+           LOWER(name) = LOWER(?) 
+           OR LOWER(name) LIKE LOWER(?)
+         ) LIMIT 1`,
+        [validatedHospitalId, department, `%${department}%`]
+      );
+    }
+
+    if (!dept) {
+      // Fallback to hospital's primary General Medicine or first active department
+      dept = await get(
+        `SELECT id, name, room_number, code FROM departments 
+         WHERE hospital_id = ? AND (code = 'GENMED' OR LOWER(name) LIKE '%medicine%') LIMIT 1`,
+        [validatedHospitalId]
+      ) || await get(
+        `SELECT id, name, room_number, code FROM departments WHERE hospital_id = ? LIMIT 1`,
+        [validatedHospitalId]
+      );
+    }
+
     const validatedDeptId = dept ? dept.id : departmentId;
     const validatedDeptName = dept ? dept.name : department;
     const roomNumber = dept?.room_number || (validatedDeptName.includes('Cardiology') ? 'Room 104' : 'Room 101');
@@ -90,6 +133,12 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
        WHERE dd.hospital_id = ? AND dd.department_id = ? AND u.status = 'ACTIVE'
        LIMIT 1`,
       [validatedHospitalId, validatedDeptId]
+    ) || await get(
+      `SELECT u.id, u.full_name
+       FROM users u
+       WHERE u.hospital_id = ? AND u.role = 'DOCTOR' AND u.status = 'ACTIVE'
+       LIMIT 1`,
+      [validatedHospitalId]
     );
 
     const assignedDoctorId = primaryDoctor ? primaryDoctor.id : null;
@@ -280,6 +329,61 @@ router.post('/intake', optionalAuth, async (req, res, next) => {
         JSON.stringify(aiDraft.differential_diagnosis), JSON.stringify(aiDraft.suggested_next_steps)
       ]);
 
+      // 10b. Persist Uploaded Documents linked to this newly created Patient
+      if (Array.isArray(uploadedDocuments) && uploadedDocuments.length > 0) {
+        for (const doc of uploadedDocuments) {
+          const docId = doc.id || uuidv4();
+          const existingDoc = await get('SELECT id FROM documents WHERE id = ?', [docId]);
+          const docType = doc.typeName || doc.docType || doc.type || 'Document type not detected';
+          const extData = doc.extractedData || {
+            medicines: doc.medicines || [],
+            investigations: doc.investigations || [],
+            procedures: doc.procedures || [],
+            rawOcrText: doc.rawOcrText || ''
+          };
+
+          if (existingDoc) {
+            // Re-assign document from temporary upload session to permanent patient record
+            await run(`
+              UPDATE documents
+              SET patient_id = ?,
+                  hospital_name = COALESCE(?, hospital_name),
+                  doc_type = COALESCE(?, doc_type),
+                  doc_type_name = COALESCE(?, doc_type_name)
+              WHERE id = ?
+            `, [patientId, validatedHospitalName, docType, docType, docId]);
+          } else {
+            // Document processed client-side or newly uploaded
+            await run(`
+              INSERT INTO documents (
+                id, patient_id, original_filename, stored_filename, file_path,
+                mime_type, file_size, doc_type, doc_type_name, doc_date, doc_year,
+                hospital_name, doctor_name, diagnosis, ocr_confidence, raw_ocr_text, extracted_data, verification_status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+              docId,
+              patientId,
+              doc.title || doc.originalFilename || 'Medical_Record.pdf',
+              doc.storedFilename || `${docId}.pdf`,
+              doc.filePath || `uploads/${docId}.pdf`,
+              doc.mimeType || 'application/pdf',
+              doc.fileSize || 0,
+              docType,
+              docType,
+              doc.date || doc.docDate || null,
+              doc.year || doc.docYear || null,
+              doc.hospital || doc.hospitalName || validatedHospitalName,
+              doc.doctor || doc.doctorName || null,
+              doc.diagnosis || null,
+              doc.ocrConfidence ?? null,
+              doc.rawOcrText || '',
+              JSON.stringify(extData),
+              doc.verificationStatus || 'MACHINE_EXTRACTED_UNVERIFIED'
+            ]);
+          }
+        }
+      }
+
       await run('COMMIT');
     } catch (txErr) {
       await run('ROLLBACK');
@@ -382,23 +486,44 @@ router.get('/', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), a
 
       // Retrieve authorized departments for this doctor
       const authorizedDepts = await query(
-        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
+        `SELECT dd.department_id, d.name, d.code 
+         FROM doctor_departments dd
+         LEFT JOIN departments d ON dd.department_id = d.id
+         WHERE dd.doctor_id = ?`,
         [req.user.id]
       );
-      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
+      const authorizedDeptIds = authorizedDepts.map(d => d.department_id).filter(Boolean);
+      const authorizedDeptNames = authorizedDepts.map(d => d.name).filter(Boolean);
 
       if (myAssignedOnly === 'true') {
         sql += ' AND p.assigned_doctor_id = ?';
         params.push(req.user.id);
       } else if (authorizedDeptIds.length > 0) {
-        // Doctor sees cases in their authorized departments OR cases assigned directly to them
-        const placeholders = authorizedDeptIds.map(() => '?').join(', ');
-        sql += ` AND (p.department_id IN (${placeholders}) OR p.assigned_doctor_id = ?)`;
-        params.push(...authorizedDeptIds, req.user.id);
+        // Doctor sees cases in their authorized departments (by ID or Name) OR cases assigned directly to them
+        const idPlaceholders = authorizedDeptIds.map(() => '?').join(', ');
+        const namePlaceholders = authorizedDeptNames.map(() => '?').join(', ');
+        
+        let deptCondition = `(p.department_id IN (${idPlaceholders})`;
+        const deptParams = [...authorizedDeptIds];
+
+        if (authorizedDeptNames.length > 0) {
+          deptCondition += ` OR p.department IN (${namePlaceholders})`;
+          deptParams.push(...authorizedDeptNames);
+        }
+        deptCondition += ' OR p.assigned_doctor_id = ?)';
+        deptParams.push(req.user.id);
+
+        sql += ` AND ${deptCondition}`;
+        params.push(...deptParams);
       } else {
-        // If no departments mapped, only directly assigned cases
-        sql += ' AND p.assigned_doctor_id = ?';
-        params.push(req.user.id);
+        // If no doctor_departments rows, check user's assigned department string or directly assigned cases
+        if (req.user.department) {
+          sql += ' AND (p.department LIKE ? OR p.assigned_doctor_id = ?)';
+          params.push(`%${req.user.department}%`, req.user.id);
+        } else {
+          sql += ' AND p.assigned_doctor_id = ?';
+          params.push(req.user.id);
+        }
       }
     } else if (req.user.role === 'HOSPITAL_ADMIN') {
       // Hospital admin can only see patients belonging to their hospital

@@ -327,7 +327,7 @@ export const Step5_DocUpload = () => {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {doc.hospital || 'Healthcare facility not detected'} • {doc.typeName || doc.type}
+                        {doc.hospital || 'Healthcare facility not detected'} • {doc.typeName || doc.type || 'Document type not detected'}
                       </p>
                     </div>
                   </div>

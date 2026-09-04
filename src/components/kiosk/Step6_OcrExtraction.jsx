@@ -199,7 +199,8 @@ export const Step6_OcrExtraction = () => {
                 title="This score reflects how confidently the OCR engine recognized text. It is not a measure of medical accuracy. All extracted information requires verification."
               >
                 <span className="bg-cyan-950 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1">
-                  OCR readability: {currentDoc.ocrConfidence != null ? `${currentDoc.ocrConfidence}%` : 'Not provided'}
+                  OCR readability: {currentDoc.ocrConfidence != null ? `${currentDoc.ocrConfidence}%` : 'Confidence unavailable'}
+                  {/* 'Not provided' note */}
                   <Info size={11} className="text-cyan-400" />
                 </span>
               </div>
@@ -208,7 +209,7 @@ export const Step6_OcrExtraction = () => {
             {/* Scanned Paper Layout */}
             <div className="bg-slate-800/90 rounded-2xl p-4 my-3 font-mono text-[11px] space-y-2.5 border border-slate-700 select-none">
               <div className="text-slate-400 text-[10px] border-b border-slate-700 pb-1.5 flex justify-between">
-                <span>[DOCUMENT TYPE]: {currentDoc.typeName || currentDoc.type}</span>
+                <span>[DOCUMENT TYPE]: {currentDoc.typeName || currentDoc.type || 'Document type not detected'}</span>
                 <span className="text-cyan-400">DATE: {currentDoc.date || 'Not identified'}</span>
               </div>
 

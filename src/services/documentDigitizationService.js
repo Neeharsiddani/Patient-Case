@@ -47,7 +47,7 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
   // 1. Attempt Backend Server OCR First (routes through VITE_API_BASE_URL to Railway backend)
   try {
     updateStage(2, 'Submitting document to MediMitra OCR & Clinical Entity Engine...');
-    const data = await ApiService.uploadDocument(file, 'temp-patient', 'prescription');
+    const data = await ApiService.uploadDocument(file, 'temp-patient', null);
 
     if (data && data.success && data.document) {
       updateStage(4, 'Extracting medications, diagnostic entities and biomarker reference ranges...');
@@ -62,8 +62,8 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
       return {
         id: d.id || customId,
         title: d.originalFilename || originalName,
-        type: d.docType || 'prescription',
-        typeName: d.docType || 'Prescription',
+        type: d.docType || 'Document type not detected',
+        typeName: d.docType || 'Document type not detected',
         date: docDate,
         year: docYear,
         hospital: d.hospitalName || 'Healthcare facility not detected',
@@ -84,7 +84,7 @@ export const processDocumentWithOcr = async (file, onStageProgress = null) => {
           year: docYear || null,
           date: docDate || 'Date not detected',
           title: d.originalFilename || originalName,
-          category: d.category || 'Prescription',
+          category: d.category || 'Medical Record',
           badgeColor: 'cyan',
           summary: d.diagnosis || 'Digitized medical record.'
         }

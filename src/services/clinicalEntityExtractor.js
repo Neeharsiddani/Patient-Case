@@ -5,11 +5,11 @@
  * directly from raw OCR text output.
  */
 
-export const extractClinicalEntities = (rawText = '', docTypeHint = 'prescription') => {
+export const extractClinicalEntities = (rawText = '', docTypeHint = null) => {
   if (!rawText || !rawText.trim()) {
     return {
-      docType: 'Medical Document',
-      category: 'General',
+      docType: 'Document type not detected',
+      category: 'Uncategorized',
       hospitalName: null,
       doctorName: null,
       docDate: null,
@@ -342,23 +342,139 @@ export const extractClinicalEntities = (rawText = '', docTypeHint = 'prescriptio
     }
   }
 
-  // 8. Classify Document Type & Category
-  let docType = 'Prescription';
-  let category = 'Prescription';
-
+  // 8. Classify Document Type & Category (Strictly Evidence-Based)
   const textLower = rawText.toLowerCase();
-  if (textLower.includes('discharge summary') || textLower.includes('admission') || textLower.includes('post-operative') || procedures.length > 0) {
+
+  let docType = 'Document type not detected';
+  let category = 'Uncategorized';
+
+  // 1. Discharge Summary / Inpatient Record
+  const isDischarge = (
+    textLower.includes('discharge summary') ||
+    textLower.includes('discharge card') ||
+    textLower.includes('discharge certificate') ||
+    textLower.includes('discharge note') ||
+    textLower.includes('post-operative') ||
+    textLower.includes('post-op') ||
+    (procedures.length > 0 && (textLower.includes('surgery') || textLower.includes('cholecystectomy') || textLower.includes('appendectomy') || docTypeHint === 'discharge_summary')) ||
+    (docTypeHint === 'discharge_summary') ||
+    (textLower.includes('date of admission') && textLower.includes('date of discharge')) ||
+    (textLower.includes('inpatient') && (textLower.includes('course in hospital') || textLower.includes('admission')))
+  );
+
+  // 2. Laboratory Report
+  const isLab = (
+    textLower.includes('laboratory report') ||
+    textLower.includes('lab report') ||
+    textLower.includes('pathology report') ||
+    textLower.includes('biochemistry report') ||
+    textLower.includes('hematology report') ||
+    textLower.includes('test report') ||
+    textLower.includes('blood examination') ||
+    textLower.includes('urine examination') ||
+    textLower.includes('culture & sensitivity') ||
+    textLower.includes('culture and sensitivity') ||
+    textLower.includes('lipid profile') ||
+    textLower.includes('complete blood count') ||
+    textLower.includes('liver function test') ||
+    textLower.includes('kidney function test') ||
+    textLower.includes('thyroid profile') ||
+    (docTypeHint === 'lab_report') ||
+    (investigations.length > 0 && (
+      textLower.includes('reference interval') ||
+      textLower.includes('biological reference') ||
+      textLower.includes('reference range') ||
+      textLower.includes('specimen') ||
+      textLower.includes('laboratory') ||
+      textLower.includes('pathology') ||
+      textLower.includes('biochemistry')
+    ))
+  );
+
+  // 3. Diagnostic / Imaging / Scan Report
+  const isImagingDiagnostic = (
+    textLower.includes('radiology') ||
+    textLower.includes('imaging report') ||
+    textLower.includes('x-ray') ||
+    textLower.includes('ultrasound') ||
+    textLower.includes('ultrasonography') ||
+    textLower.includes('usg report') ||
+    textLower.includes('ct scan') ||
+    textLower.includes('computed tomography') ||
+    textLower.includes('mri report') ||
+    textLower.includes('magnetic resonance') ||
+    textLower.includes('echocardiogram') ||
+    textLower.includes('2d echo') ||
+    textLower.includes('electrocardiogram') ||
+    textLower.includes('ecg report') ||
+    textLower.includes('eeg report') ||
+    textLower.includes('mammography') ||
+    textLower.includes('endoscopy report') ||
+    textLower.includes('colonoscopy report') ||
+    textLower.includes('doppler study')
+  );
+
+  // 4. Referral
+  const isReferral = (
+    textLower.includes('referral letter') ||
+    textLower.includes('referral note') ||
+    textLower.includes('referred to') ||
+    textLower.includes('referred by') ||
+    textLower.includes('kindly evaluate')
+  );
+
+  // 5. Consultation / Clinical Note
+  const isConsultationNote = (
+    textLower.includes('consultation note') ||
+    textLower.includes('clinical note') ||
+    textLower.includes('progress note') ||
+    textLower.includes('doctor note') ||
+    textLower.includes('opd consultation') ||
+    textLower.includes('outpatient consultation') ||
+    textLower.includes('case sheet') ||
+    textLower.includes('history & physical') ||
+    textLower.includes('history and physical') ||
+    (textLower.includes('chief complaint') && textLower.includes('assessment'))
+  );
+
+  // 6. Prescription (Explicit prescription markers required - NOT merely because medicines were found)
+  const rxSymbolRegex = /(?:℞|\brx\b|\brx\s*:|\br\/x\b)/i;
+  const isPrescription = (
+    rxSymbolRegex.test(rawText) ||
+    textLower.includes('prescription') ||
+    textLower.includes('prescribed by') ||
+    textLower.includes('rx order') ||
+    textLower.includes('prescription slip') ||
+    textLower.includes('opd slip') ||
+    textLower.includes('treatment sheet') ||
+    textLower.includes('medication order') ||
+    (docTypeHint === 'prescription' && medicines.length > 0)
+  );
+
+  if (isDischarge) {
     docType = 'Discharge Summary';
-    category = 'Surgery';
-  } else if (textLower.includes('laboratory') || textLower.includes('pathology') || textLower.includes('biochemistry') || investigations.length > 1) {
-    docType = 'Lab Report';
+    category = 'Discharge / Inpatient';
+  } else if (isLab) {
+    docType = 'Laboratory Report';
     category = 'Investigation';
-  } else if (textLower.includes('radiology') || textLower.includes('x-ray') || textLower.includes('ultrasound') || textLower.includes('ecg')) {
-    docType = 'Diagnostic Investigation';
+  } else if (isImagingDiagnostic) {
+    docType = 'Diagnostic Report';
     category = 'Investigation';
-  } else {
+  } else if (isReferral) {
+    docType = 'Referral';
+    category = 'Referral';
+  } else if (isConsultationNote) {
+    docType = 'Consultation Note';
+    category = 'Consultation';
+  } else if (isPrescription) {
     docType = 'Prescription';
     category = 'Prescription';
+  } else if (procedures.length > 0 || investigations.length > 0 || hospitalName || doctorName || diagnosis) {
+    docType = 'Other Medical Document';
+    category = 'Medical Record';
+  } else {
+    docType = 'Document type not detected';
+    category = 'Uncategorized';
   }
 
   return {

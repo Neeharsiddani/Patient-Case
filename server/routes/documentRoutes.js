@@ -17,7 +17,7 @@ const router = express.Router();
 router.post('/upload', upload.single('file'), async (req, res, next) => {
   try {
     const file = req.file;
-    const { patientId = 'temp-patient', docTypeHint = 'prescription' } = req.body;
+    const { patientId = 'temp-patient', docTypeHint = null } = req.body;
 
     if (!file) {
       return res.status(400).json({

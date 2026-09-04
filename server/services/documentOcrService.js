@@ -13,7 +13,7 @@ import { extractClinicalEntities } from './clinicalEntityExtractor.js';
  * 3. Never invent missing dates, diagnoses, medicines, or reference ranges.
  * 4. Marked strictly as 'MACHINE_EXTRACTED_UNVERIFIED' until a physician confirms it.
  */
-export const processMedicalDocument = async (fileMetadata, docTypeHint = 'prescription') => {
+export const processMedicalDocument = async (fileMetadata, docTypeHint = null) => {
   if (!fileMetadata) {
     throw new Error('File metadata is required for OCR processing.');
   }

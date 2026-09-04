@@ -289,6 +289,37 @@ export const PatientProvider = ({ children }) => {
     fetchQueueAndHospitals();
   }, [fetchQueueAndHospitals]);
 
+  // Safe background queue polling for authenticated clinician / hospital admin (every 5 seconds)
+  useEffect(() => {
+    if (!authenticatedUser || (role !== 'doctor' && role !== 'hospital_admin')) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (ApiService.getAuthToken()) {
+        ApiService.getPatients()
+          .then((queueRes) => {
+            if (queueRes?.success && Array.isArray(queueRes.patients)) {
+              setPatients(queueRes.patients);
+              if (queueRes.patients.length > 0) {
+                setSelectedPatientId((prev) => {
+                  if (prev && queueRes.patients.some((p) => p.id === prev)) {
+                    return prev;
+                  }
+                  return queueRes.patients[0].id;
+                });
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn('[MediMitra] Background queue polling notice:', err.message);
+          });
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [authenticatedUser, role]);
+
   const t = translations[language] || translations.en;
 
   // Web Speech API Voice Prompt synthesis
@@ -445,56 +476,36 @@ export const PatientProvider = ({ children }) => {
     return { triageLevel, triageCategory, triageColor, redFlags: Array.from(new Set(redFlags)) };
   };
 
-  // Submit Kiosk Case to Selected Hospital & Department Queue
+  // Submit Kiosk Case to Selected Hospital & Department Queue (100% Authoritative Backend Response)
   const submitKioskCase = async () => {
     const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
-
-    const tokenPrefix = kioskForm.selectedDepartmentName?.includes('Cardiology') ? 'CARD' 
-      : kioskForm.selectedDepartmentName?.includes('Ortho') ? 'ORTH' 
-      : kioskForm.selectedDepartmentName?.includes('Pediatric') ? 'PED' 
-      : 'MED';
-    const randomNum = Math.floor(100 + Math.random() * 900);
-    const tokenNumber = `${tokenPrefix}-${randomNum}`;
-    const newId = `patient-${Date.now().toString().slice(-6)}`;
-
-    const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
 
     if (!kioskForm.selectedHospitalId) {
       throw new Error('Please select a healthcare facility before submitting.');
     }
 
-    const newPatient = {
-      id: newId,
-      tokenNumber,
-      hospitalId: kioskForm.selectedHospitalId,
-      hospitalName: kioskForm.selectedHospitalName,
-      departmentId: kioskForm.selectedDepartmentId || kioskForm.department_id || 'dept-genmed',
-      department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
-      roomNumber: kioskForm.roomNumber || 'Room 101',
-      assignedDoctor: kioskForm.assignedDoctor || 'Assigned OPD Clinician',
-      reasonForVisit: kioskForm.reasonForVisit || primaryComplaintTitle,
-      registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      waitTime: triageLevel <= 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins',
-      status: 'Waiting',
-      caseStatus: 'Waiting for Review',
-      verificationStatus: 'Pending Verification',
-      verificationTimestamp: null,
-      rejectionReason: null,
-      triageLevel,
-      triageCategory,
-      triageColor,
-      
-      abhaId: kioskForm.abhaId || null,
-      abhaAddress: kioskForm.abhaAddress || null,
+    const primaryComplaintTitle = kioskForm.reasonForVisit || kioskForm.chiefComplaints?.[0] || kioskForm.customComplaint || 'General OPD intake';
+
+    const intakePayload = {
       name: kioskForm.name || 'Walk-in Patient',
       age: Number(kioskForm.age) || null,
       gender: kioskForm.gender || 'Unspecified',
       phone: kioskForm.phone || '',
       address: kioskForm.address || '',
+      abhaId: kioskForm.abhaId || null,
+      abhaAddress: kioskForm.abhaAddress || null,
       language: languagesMap[language] || 'English',
-      
-      // 10 Comprehensive Clinical Sections
+      hospitalId: kioskForm.selectedHospitalId,
+      hospitalName: kioskForm.selectedHospitalName,
+      departmentId: kioskForm.selectedDepartmentId || kioskForm.department_id || 'dept-genmed',
+      department: kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General Medicine',
+      reasonForVisit: kioskForm.reasonForVisit || primaryComplaintTitle,
+      consentAgreed: Boolean(kioskForm.consentAgreed),
+      signatureData: kioskForm.signature,
       chiefComplaints: kioskForm.chiefComplaints.length > 0 ? kioskForm.chiefComplaints : [primaryComplaintTitle],
+      duration: kioskForm.duration,
+      painScore: kioskForm.painScore,
+      onset: kioskForm.onset,
       hpi: {
         onset: kioskForm.duration ? `Problem started ${kioskForm.duration}.` : 'Onset not specified.',
         location: kioskForm.selectedRegion ? `${kioskForm.selectedRegion} region.` : 'General/Systemic.',
@@ -516,11 +527,6 @@ export const PatientProvider = ({ children }) => {
         respiratory: 'SpO2 saturation monitored at kiosk.',
         intakeNote: 'Clinical review of systems to be conducted by attending physician.'
       },
-      previousInvestigations: {
-        labs: [],
-        imaging: 'None attached.'
-      },
-
       vitals: {
         bp_systolic: kioskForm.vitals.bpSystolic,
         bp_diastolic: kioskForm.vitals.bpDiastolic,
@@ -529,16 +535,70 @@ export const PatientProvider = ({ children }) => {
         temp: kioskForm.vitals.temp,
         blood_sugar: kioskForm.vitals.bloodSugar
       },
-      redFlags,
-      documents: kioskForm.uploadedDocs,
+      uploadedDocuments: kioskForm.uploadedDocs || [],
+      ayushHistory: kioskForm.ayushHistory || createInitialAyushState()
+    };
+
+    // 1. Submit to Authoritative Backend API
+    const response = await ApiService.submitPatientIntake(intakePayload);
+    if (!response || !response.success || !response.data) {
+      throw new Error(response?.message || response?.error || 'Registration failed on server. Please try again.');
+    }
+
+    const backendData = response.data;
+
+    // 2. Build authoritative patient record strictly from backend persisted data
+    const authoritativePatient = {
+      id: backendData.id,
+      tokenNumber: backendData.tokenNumber,
+      hospitalId: backendData.hospitalId,
+      hospitalName: backendData.hospitalName,
+      departmentId: backendData.departmentId,
+      department: backendData.department,
+      roomNumber: backendData.roomNumber,
+      assignedDoctor: backendData.assignedDoctorName || 'Assigned OPD Clinician',
+      assignedDoctorName: backendData.assignedDoctorName || 'Assigned OPD Clinician',
+      reasonForVisit: intakePayload.reasonForVisit,
+      registrationTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      waitTime: backendData.waitTime || (triageLevel <= 2 ? 'Immediate (0-5 min)' : triageLevel === 3 ? '15-20 mins' : '30-40 mins'),
+      status: 'Waiting',
+      caseStatus: 'Waiting for Review',
+      verificationStatus: 'Pending Verification',
+      verificationTimestamp: null,
+      rejectionReason: null,
+      triageLevel: backendData.triageLevel ?? triageLevel,
+      triageCategory: backendData.triageCategory || triageCategory,
+      triageColor: backendData.triageColor || triageColor,
+      redFlags: backendData.redFlags || redFlags,
+      
+      abhaId: intakePayload.abhaId,
+      abhaAddress: intakePayload.abhaAddress,
+      name: intakePayload.name,
+      age: intakePayload.age,
+      gender: intakePayload.gender,
+      phone: intakePayload.phone,
+      address: intakePayload.address,
+      language: intakePayload.language,
+      
+      chiefComplaints: intakePayload.chiefComplaints,
+      hpi: intakePayload.hpi,
+      pastMedicalHistory: intakePayload.pastMedicalHistory,
+      pastSurgicalHistory: intakePayload.pastSurgicalHistory,
+      currentMedications: intakePayload.currentMedications,
+      drugAllergies: intakePayload.drugAllergies,
+      familyHistory: intakePayload.familyHistory,
+      personalHistory: intakePayload.personalHistory,
+      reviewOfSystems: intakePayload.reviewOfSystems,
+      vitals: intakePayload.vitals,
+      documents: intakePayload.uploadedDocuments,
       structuredHistory: kioskForm.structuredHistory || [],
 
       // AI Generated Draft for Doctor
       aiGeneratedDraft: {
         disclaimer: 'AI-generated draft — Doctor verification required. Not a final clinical diagnosis.',
-        subjectiveSummary: `${kioskForm.age ? `${kioskForm.age}-year-old` : 'Adult'} ${kioskForm.gender || 'patient'} presenting at ${kioskForm.selectedHospitalName} (${kioskForm.selectedDepartmentName || kioskForm.assignedDepartment || 'General OPD'}) with ${primaryComplaintTitle}${kioskForm.duration ? ` of ${kioskForm.duration} duration` : ''}.`,
+        subjectiveSummary: `${intakePayload.age ? `${intakePayload.age}-year-old` : 'Adult'} ${intakePayload.gender || 'patient'} presenting at ${backendData.hospitalName} (${backendData.department || 'General OPD'}) with ${primaryComplaintTitle}${kioskForm.duration ? ` of ${kioskForm.duration} duration` : ''}.`,
         objectiveSummary: `Vitals: BP ${kioskForm.vitals.bpSystolic}/${kioskForm.vitals.bpDiastolic} mmHg, HR ${kioskForm.vitals.pulse} bpm, SpO2 ${kioskForm.vitals.spo2}%, RBS ${kioskForm.vitals.bloodSugar} mg/dL.`,
-        preliminaryRiskAssessment: `Triage Priority: ${triageCategory} (ESI Level ${triageLevel}).`,
+        preliminaryRiskAssessment: `Triage Priority: ${backendData.triageCategory || triageCategory} (ESI Level ${backendData.triageLevel ?? triageLevel}).`,
         differentialDiagnosisDraft: [
           `${primaryComplaintTitle} Evaluation`,
           'Secondary Systemic Investigation'
@@ -558,81 +618,23 @@ export const PatientProvider = ({ children }) => {
         followUp: ''
       },
       
-      // Structured AYUSH / Dashavidha Pariksha History
-      ayushHistory: kioskForm.ayushHistory || createInitialAyushState()
+      ayushHistory: intakePayload.ayushHistory
     };
 
-    // Prepend to state queue immediately
-    setPatients((prev) => [newPatient, ...prev]);
-    setSelectedPatientId(newId);
+    // 3. Synchronize authoritative patient into state queue and kioskForm
+    setPatients((prev) => [authoritativePatient, ...prev.filter(p => p.id !== authoritativePatient.id)]);
+    setSelectedPatientId(authoritativePatient.id);
     
     setKioskForm((prev) => ({
       ...prev,
-      generatedToken: newPatient,
-      triageLevel,
-      triageCategory,
-      triageColor,
-      redFlags
+      generatedToken: authoritativePatient,
+      triageLevel: authoritativePatient.triageLevel,
+      triageCategory: authoritativePatient.triageCategory,
+      triageColor: authoritativePatient.triageColor,
+      redFlags: authoritativePatient.redFlags
     }));
 
-    // Post to real backend asynchronously with graceful offline fallback
-    try {
-      const response = await ApiService.submitPatientIntake({
-        name: newPatient.name,
-        age: newPatient.age,
-        gender: newPatient.gender,
-        phone: newPatient.phone,
-        address: newPatient.address,
-        abhaId: newPatient.abhaId,
-        abhaAddress: newPatient.abhaAddress,
-        language: newPatient.language,
-        hospitalId: newPatient.hospitalId,
-        hospitalName: newPatient.hospitalName,
-        departmentId: newPatient.departmentId,
-        department: newPatient.department,
-        reasonForVisit: newPatient.reasonForVisit,
-        consentAgreed: Boolean(kioskForm.consentAgreed),
-        signatureData: kioskForm.signature,
-        chiefComplaints: newPatient.chiefComplaints,
-        duration: kioskForm.duration,
-        painScore: kioskForm.painScore,
-        onset: kioskForm.onset,
-        hpi: newPatient.hpi,
-        pastMedicalHistory: newPatient.pastMedicalHistory,
-        pastSurgicalHistory: newPatient.pastSurgicalHistory,
-        currentMedications: newPatient.currentMedications,
-        drugAllergies: newPatient.drugAllergies,
-        familyHistory: newPatient.familyHistory,
-        personalHistory: newPatient.personalHistory,
-        reviewOfSystems: newPatient.reviewOfSystems,
-        vitals: newPatient.vitals,
-        uploadedDocuments: newPatient.documents,
-        ayushHistory: newPatient.ayushHistory
-      });
-
-      if (response && response.data) {
-        const backendData = response.data;
-        newPatient.id = backendData.id || newPatient.id;
-        newPatient.tokenNumber = backendData.tokenNumber || newPatient.tokenNumber;
-        newPatient.roomNumber = backendData.roomNumber || newPatient.roomNumber;
-        newPatient.assignedDoctor = backendData.assignedDoctorName || newPatient.assignedDoctor;
-        newPatient.waitTime = backendData.waitTime || newPatient.waitTime;
-        if (backendData.triageLevel) newPatient.triageLevel = backendData.triageLevel;
-        if (backendData.triageCategory) newPatient.triageCategory = backendData.triageCategory;
-        if (backendData.triageColor) newPatient.triageColor = backendData.triageColor;
-
-        setPatients((prev) => prev.map((p) => (p.id === newId ? { ...newPatient } : p)));
-        setSelectedPatientId(newPatient.id);
-        setKioskForm((prev) => ({
-          ...prev,
-          generatedToken: { ...newPatient }
-        }));
-      }
-    } catch (apiErr) {
-      console.warn('Backend intake sync notice (saved locally in browser session):', apiErr.message);
-    }
-
-    return newPatient;
+    return authoritativePatient;
   };
 
   // Reset Kiosk Form for new patient

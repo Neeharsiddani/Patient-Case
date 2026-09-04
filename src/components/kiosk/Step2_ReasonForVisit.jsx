@@ -198,11 +198,17 @@ export const Step2_ReasonForVisit = () => {
                   key={d.id}
                   type="button"
                   onClick={() => {
+                    const hospId = kioskForm.selectedHospitalId || 'hosp-ggh-hyd';
+                    const hospPrefix = hospId.startsWith('hosp-') ? hospId.slice(5) : hospId;
+                    const code = d.id.replace(/^dept-/, '');
+                    const resolvedDeptId = `dept-${hospPrefix}-${code}`;
+
                     setKioskForm(prev => ({
                       ...prev,
                       assignedDepartment: d.name,
                       selectedDepartmentName: d.name,
-                      selectedDepartmentId: d.id,
+                      selectedDepartmentId: resolvedDeptId,
+                      department_id: resolvedDeptId,
                       isAyushCase: d.id === 'dept-ayush'
                     }));
                   }}
