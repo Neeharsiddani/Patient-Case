@@ -961,12 +961,23 @@ router.get('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN')
 
 /**
  * DELETE /api/patients/:id
- * Authorized hospital administrators and doctors can delete patient records
- * Enforces strict hospital tenant isolation, department RBAC, and records immutable audit log
+ * Authorized hospital administrators can delete patient records
+ * Enforces strict hospital tenant isolation, administrative RBAC, and records immutable audit log.
+ * NOTE: Doctors are strictly prohibited from deleting patient records to preserve clinical audit trails.
  */
-router.delete('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireRole('HOSPITAL_ADMIN', 'ADMIN'), async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Strict guard: Doctors are forbidden from deleting patient records
+    if (req.user.role === 'DOCTOR') {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden Access',
+        message: 'Doctors are not permitted to delete patient records.'
+      });
+    }
+
     const patient = await get('SELECT id, name, hospital_id, department_id, assigned_doctor_id FROM patients WHERE id = ?', [id]);
     if (!patient) {
       return res.status(404).json({
@@ -982,26 +993,6 @@ router.delete('/:id', requireAuth, requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'ADMI
         error: 'Forbidden Access',
         message: 'You are not authorized to delete patient records belonging to another healthcare facility.'
       });
-    }
-
-    // If DOCTOR role, verify doctor has authorization for this patient's department or is assigned
-    if (req.user.role === 'DOCTOR') {
-      const authorizedDepts = await query(
-        'SELECT department_id FROM doctor_departments WHERE doctor_id = ?',
-        [req.user.id]
-      );
-      const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
-
-      const isAssigned = patient.assigned_doctor_id === req.user.id;
-      const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
-
-      if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
-        return res.status(403).json({
-          success: false,
-          error: 'Forbidden Access',
-          message: 'You are not authorized to delete cases outside your registered clinical departments.'
-        });
-      }
     }
 
     // Clean up any physical uploaded document files on disk before cascading database deletion

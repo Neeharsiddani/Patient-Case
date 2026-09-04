@@ -221,8 +221,9 @@ export class ApiService {
     }
   }
 
-  static async getHospitalDoctors(hospitalId) {
-    return await this.request(`/hospitals/${hospitalId}/doctors`);
+  static async getHospitalDoctors(hospitalId, includeInactive = false) {
+    const qs = includeInactive ? '?includeInactive=true' : '';
+    return await this.request(`/hospitals/${hospitalId}/doctors${qs}`);
   }
 
   static async getHospitalStats(hospitalId) {
@@ -236,10 +237,42 @@ export class ApiService {
     });
   }
 
+  static async transferPatient(hospitalId, patientId, targetDepartmentId) {
+    return await this.request(`/hospitals/${hospitalId}/transfer-patient`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, targetDepartmentId })
+    });
+  }
+
+  static async updatePatientCaseStatus(hospitalId, patientId, status) {
+    return await this.request(`/hospitals/${hospitalId}/patients/${patientId}/case-status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  }
+
+  static async getPatientAdminRecord(hospitalId, patientId) {
+    return await this.request(`/hospitals/${hospitalId}/patients/${patientId}/record`);
+  }
+
   static async createDepartment(hospitalId, deptData) {
     return await this.request(`/hospitals/${hospitalId}/departments`, {
       method: 'POST',
       body: JSON.stringify(deptData)
+    });
+  }
+
+  static async updateDepartment(hospitalId, deptId, deptData) {
+    return await this.request(`/hospitals/${hospitalId}/departments/${deptId}`, {
+      method: 'PUT',
+      body: JSON.stringify(deptData)
+    });
+  }
+
+  static async setDepartmentStatus(hospitalId, deptId, status) {
+    return await this.request(`/hospitals/${hospitalId}/departments/${deptId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
     });
   }
 
@@ -248,6 +281,44 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify(doctorData)
     });
+  }
+
+  static async updateDoctor(hospitalId, doctorId, doctorData) {
+    return await this.request(`/hospitals/${hospitalId}/doctors/${doctorId}`, {
+      method: 'PUT',
+      body: JSON.stringify(doctorData)
+    });
+  }
+
+  static async setDoctorStatus(hospitalId, doctorId, status, reassignActiveCases = false) {
+    return await this.request(`/hospitals/${hospitalId}/doctors/${doctorId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reassignActiveCases })
+    });
+  }
+
+  static async resetDoctorPassword(hospitalId, doctorId, newPassword) {
+    return await this.request(`/hospitals/${hospitalId}/doctors/${doctorId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword })
+    });
+  }
+
+  static async updateHospitalSettings(hospitalId, settingsData) {
+    return await this.request(`/hospitals/${hospitalId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  }
+
+  static async getHospitalAuditLogs(hospitalId, queryParams = {}) {
+    const params = new URLSearchParams();
+    if (queryParams.limit) params.append('limit', queryParams.limit);
+    if (queryParams.offset) params.append('offset', queryParams.offset);
+    if (queryParams.action) params.append('action', queryParams.action);
+    if (queryParams.resourceType) params.append('resourceType', queryParams.resourceType);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return await this.request(`/hospitals/${hospitalId}/audit-logs${qs}`);
   }
 
   // Patient Case Management (Hospital & Department Scoped)

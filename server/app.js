@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -66,6 +69,19 @@ app.use(cors({
 
 // 3. Rate Limiting for Clinical API Protection
 // Apply dedicated strict limiters first for sensitive endpoints (supporting both /api and root paths)
+
+// ============================================================================
+// TEMPORARY DEMO / HACKATHON CONFIGURATION: LOGIN RATE LIMITING TOGGLE
+// ============================================================================
+// To prevent 15-minute lockout during live testing and multi-account staff demos,
+// login rate limiting on /auth/login is temporarily disabled by default.
+//
+// HOW TO RE-ENABLE STRICT PRODUCTION LOGIN RATE LIMITING:
+// - Set environment variable: ENABLE_LOGIN_RATE_LIMIT=true (in .env or host)
+// - Or change the default below: const isLoginRateLimitEnabled = process.env.ENABLE_LOGIN_RATE_LIMIT === 'true';
+// ============================================================================
+export const isLoginRateLimitEnabled = process.env.ENABLE_LOGIN_RATE_LIMIT === 'true';
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'test' ? 200 : 30, // 30 login attempts per 15 minutes per IP
@@ -77,7 +93,13 @@ const authLimiter = rateLimit({
     message: 'Too many login attempts from this IP address. Please wait 15 minutes before retrying.'
   }
 });
-app.use(['/api/auth/login', '/auth/login'], authLimiter);
+
+if (isLoginRateLimitEnabled) {
+  app.use(['/api/auth/login', '/auth/login'], authLimiter);
+} else {
+  // Temporary demo bypass: allow hospital staff & admin demo testing without IP lockout
+  console.log('ℹ️  [DEMO CONFIG] Login rate limiter on /auth/login is TEMPORARILY DISABLED. Set ENABLE_LOGIN_RATE_LIMIT=true to re-enable.');
+}
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -98,6 +120,13 @@ const apiLimiter = rateLimit({
   max: 1000, // limit each IP to 1000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // When login rate limiter is disabled for demo, also skip counting /auth/login against general API quota
+    if (!isLoginRateLimitEnabled && (req.path === '/api/auth/login' || req.path === '/auth/login')) {
+      return true;
+    }
+    return false;
+  },
   message: {
     success: false,
     error: 'Too Many Requests',

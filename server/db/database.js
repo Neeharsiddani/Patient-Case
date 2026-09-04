@@ -391,10 +391,20 @@ export const initDb = async () => {
 
         // Auto-migration for users table
         const userCols = await query("PRAGMA table_info(users)");
-        if (userCols && !userCols.some(c => c.name === 'hospital_id')) {
-          try { await run("ALTER TABLE users ADD COLUMN hospital_id TEXT"); } catch {}
-          try { await run("ALTER TABLE users ADD COLUMN department TEXT"); } catch {}
-          try { await run("ALTER TABLE users ADD COLUMN license_number TEXT"); } catch {}
+        if (userCols) {
+          if (!userCols.some(c => c.name === 'hospital_id')) {
+            try { await run("ALTER TABLE users ADD COLUMN hospital_id TEXT"); } catch {}
+            try { await run("ALTER TABLE users ADD COLUMN department TEXT"); } catch {}
+            try { await run("ALTER TABLE users ADD COLUMN license_number TEXT"); } catch {}
+          }
+          if (!userCols.some(c => c.name === 'qualification')) {
+            try { await run("ALTER TABLE users ADD COLUMN qualification TEXT"); } catch {}
+          }
+        }
+
+        // Auto-migration for hospitals table description
+        if (hospCols && !hospCols.some(c => c.name === 'description')) {
+          try { await run("ALTER TABLE hospitals ADD COLUMN description TEXT"); } catch {}
         }
 
         // Auto-migration for patients table
@@ -427,6 +437,20 @@ export const initDb = async () => {
           try { await run("ALTER TABLE consents ADD COLUMN revocation_status TEXT DEFAULT 'ACTIVE'"); } catch {}
         }
 
+        // Auto-migration for audit_logs table
+        const auditCols = await query("PRAGMA table_info(audit_logs)");
+        if (auditCols) {
+          if (!auditCols.some(c => c.name === 'timestamp')) {
+            try { await run("ALTER TABLE audit_logs ADD COLUMN timestamp DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch {}
+          }
+          if (!auditCols.some(c => c.name === 'created_at')) {
+            try { await run("ALTER TABLE audit_logs ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch {}
+          }
+          try {
+            await run("UPDATE audit_logs SET timestamp = created_at WHERE timestamp IS NULL AND created_at IS NOT NULL");
+          } catch {}
+        }
+
         // Auto-migration for documents table
         const docCols = await query("PRAGMA table_info(documents)");
         if (docCols) {
@@ -457,6 +481,23 @@ export const initDb = async () => {
           await run("CREATE UNIQUE INDEX IF NOT EXISTS idx_doctor_notes_patient ON doctor_notes(patient_id)");
         } catch (err) {
           // Non-blocking cleanup
+        }
+
+        // Auto-migration & operational data integrity cleanup for doctor assignments (Requirements 5 & 15)
+        try {
+          await run(`
+            UPDATE patients 
+            SET assigned_doctor_id = NULL, 
+                assigned_doctor_name = NULL,
+                status = CASE WHEN status = 'Assigned' THEN 'Waiting' ELSE status END,
+                case_status = CASE WHEN case_status = 'Assigned' THEN 'Waiting for Review' ELSE case_status END
+            WHERE assigned_doctor_id IS NOT NULL 
+              AND department_id NOT IN (
+                SELECT department_id FROM doctor_departments WHERE doctor_id = patients.assigned_doctor_id
+              )
+          `);
+        } catch (err) {
+          console.warn('Assignment integrity cleanup notice:', err.message);
         }
 
         resolve();

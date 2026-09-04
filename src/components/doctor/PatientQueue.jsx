@@ -13,13 +13,11 @@ import {
   ShieldCheck,
   XCircle,
   Stethoscope,
-  Layers,
-  Trash2
+  Layers
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { TriageBadge } from '../common/TriageBadge';
 import { isPatientInHospital } from '../../utils/hospitalResolver';
-import { DeletePatientModal } from './DeletePatientModal';
 
 export { isPatientInHospital };
 
@@ -32,14 +30,12 @@ export const PatientQueue = () => {
     activeHospitalId,
     queueLoading,
     queueError,
-    refreshQueue,
-    deletePatient
+    refreshQueue
   } = usePatient();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('ALL');
   const [activeFilterTab, setActiveFilterTab] = useState('ALL'); // 'ALL' | 'WAITING' | 'RED_FLAG' | 'ASSIGNED_TO_ME' | 'VERIFIED'
-  const [patientToDelete, setPatientToDelete] = useState(null);
 
   const currentHospId = authenticatedUser?.hospitalId || activeHospitalId || null;
 
@@ -238,21 +234,6 @@ export const PatientQueue = () => {
                         <span>Waiting for Review</span>
                       </span>
                     )}
-
-                    {/* Delete Option for Doctor */}
-                    <button
-                      type="button"
-                      id={`delete-patient-btn-${p.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPatientToDelete(p);
-                      }}
-                      title={`Remove ${p.name} from queue`}
-                      aria-label={`Remove patient ${p.name} from queue`}
-                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Trash2 size={13} />
-                    </button>
                   </div>
                 </div>
 
@@ -299,16 +280,6 @@ export const PatientQueue = () => {
           })
         )}
       </div>
-
-      {/* Confirmation Modal to Delete Patient */}
-      {patientToDelete && (
-        <DeletePatientModal
-          patient={patientToDelete}
-          isOpen={Boolean(patientToDelete)}
-          onClose={() => setPatientToDelete(null)}
-          onConfirm={deletePatient}
-        />
-      )}
     </div>
   );
 };

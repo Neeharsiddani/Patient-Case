@@ -7,7 +7,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
- * Helper to check doctor department authorization or explicit patient assignment
+ * Helper to check doctor department authorization
+ * Strictly enforces that the doctor is authorized for the patient's department
  */
 async function verifyDoctorDepartmentAuthorization(userId, userRole, patient) {
   if (userRole !== 'DOCTOR') return true;
@@ -16,9 +17,7 @@ async function verifyDoctorDepartmentAuthorization(userId, userRole, patient) {
     [userId]
   );
   const authorizedDeptIds = authorizedDepts.map(d => d.department_id);
-  const isAssigned = patient.assigned_doctor_id === userId;
-  const isDeptAuthorized = authorizedDeptIds.includes(patient.department_id);
-  if (!isAssigned && !isDeptAuthorized && authorizedDeptIds.length > 0) {
+  if (!patient.department_id || !authorizedDeptIds.includes(patient.department_id)) {
     return false;
   }
   return true;
