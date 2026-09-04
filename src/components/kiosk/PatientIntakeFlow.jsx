@@ -126,8 +126,8 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const handleNext = async () => {
     if (!canProceed() || isSubmitting) return;
 
-    if (kioskStep === 6 && isAyushDepartment) {
-      setKioskForm((prev) => ({ ...prev, skipAyushAssessment: false }));
+    if (kioskStep === 6) {
+      setKioskForm((prev) => ({ ...prev, isAyushCase: true, skipAyushAssessment: false }));
     }
 
     if (kioskStep === reviewStepNum) {
@@ -150,7 +150,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
 
   const handleSkipAyush = () => {
     if (!canProceed() || isSubmitting) return;
-    setKioskForm((prev) => ({ ...prev, skipAyushAssessment: true }));
+    setKioskForm((prev) => ({ ...prev, skipAyushAssessment: true, isAyushCase: false }));
     const nextStep = 7;
     setKioskStep(nextStep);
     window.history.pushState({ screen: 'patient', step: nextStep }, '', getRouteUrl('patient', nextStep));
@@ -362,7 +362,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
             </button>
 
             {kioskStep < reviewStepNum ? (
-              isAyushDepartment && kioskStep === 6 ? (
+              kioskStep === 6 ? (
                 <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
                   <button
                     type="button"
