@@ -1,49 +1,36 @@
 import React, { useState } from 'react';
 import { 
   Building2, 
-  User,
-  Globe,
-  ShieldCheck,
+  User, 
   Activity, 
   Heart, 
-  Leaf,
-  ShieldAlert, 
+  Leaf, 
   UploadCloud, 
-  Cpu,
-  History, 
   CheckCheck, 
   Ticket, 
   ArrowLeft, 
   ArrowRight, 
-  ChevronRight,
+  ChevronRight, 
   Check, 
   Lock, 
-  RotateCcw,
-  Loader2
+  Loader2 
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { Step1_HospitalSelect } from './Step1_HospitalSelect';
-import { Step1_Identification } from './Step1_Identification';
-import { Step2_Language } from './Step2_Language';
-import { Step3_Consent } from './Step3_Consent';
-import { Step2_ReasonForVisit } from './Step2_ReasonForVisit';
-import { Step4_ClinicalHistory } from './Step4_ClinicalHistory';
+import { Step2_Registration } from './Step2_Registration';
+import { Step3_ClinicalIntake } from './Step3_ClinicalIntake';
 import { Step4_AyushHistory } from './Step4_AyushHistory';
-import { Step4_RedFlagAlert } from './Step4_RedFlagAlert';
-import { Step5_DocUpload } from './Step5_DocUpload';
-import { Step6_OcrExtraction } from './Step6_OcrExtraction';
-import { Step6_MedicalTimeline } from './Step6_MedicalTimeline';
+import { Step_DocumentsUnified } from './Step_DocumentsUnified';
 import { Step7_ReviewInformation } from './Step7_ReviewInformation';
 import { Step8_SecureSubmit } from './Step8_SecureSubmit';
 import { KioskInactivityModal } from '../common/KioskInactivityModal';
-import { MediMitraLogo } from '../common/MediMitraLogo';
-
 import { getRouteUrl } from '../../utils/navigation';
 
 export const PatientIntakeFlow = ({ onBackToWelcome }) => {
-  const { kioskStep, setKioskStep, kioskForm, setKioskForm, submitKioskCase } = usePatient();
+  const { kioskStep, setKioskStep, kioskForm, setKioskForm, submitKioskCase, t } = usePatient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Check if case is directed towards AYUSH / Ayurveda
   const isAyushDepartment = Boolean(
     kioskForm.assignedDepartment?.toLowerCase().includes('ayush') ||
     kioskForm.assignedDepartment?.toLowerCase().includes('ayurveda') ||
@@ -56,69 +43,50 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
 
   const isAyush = isAyushDepartment && !kioskForm.skipAyushAssessment;
 
-  // Complete patient journey step sequence
+  // Streamlined 6 or 7 Visible Steps Sequence
   const steps = isAyush ? [
-    { num: 1, title: 'Hospital', icon: Building2 },
-    { num: 2, title: 'Identification', icon: User },
-    { num: 3, title: 'Language', icon: Globe },
-    { num: 4, title: 'Consent', icon: ShieldCheck },
-    { num: 5, title: 'Reason for Visit', icon: Activity },
-    { num: 6, title: 'Clinical History', icon: Heart },
-    { num: 7, title: 'AYUSH Assessment', icon: Leaf },
-    { num: 8, title: 'Red Flags', icon: ShieldAlert },
-    { num: 9, title: 'Documents', icon: UploadCloud },
-    { num: 10, title: 'Extraction', icon: Cpu },
-    { num: 11, title: 'Timeline', icon: History },
-    { num: 12, title: 'Review', icon: CheckCheck },
-    { num: 13, title: 'Token', icon: Ticket }
+    { num: 1, title: t.step1 || 'Hospital', icon: Building2 },
+    { num: 2, title: t.step2 || 'Registration', icon: User },
+    { num: 3, title: t.step3 || 'Symptoms & History', icon: Heart },
+    { num: 4, title: t.stepAyush || 'AYUSH Assessment', icon: Leaf },
+    { num: 5, title: t.step4 || 'Documents', icon: UploadCloud },
+    { num: 6, title: t.step5 || 'Review & Submit', icon: CheckCheck },
+    { num: 7, title: t.step6 || 'Token Slip', icon: Ticket }
   ] : [
-    { num: 1, title: 'Hospital', icon: Building2 },
-    { num: 2, title: 'Identification', icon: User },
-    { num: 3, title: 'Language', icon: Globe },
-    { num: 4, title: 'Consent', icon: ShieldCheck },
-    { num: 5, title: 'Reason for Visit', icon: Activity },
-    { num: 6, title: 'Clinical History', icon: Heart },
-    { num: 7, title: 'Red Flags', icon: ShieldAlert },
-    { num: 8, title: 'Documents', icon: UploadCloud },
-    { num: 9, title: 'Extraction', icon: Cpu },
-    { num: 10, title: 'Timeline', icon: History },
-    { num: 11, title: 'Review', icon: CheckCheck },
-    { num: 12, title: 'Token', icon: Ticket }
+    { num: 1, title: t.step1 || 'Hospital', icon: Building2 },
+    { num: 2, title: t.step2 || 'Registration', icon: User },
+    { num: 3, title: t.step3 || 'Symptoms & History', icon: Heart },
+    { num: 4, title: t.step4 || 'Documents', icon: UploadCloud },
+    { num: 5, title: t.step5 || 'Review & Submit', icon: CheckCheck },
+    { num: 6, title: t.step6 || 'Token Slip', icon: Ticket }
   ];
 
   const totalSteps = steps.length;
-  const reviewStepNum = totalSteps - 1;
-  const finishStepNum = totalSteps;
+  const reviewStepNum = isAyush ? 6 : 5;
+  const finishStepNum = isAyush ? 7 : 6;
 
+  // Form Validation per Step
   const canProceed = () => {
     if (kioskStep === 1) {
       return Boolean(kioskForm.selectedHospitalId);
     }
     if (kioskStep === 2) {
-      // Step 2: Patient Identification - ABHA, phone, or name provided, or walkin
-      return Boolean(
+      // Step 2 Registration: Requires valid Identification AND Explicit DPDP Consent
+      const hasIdent = Boolean(
         (kioskForm.name && kioskForm.name.trim().length >= 2) ||
         (kioskForm.abhaId && kioskForm.abhaId.length >= 10) ||
         (kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10) ||
         kioskForm.abhaStatus === 'WALKIN_NO_ABHA'
       );
+      return hasIdent && Boolean(kioskForm.consentAgreed);
     }
     if (kioskStep === 3) {
-      // Step 3: Language
-      return true;
-    }
-    if (kioskStep === 4) {
-      // Step 4: Consent - Explicit consent required under DPDP Act 2023
-      return Boolean(kioskForm.consentAgreed);
-    }
-    if (kioskStep === 5) {
-      // Step 5: Reason for visit - Demographics & Reason
-      const hasName = Boolean(kioskForm.name && kioskForm.name.trim().length >= 2);
-      const hasAge = Boolean(kioskForm.age && Number(kioskForm.age) >= 1 && Number(kioskForm.age) <= 125);
-      const hasGender = Boolean(kioskForm.gender);
-      const hasPhone = Boolean(kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10);
-      const hasReason = Boolean((kioskForm.reasonForVisit && kioskForm.reasonForVisit.trim()) || kioskForm.chiefComplaints?.length > 0);
-      return hasName && hasAge && hasGender && hasPhone && hasReason;
+      // Step 3 Clinical Intake: Requires chief complaint / reason for visit
+      return Boolean(
+        (kioskForm.reasonForVisit && kioskForm.reasonForVisit.trim()) ||
+        (kioskForm.chiefComplaints && kioskForm.chiefComplaints.length > 0) ||
+        (kioskForm.customComplaint && kioskForm.customComplaint.trim())
+      );
     }
     return true;
   };
@@ -126,7 +94,8 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const handleNext = async () => {
     if (!canProceed() || isSubmitting) return;
 
-    if (kioskStep === 6) {
+    // If at Step 3 and in an AYUSH department, continue to Step 4 AYUSH
+    if (kioskStep === 3 && isAyushDepartment && !kioskForm.skipAyushAssessment) {
       setKioskForm((prev) => ({ ...prev, isAyushCase: true, skipAyushAssessment: false }));
     }
 
@@ -151,7 +120,8 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const handleSkipAyush = () => {
     if (!canProceed() || isSubmitting) return;
     setKioskForm((prev) => ({ ...prev, skipAyushAssessment: true, isAyushCase: false }));
-    const nextStep = 7;
+    // Skip AYUSH assessment and advance directly to Documents (Step 4 in standard flow)
+    const nextStep = 4;
     setKioskStep(nextStep);
     window.history.pushState({ screen: 'patient', step: nextStep }, '', getRouteUrl('patient', nextStep));
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -176,7 +146,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
       {/* Session Inactivity Protection */}
       <KioskInactivityModal idleTimeoutSec={90} countdownSec={15} />
 
-      {/* Top Breadcrumb & Step Stepper */}
+      {/* Top Header Card & Progress Stepper */}
       <div className="no-print bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <button
@@ -185,7 +155,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
             className="text-xs font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors cursor-pointer"
           >
             <ArrowLeft size={14} />
-            <span>Change Role / Home</span>
+            <span>{t.back || 'Home / Change Role'}</span>
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -200,7 +170,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 : 'text-slate-600 bg-slate-100 border-slate-200'
             }`}>
               {kioskForm.selectedHospitalName 
-                ? `🏥 ${kioskForm.selectedHospitalName} • ${kioskForm.assignedDepartment || 'General Medicine'}`
+                ? `🏥 ${kioskForm.selectedHospitalName} • ${kioskForm.assignedDepartment || kioskForm.selectedDepartmentName || 'General Medicine'}`
                 : '🏥 Select Hospital'}
             </span>
           </div>
@@ -241,9 +211,9 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
           </div>
         </div>
 
-        {/* Desktop Dynamic Horizontal Stepper (>=640px - 100% Preserved) */}
+        {/* Desktop Horizontal Stepper (>=640px) */}
         <div className="hidden sm:block overflow-x-auto pb-1">
-          <div className="flex items-center justify-between min-w-[700px] gap-2">
+          <div className="flex items-center justify-between min-w-[650px] gap-2">
             {steps.map((s, idx) => {
               const isDone = kioskStep > s.num;
               const isCurrent = kioskStep === s.num;
@@ -305,51 +275,41 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
         {/* Step 1: Hospital Select */}
         {kioskStep === 1 && <Step1_HospitalSelect />}
 
-        {/* Step 2: Patient Identification */}
-        {kioskStep === 2 && <Step1_Identification />}
+        {/* Step 2: Consolidated Registration (Identification + ABHA + Language + Consent) */}
+        {kioskStep === 2 && <Step2_Registration />}
 
-        {/* Step 3: Language Selection */}
-        {kioskStep === 3 && <Step2_Language />}
+        {/* Step 3: Consolidated Clinical Intake (Reason for Visit + Clinical History + Inline Red Flags) */}
+        {kioskStep === 3 && <Step3_ClinicalIntake />}
 
-        {/* Step 4: Informed Consent */}
-        {kioskStep === 4 && <Step3_Consent />}
+        {/* Step 4 (Conditional): AYUSH Assessment if AYUSH Mode */}
+        {isAyush && kioskStep === 4 && <Step4_AyushHistory />}
 
-        {/* Step 5: Reason for Visit */}
-        {kioskStep === 5 && <Step2_ReasonForVisit />}
+        {/* Documents Step: Step 5 if AYUSH, else Step 4 */}
+        {((isAyush && kioskStep === 5) || (!isAyush && kioskStep === 4)) && (
+          <Step_DocumentsUnified />
+        )}
 
-        {/* Step 6: Clinical History */}
-        {kioskStep === 6 && <Step4_ClinicalHistory />}
-
-        {/* AYUSH Branch: Step 7 is AYUSH History if AYUSH mode */}
-        {isAyush && kioskStep === 7 && <Step4_AyushHistory />}
-
-        {/* Red Flags: Step 8 if AYUSH, else Step 7 */}
-        {((isAyush && kioskStep === 8) || (!isAyush && kioskStep === 7)) && <Step4_RedFlagAlert />}
-
-        {/* Documents: Step 9 if AYUSH, else Step 8 */}
-        {((isAyush && kioskStep === 9) || (!isAyush && kioskStep === 8)) && <Step5_DocUpload />}
-
-        {/* OCR Extraction: Step 10 if AYUSH, else Step 9 */}
-        {((isAyush && kioskStep === 10) || (!isAyush && kioskStep === 9)) && <Step6_OcrExtraction />}
-
-        {/* Medical Timeline: Step 11 if AYUSH, else Step 10 */}
-        {((isAyush && kioskStep === 11) || (!isAyush && kioskStep === 10)) && <Step6_MedicalTimeline />}
-
-        {/* Review: Step 12 if AYUSH, else Step 11 */}
-        {((isAyush && kioskStep === 12) || (!isAyush && kioskStep === 11)) && (
-          <Step7_ReviewInformation onJumpToStep={(s) => {
-            const mappedStep = s === 1 ? 1 : s === 2 ? 2 : s === 3 ? 6 : s === 4 ? (isAyush ? 7 : 6) : (isAyush ? 9 : 8);
-            setKioskStep(mappedStep);
-            window.history.pushState({ screen: 'patient', step: mappedStep }, '', getRouteUrl('patient', mappedStep));
+        {/* Review Step: Step 6 if AYUSH, else Step 5 */}
+        {((isAyush && kioskStep === 6) || (!isAyush && kioskStep === 5)) && (
+          <Step7_ReviewInformation onJumpToStep={(targetId) => {
+            let targetStep = 1;
+            if (targetId === 1) targetStep = 1; // Hospital
+            else if (targetId === 2) targetStep = 2; // Registration
+            else if (targetId === 3) targetStep = 3; // Symptoms & History
+            else if (targetId === 4) targetStep = isAyush ? 4 : 3; // AYUSH
+            else if (targetId === 5 || targetId === 6) targetStep = isAyush ? 5 : 4; // Documents
+            setKioskStep(targetStep);
+            window.history.pushState({ screen: 'patient', step: targetStep }, '', getRouteUrl('patient', targetStep));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }} />
         )}
 
-        {/* Final Token Receipt: Step 13 if AYUSH, else Step 12 */}
-        {((isAyush && kioskStep === 13) || (!isAyush && kioskStep === 12)) && (
+        {/* Token Step: Step 7 if AYUSH, else Step 6 */}
+        {((isAyush && kioskStep === 7) || (!isAyush && kioskStep === 6)) && (
           <Step8_SecureSubmit onFinish={onBackToWelcome} />
         )}
 
-        {/* Wizard Bottom Navigation Buttons (Responsive Touch Targets) */}
+        {/* Wizard Bottom Navigation Buttons */}
         {kioskStep < finishStepNum && (
           <div className="no-print flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 sm:pt-8 mt-6 sm:mt-8 border-t border-slate-200">
             <button
@@ -358,11 +318,12 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
               className="w-full sm:w-auto px-6 py-3.5 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <ArrowLeft size={18} />
-              <span>{kioskStep === 1 ? 'Cancel' : 'Previous Step'}</span>
+              <span>{kioskStep === 1 ? (t.cancel || 'Cancel') : (t.back || 'Previous Step')}</span>
             </button>
 
             {kioskStep < reviewStepNum ? (
-              kioskStep === 6 ? (
+              // If at Step 3 and AYUSH department is selected, offer Continue to AYUSH or Skip AYUSH
+              (kioskStep === 3 && isAyushDepartment && !kioskForm.skipAyushAssessment) ? (
                 <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
                   <button
                     type="button"
@@ -373,7 +334,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                     }}
                     className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
                   >
-                    <span>Continue to AYUSH</span>
+                    <span>{t.continueToAyush || 'Continue to AYUSH'}</span>
                     <ArrowRight size={18} />
                   </button>
 
@@ -383,7 +344,7 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                     disabled={!canProceed()}
                     className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 hover:text-slate-900 font-bold rounded-2xl text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>Skip AYUSH</span>
+                    <span>{t.skipAyush || 'Skip AYUSH'}</span>
                     <ChevronRight size={16} />
                   </button>
                 </div>
@@ -398,11 +359,11 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                   className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
                 >
                   <span>
-                    {kioskStep === 4 && !kioskForm.consentAgreed
-                      ? 'Consent Required to Proceed'
+                    {kioskStep === 2 && !kioskForm.consentAgreed
+                      ? (t.consentRequiredWarning || 'Consent Required to Proceed')
                       : kioskStep === 1 && !kioskForm.selectedHospitalId
-                      ? 'Select a Healthcare Facility'
-                      : 'Continue'}
+                      ? (t.selectHospitalTitle || 'Select a Healthcare Facility')
+                      : (t.next || 'Continue')}
                   </span>
                   <ArrowRight size={18} />
                 </button>
@@ -418,11 +379,11 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                 {isSubmitting ? (
                   <>
                     <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Submitting to {kioskForm.selectedHospitalName || 'Hospital'}...</span>
+                    <span>{t.submittingToHospital || `Submitting to ${kioskForm.selectedHospitalName || 'Hospital'}...`}</span>
                   </>
                 ) : (
                   <>
-                    <span>Submit to {kioskForm.selectedHospitalName || 'Hospital'}</span>
+                    <span>{t.submit || `Submit to ${kioskForm.selectedHospitalName || 'Hospital'}`}</span>
                     <ArrowRight size={18} />
                   </>
                 )}

@@ -19,7 +19,7 @@ import { printElement } from '../../utils/printUtility';
 import { QrZoomModal } from '../common/QrZoomModal';
 
 export const Step8_SecureSubmit = ({ onFinish }) => {
-  const { kioskForm, resetKiosk } = usePatient();
+  const { kioskForm, resetKiosk, t } = usePatient();
   const slipRef = useRef(null);
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -69,11 +69,13 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         </div>
 
         <h2 className="text-2xl font-extrabold text-emerald-950 font-heading">
-          Your information has been securely submitted to {kioskForm.selectedHospitalName || 'your selected healthcare facility'}.
+          {kioskForm.selectedHospitalName 
+            ? `${t.tokenSuccessMsg || 'Your information has been securely submitted to'} ${kioskForm.selectedHospitalName}.`
+            : (t.tokenSuccessMsg || 'Your information has been securely submitted.')}
         </h2>
 
         <p className="text-sm text-emerald-800 font-medium max-w-lg mx-auto leading-relaxed">
-          Your clinical case has been encrypted and routed directly to the hospital's clinical queue for doctor review.
+          {t.tokenSub || 'Please proceed to the designated consultation room when your token is called on the display.'}
         </p>
       </div>
 
@@ -189,10 +191,10 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
         <button
           type="button"
           onClick={handlePrint}
-          className="flex-1 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md"
+          className="flex-1 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
         >
           <Printer size={18} />
-          <span>Print OPD Slip</span>
+          <span>{t.printSlip || 'Print Official OPD Pass'}</span>
         </button>
 
         <button
@@ -202,10 +204,10 @@ export const Step8_SecureSubmit = ({ onFinish }) => {
             if (onFinish) onFinish();
           }}
           style={{ backgroundColor: '#088395' }}
-          className="flex-1 py-3.5 px-4 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md hover:opacity-90"
+          className="flex-1 py-3.5 px-4 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md hover:opacity-90 cursor-pointer"
         >
           <RotateCcw size={18} />
-          <span>Finish & Start New Intake</span>
+          <span>{t.newPatientBtn || 'Register Another Patient'}</span>
         </button>
       </div>
     </div>

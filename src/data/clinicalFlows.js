@@ -781,8 +781,9 @@ export const evaluateClinicalRedFlags = (complaintId, answers = {}) => {
         opt.te === ans ||
         (typeof ans === 'string' && (
           ans.toLowerCase().includes(opt.en.toLowerCase()) ||
-          (opt.hi && ans.includes(opt.hi)) ||
-          (opt.te && ans.includes(opt.te))
+          opt.en.toLowerCase().includes(ans.toLowerCase()) ||
+          (opt.hi && (ans.includes(opt.hi) || opt.hi.includes(ans))) ||
+          (opt.te && (ans.includes(opt.te) || opt.te.includes(ans)))
         ))
       );
 

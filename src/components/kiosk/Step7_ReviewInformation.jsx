@@ -20,7 +20,7 @@ import { AudioPrompt } from '../common/AudioPrompt';
 import { TriageBadge } from '../common/TriageBadge';
 
 export const Step7_ReviewInformation = ({ onJumpToStep }) => {
-  const { kioskForm, speakText, calculateTriage } = usePatient();
+  const { kioskForm, speakText, calculateTriage, t } = usePatient();
   const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
 
   const handleReadBackSummary = () => {
@@ -35,10 +35,10 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 font-heading flex items-center gap-2">
             <CheckCheck className="text-cyan-700" />
-            <span>Review your information</span>
+            <span>{t.reviewTitle || 'Review Your Clinical Case Details'}</span>
           </h2>
           <p className="text-sm text-slate-600 mt-1">
-            Please verify all recorded details before final submission to your hospital care team.
+            {t.reviewSub || 'Please verify all recorded complaints, vitals, and documents before final hospital submission.'}
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
             </h3>
             <button
               type="button"
-              onClick={() => onJumpToStep(2)}
+              onClick={() => onJumpToStep(3)}
               className="text-xs text-cyan-700 hover:underline flex items-center gap-1 font-bold"
             >
               <Edit2 size={12} /> Edit

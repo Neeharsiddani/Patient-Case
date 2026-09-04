@@ -1,4 +1,4 @@
-// MediMitra Route & URL Management Utility
+// MediMitra Route & URL Management Utility (Optimized for 6–7 Step Clinical Flow)
 
 export const getRouteUrl = (screen, step = 1) => {
   if (screen === 'welcome') return '#/';
@@ -8,18 +8,12 @@ export const getRouteUrl = (screen, step = 1) => {
   if (screen === 'patient') {
     const stepSlugs = {
       1: 'facility-select',
-      2: 'patient-identity',
-      3: 'language-select',
-      4: 'informed-consent',
-      5: 'reason-for-visit',
-      6: 'clinical-history',
-      7: 'red-flag-triage',
-      8: 'document-upload',
-      9: 'ocr-extraction',
-      10: 'medical-timeline',
-      11: 'review-summary',
-      12: 'token-receipt',
-      13: 'token-receipt'
+      2: 'registration',
+      3: 'clinical-history',
+      4: 'documents',
+      5: 'review-summary',
+      6: 'token-receipt',
+      7: 'token-receipt'
     };
     const slug = stepSlugs[step] || `step-${step}`;
     return `#/patient/${slug}`;
@@ -50,46 +44,54 @@ export const parseRouteFromHash = (hash) => {
     const parts = cleanHash.split('/');
     const stepPart = parts[1] || '';
     const slugMap = {
+      // Step 1: Hospital Select
       'facility-select': 1,
-      'step-1': 1,
       'hospital': 1,
+      'step-1': 1,
+
+      // Step 2: Consolidated Registration (ID + ABHA + Language + Consent)
+      'registration': 2,
       'patient-identity': 2,
       'identification': 2,
+      'language-select': 2,
+      'language': 2,
+      'informed-consent': 2,
+      'consent': 2,
       'step-2': 2,
-      'language-select': 3,
-      'language': 3,
+
+      // Step 3: Consolidated Clinical Intake (Reason for Visit + Clinical History + Inline Red Flags)
+      'clinical-history': 3,
+      'reason-for-visit': 3,
+      'reason': 3,
+      'symptoms': 3,
+      'history': 3,
+      'red-flag-triage': 3,
+      'triage': 3,
       'step-3': 3,
-      'informed-consent': 4,
-      'consent': 4,
+
+      // Step 4: AYUSH Assessment (conditional) or Documents
+      'ayush-history': 4,
+      'ayush-assessment': 4,
+      'ayush': 4,
+      'document-upload': 4,
+      'documents': 4,
+      'ocr-extraction': 4,
+      'ocr': 4,
+      'medical-timeline': 4,
+      'timeline': 4,
       'step-4': 4,
-      'reason-for-visit': 5,
-      'reason': 5,
+
+      // Step 5: Review & Submit (standard) or Documents (AYUSH)
+      'review-summary': 5,
+      'review': 5,
       'step-5': 5,
-      'clinical-history': 6,
-      'history': 6,
+
+      // Step 6: Token Receipt (standard) or Review (AYUSH)
+      'token-receipt': 6,
+      'token': 6,
+      'receipt': 6,
       'step-6': 6,
-      'ayush-history': 7,
-      'ayush': 7,
-      'red-flag-triage': 7,
-      'triage': 7,
-      'step-7': 7,
-      'document-upload': 8,
-      'documents': 8,
-      'step-8': 8,
-      'ocr-extraction': 9,
-      'ocr': 9,
-      'step-9': 9,
-      'medical-timeline': 10,
-      'timeline': 10,
-      'step-10': 10,
-      'review-summary': 11,
-      'review': 11,
-      'step-11': 11,
-      'token-receipt': 12,
-      'token': 12,
-      'receipt': 12,
-      'step-12': 12,
-      'step-13': 13
+      'step-7': 7
     };
     const step = slugMap[stepPart] || 1;
     return { screen: 'patient', step };

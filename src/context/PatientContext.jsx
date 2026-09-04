@@ -3,6 +3,7 @@ import { translations } from '../data/translations';
 import { ApiService } from '../services/api';
 import { createInitialAyushState } from '../data/ayushClinicalFlows';
 import { evaluateClinicalRedFlags } from '../data/clinicalFlows';
+import { getLocaleForLanguage } from '../services/speechService';
 
 const PatientContext = createContext(null);
 
@@ -409,16 +410,27 @@ export const PatientProvider = ({ children }) => {
 
   const t = translations[language] || translations.en;
 
-  // Web Speech API Voice Prompt synthesis
+  // Web Speech API Voice Prompt synthesis with Indian Language BCP-47 locale support
   const speakText = (textToSpeak, customLang = null) => {
-    if (!('speechSynthesis' in window)) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      const targetLang = customLang || (language === 'hi' ? 'hi-IN' : language === 'te' ? 'te-IN' : language === 'ta' ? 'ta-IN' : 'en-IN');
-      utterance.lang = targetLang;
+      const targetLocale = getLocaleForLanguage(customLang || language);
+      utterance.lang = targetLocale;
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
+
+      // Pick best matching voice if available in browser
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const langCode = customLang || language;
+        const matchedVoice = voices.find(v => v.lang === targetLocale || v.lang.startsWith(langCode));
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+        }
+      }
+
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('Speech synthesis not available or blocked:', err);
@@ -1118,5 +1130,10 @@ const languagesMap = {
   te: 'Telugu',
   ta: 'Tamil',
   mr: 'Marathi',
-  bn: 'Bengali'
+  bn: 'Bengali',
+  gu: 'Gujarati',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  pa: 'Punjabi',
+  ur: 'Urdu'
 };
