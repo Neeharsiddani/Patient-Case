@@ -5,7 +5,7 @@ import { languages } from '../../data/translations';
 import { AudioPrompt } from '../common/AudioPrompt';
 
 export const Step2_Language = () => {
-  const { language, setLanguage, t, speakText } = usePatient();
+  const { language, setLanguage, t } = usePatient();
 
   const languageDescriptions = {
     en: 'English (Default for Medical Terminologies)',

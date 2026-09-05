@@ -3,6 +3,7 @@ import http from 'http';
 import { app } from '../app.js';
 import { seedDatabase } from '../db/seed.js';
 import { db } from '../db/database.js';
+import { bhashiniService } from '../services/bhashiniService.js';
 
 let server;
 const TEST_PORT = 5055;
@@ -304,7 +305,71 @@ async function runTests() {
     assert.ok(verifyImport.data.hospitals.some(h => h.code === 'AIIMS-RSH'), 'Imported hospital must be searchable');
     console.log('  ✓ PASSED: Hospital directory bulk import API verified.\n');
 
-    console.log('🎉 ALL MULTI-HOSPITAL, DIRECTORY & RBAC AUTOMATED TESTS PASSED (10/10)!\n');
+    // ▶ Test 11: Multilingual Bhashini Voice TTS & Status API (/api/voice/status & /api/voice/tts)
+    console.log('▶ Test 11: Multilingual Bhashini Voice TTS & Status API (/api/voice/status & /api/voice/tts)');
+    
+    // 11.1 Check voice status endpoint
+    const statusRes = await makeRequest('/api/voice/status');
+    assert.strictEqual(statusRes.status, 200);
+    assert.strictEqual(statusRes.data.success, true);
+    assert.ok(Array.isArray(statusRes.data.supportedLocales));
+    assert.strictEqual(statusRes.data.supportedLocales.length, 11);
+    const expectedLocales = ['en-IN', 'hi-IN', 'te-IN', 'ta-IN', 'mr-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'pa-IN', 'ur-IN'];
+    for (const el of expectedLocales) {
+      assert.ok(statusRes.data.supportedLocales.some(l => l.code === el), `Must support locale ${el}`);
+    }
+
+    // 11.2 Check input validation on /api/voice/tts
+    const missingTextRes = await makeRequest('/api/voice/tts', { method: 'POST' }, {});
+    assert.strictEqual(missingTextRes.status, 400);
+    assert.strictEqual(missingTextRes.data.error, 'Missing Text');
+
+    const invalidLangRes = await makeRequest('/api/voice/tts', { method: 'POST' }, { text: 'Hello', language: 'xyz' });
+    assert.strictEqual(invalidLangRes.status, 400);
+
+    // 11.3 Check unconfigured credentials behavior (safe 503)
+    const unconfiguredRes = await makeRequest('/api/voice/tts', { method: 'POST' }, { text: 'దయచేసి మీ భాషను ఎంచుకోండి', language: 'te' });
+    assert.strictEqual(unconfiguredRes.status, 503);
+    assert.strictEqual(unconfiguredRes.data.success, false);
+    assert.strictEqual(unconfiguredRes.data.fallbackProvider, 'BROWSER_WEB_SPEECH_API');
+
+    // 11.4 Check configured synthesis for Telugu and all 11 supported languages via mock
+    const originalApiKey = bhashiniService.apiKey;
+    const originalUserId = bhashiniService.userId;
+    const originalSynthesize = bhashiniService.synthesizeSpeech;
+
+    bhashiniService.apiKey = 'mock_bhashini_key';
+    bhashiniService.userId = 'mock_bhashini_user';
+    bhashiniService.synthesizeSpeech = async (text, lang) => {
+      return {
+        success: true,
+        provider: 'BHASHINI_ULCA',
+        language: lang === 'te-IN' ? 'te' : lang,
+        audioContent: 'UklGRi4AAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=',
+        audioFormat: 'wav'
+      };
+    };
+
+    const testLanguages = ['te', 'ta', 'mr', 'bn', 'gu', 'kn', 'ml', 'pa', 'ur', 'hi', 'en'];
+    for (const testLang of testLanguages) {
+      const ttsRes = await makeRequest('/api/voice/tts', { method: 'POST' }, {
+        text: 'Patient Audio Assist Guidance',
+        language: testLang
+      });
+      assert.strictEqual(ttsRes.status, 200, `TTS must succeed for language ${testLang}`);
+      assert.strictEqual(ttsRes.data.success, true);
+      assert.strictEqual(ttsRes.data.provider, 'BHASHINI_ULCA');
+      assert.ok(ttsRes.data.audioContent, `Audio content must be returned for ${testLang}`);
+    }
+
+    // Restore original service state
+    bhashiniService.apiKey = originalApiKey;
+    bhashiniService.userId = originalUserId;
+    bhashiniService.synthesizeSpeech = originalSynthesize;
+
+    console.log('  ✓ PASSED: Bhashini multilingual TTS endpoints & 11-language mapping verified.\n');
+
+    console.log('🎉 ALL MULTI-HOSPITAL, DIRECTORY, RBAC & BHASHINI TTS AUTOMATED TESTS PASSED (11/11)!\n');
   } catch (err) {
     console.error('❌ Test Failure:', err);
     process.exitCode = 1;

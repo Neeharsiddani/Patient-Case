@@ -1,5 +1,5 @@
 import express from 'express';
-import { bhashiniService } from '../services/bhashiniService.js';
+import { bhashiniService, normalizeBhashiniLang } from '../services/bhashiniService.js';
 
 const router = express.Router();
 
@@ -43,6 +43,61 @@ router.post('/asr', async (req, res, next) => {
     const result = await bhashiniService.transcribeAudio(audioBase64, language);
     res.json(result);
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        error: err.code || 'Bhashini Error',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+});
+
+/**
+ * POST /api/voice/tts
+ * Backend proxy for Bhashini Text-to-Speech (TTS) synthesis
+ */
+router.post('/tts', async (req, res, next) => {
+  try {
+    const { text, language = 'en', gender = 'female' } = req.body;
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing Text',
+        message: 'Text to synthesize is required.'
+      });
+    }
+
+    const normalizedLang = normalizeBhashiniLang(language);
+    if (!normalizedLang) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unsupported Language',
+        message: `Language '${language}' is not supported for Bhashini Text-to-Speech.`
+      });
+    }
+
+    if (!bhashiniService.isTtsConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Bhashini TTS Not Configured',
+        message: 'Bhashini TTS API credentials (BHASHINI_API_KEY, BHASHINI_USER_ID) are not configured on the server. The client should use local speech synthesis fallback if available.',
+        fallbackProvider: 'BROWSER_WEB_SPEECH_API'
+      });
+    }
+
+    const result = await bhashiniService.synthesizeSpeech(text, normalizedLang, gender);
+    res.json(result);
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        error: err.code || 'Bhashini TTS Error',
+        message: err.message
+      });
+    }
     next(err);
   }
 });

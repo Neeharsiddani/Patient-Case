@@ -7,6 +7,8 @@
  * 3. Never interpret speech as autonomous medical advice or automated prescription.
  */
 
+import { ApiService } from './api.js';
+
 // Supported Indian Language BCP-47 Code Registry
 export const INDIAN_LANGUAGE_LOCALES = {
   en: { code: 'en-IN', name: 'English', native: 'English', altCodes: ['en', 'en-GB', 'en-US', 'en-AU', 'en-CA'], flag: '🇬🇧' },
@@ -395,17 +397,38 @@ export const findCompatibleVoice = (langKey = 'en', voices = null) => {
   return null;
 };
 
+let activeAudioPlayer = null;
+
 /**
- * Text-to-Speech (TTS) voice guidance with truthful Indian language voice verification.
+ * Cancel any ongoing speech playback (both HTML5 Audio and Web Speech synthesis)
+ */
+export const cancelSpeech = () => {
+  if (activeAudioPlayer) {
+    try {
+      activeAudioPlayer.pause();
+      activeAudioPlayer.currentTime = 0;
+    } catch (e) {}
+    activeAudioPlayer = null;
+  }
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+};
+
+/**
+ * Text-to-Speech (TTS) voice guidance with BHASHINI backend integration & truthful browser fallback.
  * 
  * Strict Directives:
  * 1. Only speaks when explicitly called (e.g. from Audio Assist).
- * 2. Verifies compatible voice in browser getVoices() list.
- * 3. Never silently speaks in English or Hindi when a regional language lacks voice support.
- * 4. Shows clear notice if voice pack is not installed on device/browser.
- * 5. Emits comprehensive debug logs with selected language, requested BCP-47 locale, and matched voice.
+ * 2. First attempts synthesis via backend Government Bhashini ULCA TTS pipeline.
+ * 3. Falls back to local browser speechSynthesis ONLY when an exact compatible voice is installed.
+ * 4. Never silently speaks in English or Hindi when a regional language lacks voice support.
+ * 5. Shows clear notice if Bhashini is unconfigured and no voice pack is installed.
+ * 6. Emits comprehensive debug logs with selected language, requested BCP-47 locale, and matched provider.
  */
-export const speakGuidanceText = (text, languageKey = 'en', options = {}) => {
+export const speakGuidanceText = async (text, languageKey = 'en', options = {}) => {
   const meta = getLanguageMeta(languageKey);
   const targetLocale = meta.code;
   const langName = meta.name;
@@ -417,100 +440,137 @@ export const speakGuidanceText = (text, languageKey = 'en', options = {}) => {
     textLength: (text || '').length
   });
 
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    console.warn('[MediMitra TTS] speechSynthesis API unavailable');
-    const status = {
-      supported: false,
-      code: 'UNSUPPORTED',
-      message: 'Speech synthesis is not supported on this browser or device.'
-    };
-    if (options.onStatus) options.onStatus(status);
-    return status;
-  }
+  cancelSpeech();
 
+  // STEP 1: Attempt Real Multilingual Synthesis via Backend BHASHINI ULCA TTS
   try {
-    window.speechSynthesis.cancel();
-
-    const voices = window.speechSynthesis.getVoices() || [];
-    const matchedVoice = findCompatibleVoice(languageKey, voices);
-
-    if (!matchedVoice) {
-      console.warn('[MediMitra TTS] No compatible voice found for requested language:', {
-        requestedLanguage: languageKey,
-        resolvedLocale: targetLocale,
-        languageName: langName,
-        installedVoicesCount: voices.length,
-        installedVoicesList: voices.map(v => `${v.name} (${v.lang})`)
+    const bhashiniRes = await ApiService.synthesizeSpeech(text, languageKey);
+    if (bhashiniRes && bhashiniRes.success && bhashiniRes.audioContent) {
+      console.log('[MediMitra TTS] Successfully received Bhashini TTS audio from backend:', {
+        language: languageKey,
+        provider: bhashiniRes.provider,
+        audioFormat: bhashiniRes.audioFormat || 'wav'
       });
 
-      const message = `Audio is not available for ${langName} on this device/browser. Please use text or install a ${langName} voice/language pack.`;
-      const status = {
-        supported: false,
-        code: 'NO_VOICE_FOR_LANGUAGE',
-        message,
-        locale: targetLocale,
-        languageName: langName
+      const audioSrc = `data:audio/${bhashiniRes.audioFormat || 'wav'};base64,${bhashiniRes.audioContent}`;
+      const audio = new Audio(audioSrc);
+      activeAudioPlayer = audio;
+
+      if (options.onStart) {
+        audio.onplay = () => options.onStart();
+      }
+      audio.onended = () => {
+        activeAudioPlayer = null;
+        if (options.onEnd) options.onEnd();
+      };
+      audio.onerror = (e) => {
+        activeAudioPlayer = null;
+        console.error('[MediMitra TTS] Audio element playback error:', e);
+        if (options.onError) options.onError(e);
+        if (options.onStatus) {
+          options.onStatus({
+            supported: false,
+            code: 'PLAYBACK_ERROR',
+            message: `Audio playback encountered an issue for ${langName}. Please refer to on-screen text.`
+          });
+        }
       };
 
-      if (options.onStatus) options.onStatus(status);
-      return status;
-    }
-
-    console.log('[MediMitra TTS] Matched voice successfully:', {
-      requestedLanguage: languageKey,
-      matchedVoiceName: matchedVoice.name,
-      matchedVoiceLang: matchedVoice.lang,
-      isDefault: matchedVoice.default
-    });
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = matchedVoice;
-    utterance.lang = matchedVoice.lang || targetLocale;
-    utterance.rate = 0.92;
-    utterance.pitch = 1.0;
-
-    if (options.onStart) utterance.onstart = options.onStart;
-    if (options.onEnd) utterance.onend = options.onEnd;
-
-    utterance.onerror = (e) => {
-      console.error('[MediMitra TTS] Speech synthesis utterance error:', {
-        error: e.error,
-        language: languageKey,
-        targetLocale,
-        matchedVoice: matchedVoice.name
-      });
-      if (options.onError) options.onError(e);
-      if (options.onStatus) {
-        options.onStatus({
-          supported: false,
-          code: 'PLAYBACK_ERROR',
-          message: `Audio playback encountered an issue for ${langName}. Please refer to on-screen text.`,
-          error: e.error,
-          locale: targetLocale
-        });
+      try {
+        await audio.play();
+        const status = {
+          supported: true,
+          code: 'PLAYING',
+          provider: 'BHASHINI_ULCA',
+          locale: targetLocale,
+          languageName: langName
+        };
+        if (options.onStatus) options.onStatus(status);
+        return status;
+      } catch (playErr) {
+        console.warn('[MediMitra TTS] Audio autoplay was prevented or failed:', playErr.message);
       }
-    };
-
-    window.speechSynthesis.speak(utterance);
-
-    const status = {
-      supported: true,
-      code: 'PLAYING',
-      locale: targetLocale,
-      voiceName: matchedVoice.name,
-      languageName: langName
-    };
-    if (options.onStatus) options.onStatus(status);
-    return status;
-  } catch (err) {
-    console.error('[MediMitra TTS] Unexpected error in speakGuidanceText:', err);
-    const status = {
-      supported: false,
-      code: 'ERROR',
-      message: 'Speech synthesis encountered an error.',
-      error: err.message
-    };
-    if (options.onStatus) options.onStatus(status);
-    return status;
+    }
+  } catch (bhashiniErr) {
+    console.log('[MediMitra TTS] Backend Bhashini TTS notice:', bhashiniErr.message);
   }
+
+  // STEP 2: Optional Local Fallback to Browser speechSynthesis (Only if exact matching voice exists)
+  try {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const voices = await getVoicesAsync();
+      const matchedVoice = findCompatibleVoice(languageKey, voices);
+
+      if (matchedVoice) {
+        console.log('[MediMitra TTS] Using local browser speechSynthesis voice fallback:', {
+          requestedLanguage: languageKey,
+          matchedVoiceName: matchedVoice.name,
+          matchedVoiceLang: matchedVoice.lang,
+          isDefault: matchedVoice.default
+        });
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.voice = matchedVoice;
+        utterance.lang = matchedVoice.lang || targetLocale;
+        utterance.rate = 0.92;
+        utterance.pitch = 1.0;
+
+        if (options.onStart) utterance.onstart = options.onStart;
+        if (options.onEnd) utterance.onend = options.onEnd;
+
+        utterance.onerror = (e) => {
+          console.error('[MediMitra TTS] Speech synthesis utterance error:', {
+            error: e.error,
+            language: languageKey,
+            targetLocale,
+            matchedVoice: matchedVoice.name
+          });
+          if (options.onError) options.onError(e);
+          if (options.onStatus) {
+            options.onStatus({
+              supported: false,
+              code: 'PLAYBACK_ERROR',
+              message: `Audio playback encountered an issue for ${langName}. Please refer to on-screen text.`,
+              error: e.error,
+              locale: targetLocale
+            });
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
+
+        const status = {
+          supported: true,
+          code: 'PLAYING',
+          provider: 'BROWSER_WEB_SPEECH_API',
+          locale: targetLocale,
+          voiceName: matchedVoice.name,
+          languageName: langName
+        };
+        if (options.onStatus) options.onStatus(status);
+        return status;
+      }
+    }
+  } catch (synthErr) {
+    console.warn('[MediMitra TTS] Browser speech synthesis fallback error:', synthErr.message);
+  }
+
+  // STEP 3: Honest "Audio Unavailable" Handling (Never fake audio or speak English/Hindi)
+  console.warn('[MediMitra TTS] Audio unavailable: Bhashini TTS not configured and no local voice installed:', {
+    requestedLanguage: languageKey,
+    resolvedLocale: targetLocale,
+    languageName: langName
+  });
+
+  const message = `Audio is not available for ${langName} on this device/browser. Please use text or install a ${langName} voice/language pack.`;
+  const status = {
+    supported: false,
+    code: 'NO_VOICE_FOR_LANGUAGE',
+    message,
+    locale: targetLocale,
+    languageName: langName
+  };
+
+  if (options.onStatus) options.onStatus(status);
+  return status;
 };

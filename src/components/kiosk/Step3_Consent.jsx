@@ -21,7 +21,7 @@ import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
 
 export const Step3_Consent = () => {
-  const { kioskForm, setKioskForm, t, setKioskStep, speakText } = usePatient();
+  const { kioskForm, setKioskForm, t, setKioskStep } = usePatient();
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -47,10 +47,6 @@ export const Step3_Consent = () => {
   }, []);
 
   const consentExplanationText = "Please listen. To provide you medical treatment today, this kiosk needs your consent to collect your symptoms, vitals, and medical documents. This information will only be shared with your consulting doctor in this hospital. Please tap Agree to proceed or Decline if you do not wish to share.";
-
-  const handleSpeakConsent = () => {
-    speakText(consentExplanationText);
-  };
 
   const handleAgreeConsent = (method = 'one_tap') => {
     const timestamp = new Date().toISOString();
@@ -153,14 +149,7 @@ export const Step3_Consent = () => {
         </div>
 
         {/* Audio Readout of Consent */}
-        <button
-          type="button"
-          onClick={handleSpeakConsent}
-          className="px-4 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
-        >
-          <Volume2 size={16} className="text-cyan-700 animate-pulse" />
-          <span>🔊 Listen to Consent Explanation</span>
-        </button>
+        <AudioPrompt promptText={consentExplanationText} label="Listen to Consent" />
       </div>
 
       {/* Granular Consent Clauses in Plain Language */}

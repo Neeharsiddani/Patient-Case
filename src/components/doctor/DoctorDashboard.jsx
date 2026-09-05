@@ -66,10 +66,22 @@ export const DoctorDashboard = () => {
   const verifiedPatients = doctorPatients.filter((p) => p.status === 'History Verified' || p.verificationStatus === 'History Verified').length;
   const redFlagPatients = doctorPatients.filter((p) => p.triageLevel <= 2 && p.status !== 'Completed').length;
 
-  const handleCallPatient = () => {
+  const [isCalling, setIsCalling] = useState(false);
+
+  const handleCallPatient = async () => {
+    if (!selectedPatient) return;
     const roomText = selectedPatient.roomNumber ? `to ${selectedPatient.roomNumber}` : 'to the consultation room';
-    const callSpeech = `Calling token number ${selectedPatient.tokenNumber}, patient ${selectedPatient.name}, ${roomText}.`;
-    speakText(callSpeech);
+    const callSpeech = `Calling token number ${selectedPatient.tokenNumber || 'Next'}, patient ${selectedPatient.name || 'Patient'}, ${roomText}.`;
+    setIsCalling(true);
+    try {
+      await speakText(callSpeech, 'en', {
+        onStart: () => setIsCalling(true),
+        onEnd: () => setIsCalling(false),
+        onError: () => setIsCalling(false)
+      });
+    } catch {
+      setIsCalling(false);
+    }
   };
 
   const isCompleted = selectedPatient?.status === 'Completed' || selectedPatient?.caseStatus === 'Consultation Completed';
@@ -202,11 +214,12 @@ export const DoctorDashboard = () => {
                     <button
                       type="button"
                       onClick={handleCallPatient}
-                      className="px-3.5 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                      className="px-3.5 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-60"
                       title="Audio announcement to call patient into room"
+                      disabled={isCalling}
                     >
-                      <Volume2 size={15} />
-                      <span>Call Patient</span>
+                      <Volume2 size={15} className={isCalling ? 'animate-bounce text-cyan-700' : ''} />
+                      <span>{isCalling ? 'Calling...' : 'Call Patient'}</span>
                     </button>
 
                     <button

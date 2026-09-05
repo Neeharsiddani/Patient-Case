@@ -15,12 +15,9 @@ import { usePatient } from '../../context/PatientContext';
 import { AudioPrompt } from '../common/AudioPrompt';
 
 export const Step7_Review = () => {
-  const { kioskForm, setKioskStep, t, speakText, language } = usePatient();
+  const { kioskForm, setKioskStep, t, language } = usePatient();
 
-  const handleReadBackSummary = () => {
-    const summarySpeech = `Patient ${kioskForm.name || 'Walk in'}, age ${kioskForm.age || 45}. Chief complaint: ${kioskForm.chiefComplaints.join(', ')}. Duration: ${kioskForm.duration}. Blood pressure ${kioskForm.vitals.bpSystolic} over ${kioskForm.vitals.bpDiastolic}. Pulse ${kioskForm.vitals.pulse} beats per minute.`;
-    speakText(summarySpeech);
-  };
+  const summarySpeech = `Patient ${kioskForm.name || 'Walk in'}, age ${kioskForm.age || 45}. Chief complaint: ${(kioskForm.chiefComplaints || []).join(', ')}. Duration: ${kioskForm.duration || 'Not specified'}. Blood pressure ${kioskForm.vitals?.bpSystolic || 120} over ${kioskForm.vitals?.bpDiastolic || 80}. Pulse ${kioskForm.vitals?.pulse || 72} beats per minute.`;
 
   return (
     <div className="space-y-6">
@@ -33,14 +30,7 @@ export const Step7_Review = () => {
           </h2>
           <p className="text-sm text-slate-500 mt-1">{t.reviewSub}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleReadBackSummary}
-          className="px-4 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
-        >
-          <Volume2 size={16} />
-          <span>🔊 {t.listenVoice}</span>
-        </button>
+        <AudioPrompt promptText={summarySpeech} label={t.listenVoice || 'Listen to Summary'} />
       </div>
 
       {/* Structured Review Sections */}

@@ -30,7 +30,7 @@ import {
 } from '../../data/ayushClinicalFlows';
 
 export const Step4_AyushHistory = () => {
-  const { kioskForm, setKioskForm, language, speakText, t } = usePatient();
+  const { kioskForm, setKioskForm, language, t } = usePatient();
   const [activeTab, setActiveTab] = useState(0); // 0: Dashavidha 1-5, 1: Dashavidha 6-10, 2: Agni & Koshtha, 3: Ahara & Vihara, 4: Nidana & Samprapti
   const [showNidanaVoice, setShowNidanaVoice] = useState(false);
   const [showSampraptiVoice, setShowSampraptiVoice] = useState(false);

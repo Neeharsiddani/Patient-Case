@@ -439,4 +439,16 @@ export class ApiService {
       method: 'POST'
     });
   }
+
+  // Bhashini Voice TTS & Status
+  static async synthesizeSpeech(text, language = 'en', gender = 'female') {
+    return await this.request('/voice/tts', {
+      method: 'POST',
+      body: JSON.stringify({ text, language, gender })
+    });
+  }
+
+  static async getVoiceStatus() {
+    return await this.request('/voice/status');
+  }
 }

@@ -25,7 +25,7 @@ import { AudioPrompt } from '../common/AudioPrompt';
 import { VoiceInputWidget } from '../common/VoiceInputWidget';
 
 export const Step2_ReasonForVisit = () => {
-  const { kioskForm, setKioskForm, language, speakText, t, hospitals = [] } = usePatient();
+  const { kioskForm, setKioskForm, language, t, hospitals = [] } = usePatient();
   const [showVoiceWidget, setShowVoiceWidget] = useState(false);
   const [customInput, setCustomInput] = useState(kioskForm.reasonForVisit || '');
   const [saveSuccess, setSaveSuccess] = useState(false);

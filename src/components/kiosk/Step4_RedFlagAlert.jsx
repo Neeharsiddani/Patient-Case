@@ -16,7 +16,7 @@ import { AudioPrompt } from '../common/AudioPrompt';
 import { TriageBadge } from '../common/TriageBadge';
 
 export const Step4_RedFlagAlert = () => {
-  const { kioskForm, setKioskForm, calculateTriage, speakText } = usePatient();
+  const { kioskForm, setKioskForm, calculateTriage } = usePatient();
 
   const triage = calculateTriage(kioskForm);
   const combinedFlags = Array.from(new Set([

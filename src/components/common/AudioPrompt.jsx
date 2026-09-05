@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Sparkles, AlertCircle } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
+import { cancelSpeech } from '../../services/speechService';
 
 export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
   const { speakText, language } = usePatient();
@@ -11,14 +12,21 @@ export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
   useEffect(() => {
     return () => {
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      cancelSpeech();
     };
   }, []);
 
-  const handlePlay = () => {
+  const handlePlay = async () => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     setNotice(null);
 
-    const result = speakText(promptText, language, {
+    if (isPlaying) {
+      cancelSpeech();
+      setIsPlaying(false);
+      return;
+    }
+
+    const result = await speakText(promptText, language, {
       onStart: () => setIsPlaying(true),
       onEnd: () => setIsPlaying(false),
       onError: () => setIsPlaying(false),

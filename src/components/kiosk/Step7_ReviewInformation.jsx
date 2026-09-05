@@ -20,13 +20,10 @@ import { AudioPrompt } from '../common/AudioPrompt';
 import { TriageBadge } from '../common/TriageBadge';
 
 export const Step7_ReviewInformation = ({ onJumpToStep }) => {
-  const { kioskForm, speakText, calculateTriage, t } = usePatient();
+  const { kioskForm, calculateTriage, t } = usePatient();
   const { triageLevel, triageCategory, triageColor, redFlags } = calculateTriage(kioskForm);
 
-  const handleReadBackSummary = () => {
-    const speech = `Reviewing intake for ${kioskForm.name || 'Patient'}. Hospital: ${kioskForm.selectedHospitalName}. Reason for visit: ${kioskForm.reasonForVisit || 'General intake'}. Blood pressure: ${kioskForm.vitals.bpSystolic} over ${kioskForm.vitals.bpDiastolic}. Pulse: ${kioskForm.vitals.pulse}.`;
-    speakText(speech);
-  };
+  const speech = `Reviewing intake for ${kioskForm.name || 'Patient'}. Hospital: ${kioskForm.selectedHospitalName || 'General Hospital'}. Reason for visit: ${kioskForm.reasonForVisit || 'General intake'}. Blood pressure: ${kioskForm.vitals?.bpSystolic || 120} over ${kioskForm.vitals?.bpDiastolic || 80}. Pulse: ${kioskForm.vitals?.pulse || 72}.`;
 
   return (
     <div className="space-y-6">
@@ -42,14 +39,7 @@ export const Step7_ReviewInformation = ({ onJumpToStep }) => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleReadBackSummary}
-          className="px-4 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-900 border border-cyan-300 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-xs"
-        >
-          <Volume2 size={16} />
-          <span>🔊 Listen to Summary</span>
-        </button>
+        <AudioPrompt promptText={speech} label="Listen to Summary" />
       </div>
 
       {/* Structured Sections Grid */}
