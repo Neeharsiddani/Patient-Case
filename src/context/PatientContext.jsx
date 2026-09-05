@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { translations } from '../data/translations';
+import { languages, translations } from '../data/translations';
 import { ApiService } from '../services/api';
 import { createInitialAyushState } from '../data/ayushClinicalFlows';
 import { evaluateClinicalRedFlags } from '../data/clinicalFlows';
-import { getLocaleForLanguage } from '../services/speechService';
+import { 
+  getLocaleForLanguage, 
+  speakGuidanceText, 
+  findCompatibleVoice, 
+  getVoicesAsync,
+  getLanguageMeta 
+} from '../services/speechService';
 
 const PatientContext = createContext(null);
 
@@ -187,6 +193,24 @@ export const PatientProvider = ({ children }) => {
       localStorage.removeItem('medikiosk_patients_v2');
       localStorage.removeItem('medikiosk_patients_v3');
     } catch {}
+  }, []);
+
+  // Pre-warm and synchronize browser SpeechSynthesis voices
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const warmVoices = () => {
+        try {
+          window.speechSynthesis.getVoices();
+        } catch (e) {}
+      };
+      warmVoices();
+      try {
+        window.speechSynthesis.addEventListener('voiceschanged', warmVoices);
+        return () => {
+          window.speechSynthesis.removeEventListener('voiceschanged', warmVoices);
+        };
+      } catch (e) {}
+    }
   }, []);
 
   // Active Patient for Doctor Consultation
@@ -412,80 +436,10 @@ export const PatientProvider = ({ children }) => {
 
   // Web Speech API Voice Prompt synthesis with Indian Language BCP-47 locale support
   // Truthfully checks voice support without silent fallback to English/Hindi
-  const speakText = (textToSpeak, customLang = null, options = {}) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      if (options.onStatus) {
-        options.onStatus({
-          supported: false,
-          code: 'UNSUPPORTED',
-          message: 'Speech synthesis is not supported on this browser or device.'
-        });
-      }
-      return { supported: false, code: 'UNSUPPORTED' };
-    }
-
-    try {
-      window.speechSynthesis.cancel();
-      const langCode = customLang || language;
-      const targetLocale = getLocaleForLanguage(langCode);
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = targetLocale;
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-
-      // Pick best matching voice if available in browser
-      const voices = window.speechSynthesis.getVoices();
-      let matchedVoice = null;
-      if (voices && voices.length > 0) {
-        matchedVoice = voices.find(v => {
-          const vLang = (v.lang || '').toLowerCase().replace('_', '-');
-          const tLocale = targetLocale.toLowerCase();
-          const lCode = langCode.toLowerCase();
-          return vLang === tLocale || vLang.startsWith(`${lCode}-`) || vLang === lCode;
-        });
-
-        if (matchedVoice) {
-          utterance.voice = matchedVoice;
-        } else {
-          // If voices are available in browser but none match this regional language, do NOT silently fall back to English/Hindi
-          const langObj = languages.find(l => l.code === langCode);
-          const langName = langObj ? langObj.name : langCode;
-          const status = {
-            supported: false,
-            code: 'NO_VOICE_FOR_LANGUAGE',
-            message: `Voice audio for ${langName} is not installed on this browser. Please use on-screen text.`,
-            locale: targetLocale
-          };
-          if (options.onStatus) options.onStatus(status);
-          return status;
-        }
-      }
-
-      if (options.onStart) utterance.onstart = options.onStart;
-      if (options.onEnd) utterance.onend = options.onEnd;
-      utterance.onerror = (e) => {
-        if (options.onError) options.onError(e);
-        if (options.onStatus) {
-          options.onStatus({
-            supported: false,
-            code: 'PLAYBACK_ERROR',
-            message: `Audio playback encountered an issue for ${targetLocale}. Please refer to on-screen text.`,
-            locale: targetLocale
-          });
-        }
-      };
-
-      window.speechSynthesis.speak(utterance);
-      const status = { supported: true, code: 'PLAYING', locale: targetLocale };
-      if (options.onStatus) options.onStatus(status);
-      return status;
-    } catch (err) {
-      console.warn('Speech synthesis error:', err);
-      const status = { supported: false, code: 'ERROR', message: 'Speech synthesis encountered an error.' };
-      if (options.onStatus) options.onStatus(status);
-      return status;
-    }
-  };
+  const speakText = useCallback((textToSpeak, customLang = null, options = {}) => {
+    const langCode = customLang || language;
+    return speakGuidanceText(textToSpeak, langCode, options);
+  }, [language]);
 
   // Login handler
   const handleUserLogin = (user, token) => {

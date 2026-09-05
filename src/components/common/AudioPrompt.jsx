@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Sparkles, AlertCircle } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 
@@ -6,9 +6,18 @@ export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
   const { speakText, language } = usePatient();
   const [isPlaying, setIsPlaying] = useState(false);
   const [notice, setNotice] = useState(null);
+  const noticeTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    };
+  }, []);
 
   const handlePlay = () => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     setNotice(null);
+
     const result = speakText(promptText, language, {
       onStart: () => setIsPlaying(true),
       onEnd: () => setIsPlaying(false),
@@ -17,7 +26,8 @@ export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
         if (!status.supported) {
           setIsPlaying(false);
           setNotice(status.message || 'Audio guidance not supported for this language.');
-          setTimeout(() => setNotice(null), 6000);
+          if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+          noticeTimerRef.current = setTimeout(() => setNotice(null), 6000);
         }
       }
     });
@@ -25,7 +35,8 @@ export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
     if (result && !result.supported) {
       setIsPlaying(false);
       setNotice(result.message || 'Voice audio not available on this browser.');
-      setTimeout(() => setNotice(null), 6000);
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = setTimeout(() => setNotice(null), 6000);
     }
   };
 
@@ -57,9 +68,9 @@ export const AudioPrompt = ({ promptText, label = 'Audio Assist' }) => {
       </button>
 
       {notice && (
-        <div className="absolute top-full mt-1.5 right-0 z-20 w-64 bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-semibold rounded-xl p-2.5 shadow-md flex items-start gap-1.5 animate-in fade-in">
-          <AlertCircle size={14} className="text-amber-700 mt-0.5 flex-shrink-0" />
-          <span>{notice}</span>
+        <div id="audio-assist-notice" data-testid="audio-assist-notice" className="absolute top-full mt-2 right-0 z-30 w-72 sm:w-80 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium rounded-xl p-3 shadow-lg flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+          <AlertCircle size={16} className="text-amber-700 mt-0.5 flex-shrink-0" />
+          <span className="leading-snug">{notice}</span>
         </div>
       )}
     </div>
