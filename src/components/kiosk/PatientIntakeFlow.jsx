@@ -31,14 +31,20 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check if case is directed towards AYUSH / Ayurveda
+  // Strictly conditional: Never automatically active on Step 1 (Hospital) or Step 2 (Registration).
+  // Activates only when the patient is actually routed/selected for an AYUSH/Ayurveda OPD in subsequent clinical steps.
   const isAyushDepartment = Boolean(
-    kioskForm.assignedDepartment?.toLowerCase().includes('ayush') ||
-    kioskForm.assignedDepartment?.toLowerCase().includes('ayurveda') ||
-    kioskForm.selectedDepartmentName?.toLowerCase().includes('ayush') ||
-    kioskForm.selectedDepartmentName?.toLowerCase().includes('ayurveda') ||
-    kioskForm.selectedDepartmentId?.toLowerCase().includes('ayush') ||
-    kioskForm.department_id?.toLowerCase().includes('ayush') ||
-    kioskForm.isAyushCase
+    kioskStep > 2 && (
+      kioskForm.isAyushCase === true ||
+      (kioskForm.assignedDepartment && (
+        kioskForm.assignedDepartment.toLowerCase().includes('ayush') ||
+        kioskForm.assignedDepartment.toLowerCase().includes('ayurveda')
+      )) ||
+      (kioskForm.selectedDepartmentName && (
+        kioskForm.selectedDepartmentName.toLowerCase().includes('ayush') ||
+        kioskForm.selectedDepartmentName.toLowerCase().includes('ayurveda')
+      ))
+    )
   );
 
   const isAyush = isAyushDepartment && !kioskForm.skipAyushAssessment;
@@ -71,14 +77,28 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
       return Boolean(kioskForm.selectedHospitalId);
     }
     if (kioskStep === 2) {
-      // Step 2 Registration: Requires valid Identification AND Explicit DPDP Consent
-      const hasIdent = Boolean(
-        (kioskForm.name && kioskForm.name.trim().length >= 2) ||
-        (kioskForm.abhaId && kioskForm.abhaId.length >= 10) ||
-        (kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length >= 10) ||
-        kioskForm.abhaStatus === 'WALKIN_NO_ABHA'
-      );
-      return hasIdent && Boolean(kioskForm.consentAgreed);
+      // Step 2 Registration: Requires valid patient identification for active mode AND explicit DPDP consent
+      const isNameValid = Boolean(kioskForm.name && kioskForm.name.trim().length >= 2);
+      const isAgeValid = Boolean(kioskForm.age && !isNaN(kioskForm.age) && Number(kioskForm.age) >= 1 && Number(kioskForm.age) <= 125);
+      const isGenderValid = Boolean(kioskForm.gender && ['Male', 'Female', 'Other'].includes(kioskForm.gender));
+      const isPhoneValid = Boolean(kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length === 10);
+      const isConsentValid = Boolean(kioskForm.consentAgreed);
+
+      const mode = kioskForm.registrationMode || (kioskForm.abhaStatus === 'WALKIN_NO_ABHA' ? 'walkin' : (kioskForm.abhaId ? 'abha' : 'walkin'));
+      let isIdentValid = true;
+      if (mode === 'abha') {
+        isIdentValid = Boolean(
+          kioskForm.abhaId && (
+            kioskForm.abhaId.replace(/\D/g, '').length === 14 ||
+            /^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+$/.test(kioskForm.abhaId.trim()) ||
+            kioskForm.abhaId.trim().length >= 10
+          )
+        );
+      } else if (mode === 'qr') {
+        isIdentValid = Boolean(kioskForm.abhaId && kioskForm.abhaId.trim().length >= 10);
+      }
+
+      return isNameValid && isAgeValid && isGenderValid && isPhoneValid && isIdentValid && isConsentValid;
     }
     if (kioskStep === 3) {
       // Step 3 Clinical Intake: Requires chief complaint / reason for visit
@@ -359,8 +379,10 @@ export const PatientIntakeFlow = ({ onBackToWelcome }) => {
                   className="w-full sm:w-auto px-8 py-3.5 min-h-[48px] text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 hover:opacity-95 shadow-md cursor-pointer disabled:cursor-not-allowed"
                 >
                   <span>
-                    {kioskStep === 2 && !kioskForm.consentAgreed
-                      ? (t.consentRequiredWarning || 'Consent Required to Proceed')
+                    {kioskStep === 2 && !canProceed()
+                      ? (!kioskForm.consentAgreed && (kioskForm.name && kioskForm.phone)
+                        ? (t.consentRequiredWarning || 'Consent Required to Proceed')
+                        : 'Complete Required Details to Continue')
                       : kioskStep === 1 && !kioskForm.selectedHospitalId
                       ? (t.selectHospitalTitle || 'Select a Healthcare Facility')
                       : (t.next || 'Continue')}

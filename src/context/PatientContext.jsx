@@ -411,29 +411,79 @@ export const PatientProvider = ({ children }) => {
   const t = translations[language] || translations.en;
 
   // Web Speech API Voice Prompt synthesis with Indian Language BCP-47 locale support
-  const speakText = (textToSpeak, customLang = null) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  // Truthfully checks voice support without silent fallback to English/Hindi
+  const speakText = (textToSpeak, customLang = null, options = {}) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (options.onStatus) {
+        options.onStatus({
+          supported: false,
+          code: 'UNSUPPORTED',
+          message: 'Speech synthesis is not supported on this browser or device.'
+        });
+      }
+      return { supported: false, code: 'UNSUPPORTED' };
+    }
+
     try {
       window.speechSynthesis.cancel();
+      const langCode = customLang || language;
+      const targetLocale = getLocaleForLanguage(langCode);
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      const targetLocale = getLocaleForLanguage(customLang || language);
       utterance.lang = targetLocale;
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
 
       // Pick best matching voice if available in browser
       const voices = window.speechSynthesis.getVoices();
+      let matchedVoice = null;
       if (voices && voices.length > 0) {
-        const langCode = customLang || language;
-        const matchedVoice = voices.find(v => v.lang === targetLocale || v.lang.startsWith(langCode));
+        matchedVoice = voices.find(v => {
+          const vLang = (v.lang || '').toLowerCase().replace('_', '-');
+          const tLocale = targetLocale.toLowerCase();
+          const lCode = langCode.toLowerCase();
+          return vLang === tLocale || vLang.startsWith(`${lCode}-`) || vLang === lCode;
+        });
+
         if (matchedVoice) {
           utterance.voice = matchedVoice;
+        } else {
+          // If voices are available in browser but none match this regional language, do NOT silently fall back to English/Hindi
+          const langObj = languages.find(l => l.code === langCode);
+          const langName = langObj ? langObj.name : langCode;
+          const status = {
+            supported: false,
+            code: 'NO_VOICE_FOR_LANGUAGE',
+            message: `Voice audio for ${langName} is not installed on this browser. Please use on-screen text.`,
+            locale: targetLocale
+          };
+          if (options.onStatus) options.onStatus(status);
+          return status;
         }
       }
 
+      if (options.onStart) utterance.onstart = options.onStart;
+      if (options.onEnd) utterance.onend = options.onEnd;
+      utterance.onerror = (e) => {
+        if (options.onError) options.onError(e);
+        if (options.onStatus) {
+          options.onStatus({
+            supported: false,
+            code: 'PLAYBACK_ERROR',
+            message: `Audio playback encountered an issue for ${targetLocale}. Please refer to on-screen text.`,
+            locale: targetLocale
+          });
+        }
+      };
+
       window.speechSynthesis.speak(utterance);
+      const status = { supported: true, code: 'PLAYING', locale: targetLocale };
+      if (options.onStatus) options.onStatus(status);
+      return status;
     } catch (err) {
-      console.warn('Speech synthesis not available or blocked:', err);
+      console.warn('Speech synthesis error:', err);
+      const status = { supported: false, code: 'ERROR', message: 'Speech synthesis encountered an error.' };
+      if (options.onStatus) options.onStatus(status);
+      return status;
     }
   };
 

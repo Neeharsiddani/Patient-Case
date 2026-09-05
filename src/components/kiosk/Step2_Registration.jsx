@@ -30,8 +30,7 @@ export const Step2_Registration = () => {
     setKioskForm, 
     language, 
     setLanguage, 
-    t, 
-    speakText 
+    t 
   } = usePatient();
 
   // Active identification tab: 'abha' | 'qr' | 'walkin'
@@ -54,35 +53,9 @@ export const Step2_Registration = () => {
     }
   }, []);
 
-  // Language Selection Handler
+  // Language Selection Handler - Strictly changes language and text without auto-playing audio
   const handleLanguageChange = (langCode) => {
     setLanguage(langCode);
-    // Voice prompt greeting in newly selected language
-    const langObj = languages.find(l => l.code === langCode);
-    if (langObj) {
-      const welcomeMsg = langCode === 'hi' 
-        ? 'हिन्दी भाषा चुनी गई। कृपया अपना विवरण दर्ज करें।'
-        : langCode === 'te'
-        ? 'తెలుగు భాష ఎంపిక చేయబడింది. దయచేసి మీ వివరాలను నమోదు చేయండి.'
-        : langCode === 'ta'
-        ? 'தமிழ் மொழி தேர்ந்தெடுக்கப்பட்டது. உங்கள் விவரங்களை உள்ளிடவும்.'
-        : langCode === 'mr'
-        ? 'मराठी भाषा निवडली गेली. कृपया माहिती भरा.'
-        : langCode === 'bn'
-        ? 'বাংলা ভাষা নির্বাচিত হয়েছে। আপনার বিবরণ লিখুন।'
-        : langCode === 'gu'
-        ? 'ગુજરાતી ભાષા પસંદ કરવામાં આવી છે.'
-        : langCode === 'kn'
-        ? 'ಕನ್ನಡ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆ ಮಾಡಲಾಗಿದೆ.'
-        : langCode === 'ml'
-        ? 'മലയാളം ഭാഷ തിരഞ്ഞെടുത്തു.'
-        : langCode === 'pa'
-        ? 'ਪੰਜਾਬੀ ਭਾਸ਼ਾ ਚੁਣੀ ਗਈ।'
-        : langCode === 'ur'
-        ? 'اردو زبان منتخب کی گئی ہے۔'
-        : 'English selected. Please proceed with registration.';
-      speakText(welcomeMsg, langCode);
-    }
   };
 
   // ABDM QR Code Payload Parser
@@ -130,24 +103,20 @@ export const Step2_Registration = () => {
     }
   };
 
-  // Quick Demo Profiles
-  const quickProfiles = [
-    { name: 'Vikramaditya Rao', age: '58', gender: 'Male', phone: '9845012345', abha: '91-9988-7766-5544', address: 'Hyderabad, Telangana' },
-    { name: 'Priya Sharma', age: '34', gender: 'Female', phone: '9876543210', abha: '91-1234-5678-9012', address: 'New Delhi, Delhi' },
-    { name: 'K. Venkatesh', age: '67', gender: 'Male', phone: '9440123456', abha: '91-4567-8901-2345', address: 'Secunderabad, Telangana' }
-  ];
-
-  const handleSelectQuickProfile = (prof) => {
-    setKioskForm(prev => ({
-      ...prev,
-      name: prof.name,
-      age: prof.age,
-      gender: prof.gender,
-      phone: prof.phone,
-      abhaId: prof.abha,
-      address: prof.address
-    }));
-  };
+  // Registration validation flags for mandatory patient identity & consent
+  const isNameValid = Boolean(kioskForm.name && kioskForm.name.trim().length >= 2);
+  const isAgeValid = Boolean(kioskForm.age && !isNaN(kioskForm.age) && Number(kioskForm.age) >= 1 && Number(kioskForm.age) <= 125);
+  const isGenderValid = Boolean(kioskForm.gender && ['Male', 'Female', 'Other'].includes(kioskForm.gender));
+  const isPhoneValid = Boolean(kioskForm.phone && kioskForm.phone.replace(/\D/g, '').length === 10);
+  const isConsentValid = Boolean(kioskForm.consentAgreed);
+  const isAbhaValid = identTab === 'walkin' ? true : Boolean(
+    kioskForm.abhaId && (
+      kioskForm.abhaId.replace(/\D/g, '').length === 14 || 
+      /^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+$/.test(kioskForm.abhaId.trim()) || 
+      kioskForm.abhaId.trim().length >= 10
+    )
+  );
+  const isFormValid = isNameValid && isAgeValid && isGenderValid && isPhoneValid && isAbhaValid && isConsentValid;
 
   // Consent Agreement Handlers
   const handleAgreeConsent = (method = 'one_tap') => {
@@ -281,28 +250,16 @@ export const Step2_Registration = () => {
             <CreditCard size={18} className="text-cyan-700" />
             <span>{t.identTitle || 'Patient Identification & ABHA Registration'}</span>
           </h3>
-
-          {/* Quick Demo Selector */}
-          <div className="hidden md:flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400">Quick Test:</span>
-            {quickProfiles.map((prof, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSelectQuickProfile(prof)}
-                className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-cyan-50 hover:text-cyan-800 text-slate-600 border border-slate-200 transition-colors"
-              >
-                {prof.name.split(' ')[0]}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Identification Tabs */}
         <div className="flex border-b border-slate-200">
           <button
             type="button"
-            onClick={() => setIdentTab('abha')}
+            onClick={() => {
+              setIdentTab('abha');
+              setKioskForm(p => ({ ...p, registrationMode: 'abha' }));
+            }}
             className={`flex-1 py-3 px-2 text-center text-xs font-bold border-b-2 flex items-center justify-center gap-2 transition-all cursor-pointer ${
               identTab === 'abha'
                 ? 'border-cyan-700 text-cyan-800 bg-cyan-50/50'
@@ -315,7 +272,10 @@ export const Step2_Registration = () => {
 
           <button
             type="button"
-            onClick={() => setIdentTab('qr')}
+            onClick={() => {
+              setIdentTab('qr');
+              setKioskForm(p => ({ ...p, registrationMode: 'qr' }));
+            }}
             className={`flex-1 py-3 px-2 text-center text-xs font-bold border-b-2 flex items-center justify-center gap-2 transition-all cursor-pointer ${
               identTab === 'qr'
                 ? 'border-cyan-700 text-cyan-800 bg-cyan-50/50'
@@ -328,7 +288,10 @@ export const Step2_Registration = () => {
 
           <button
             type="button"
-            onClick={() => setIdentTab('walkin')}
+            onClick={() => {
+              setIdentTab('walkin');
+              setKioskForm(p => ({ ...p, registrationMode: 'walkin', abhaStatus: 'WALKIN_NO_ABHA' }));
+            }}
             className={`flex-1 py-3 px-2 text-center text-xs font-bold border-b-2 flex items-center justify-center gap-2 transition-all cursor-pointer ${
               identTab === 'walkin'
                 ? 'border-cyan-700 text-cyan-800 bg-cyan-50/50'
@@ -438,7 +401,7 @@ export const Step2_Registration = () => {
                   setQrRawInput(e.target.value);
                   parseAbdmQr(e.target.value);
                 }}
-                placeholder='Paste ABDM QR code data (e.g. {"hidn":"91-9988-7766-5544","name":"Vikramaditya Rao","gender":"M","dob":"1968-04-12","mobile":"9845012345"})'
+                placeholder='Paste ABDM QR code data JSON payload or scanned text here...'
                 className="w-full max-w-lg mx-auto p-3 text-xs font-mono bg-white border border-slate-300 rounded-xl focus:border-cyan-700 focus:outline-none"
               />
               {qrSuccess && (
@@ -642,6 +605,117 @@ export const Step2_Registration = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* SECTION 4: REGISTRATION VALIDATION GUIDANCE */}
+      <div className={`p-4 sm:p-5 rounded-3xl border transition-all ${
+        isFormValid 
+          ? 'bg-emerald-50/60 border-emerald-200' 
+          : 'bg-amber-50/60 border-amber-200'
+      }`}>
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+          <div className="flex items-center gap-2">
+            {isFormValid ? (
+              <CheckCircle2 size={18} className="text-emerald-700 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={18} className="text-amber-700 flex-shrink-0" />
+            )}
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+              {isFormValid 
+                ? 'All Registration Requirements Satisfied' 
+                : 'Mandatory Registration Requirements'}
+            </h4>
+          </div>
+          <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
+            isFormValid 
+              ? 'bg-emerald-100 text-emerald-800' 
+              : 'bg-amber-100 text-amber-900'
+          }`}>
+            {isFormValid ? 'Ready to Continue' : 'Incomplete'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-3">
+          {/* Item 1: Full Name */}
+          <div className="flex items-center gap-2 text-xs">
+            {isNameValid ? (
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+            )}
+            <span className={isNameValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+              Full Name {isNameValid ? '✓' : '(Min 2 letters)'}
+            </span>
+          </div>
+
+          {/* Item 2: Age */}
+          <div className="flex items-center gap-2 text-xs">
+            {isAgeValid ? (
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+            )}
+            <span className={isAgeValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+              Age {isAgeValid ? `(${kioskForm.age} yrs) ✓` : '(1–125 yrs)'}
+            </span>
+          </div>
+
+          {/* Item 3: Gender */}
+          <div className="flex items-center gap-2 text-xs">
+            {isGenderValid ? (
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+            )}
+            <span className={isGenderValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+              Gender {isGenderValid ? `(${kioskForm.gender}) ✓` : '(Required)'}
+            </span>
+          </div>
+
+          {/* Item 4: 10-digit Phone */}
+          <div className="flex items-center gap-2 text-xs">
+            {isPhoneValid ? (
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+            )}
+            <span className={isPhoneValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+              Phone {isPhoneValid ? '✓' : '(10-digit mobile)'}
+            </span>
+          </div>
+
+          {/* Item 5: ABHA (if abha or qr mode) */}
+          {identTab !== 'walkin' && (
+            <div className="flex items-center gap-2 text-xs">
+              {isAbhaValid ? (
+                <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+              ) : (
+                <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+              )}
+              <span className={isAbhaValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+                {identTab === 'qr' ? 'ABHA QR Data' : 'ABHA ID / Number'} {isAbhaValid ? '✓' : '(14 digits or @abdm)'}
+              </span>
+            </div>
+          )}
+
+          {/* Item 6: Consent */}
+          <div className="flex items-center gap-2 text-xs">
+            {isConsentValid ? (
+              <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+            )}
+            <span className={isConsentValid ? 'font-bold text-slate-800' : 'text-slate-500 font-medium'}>
+              DPDP Consent {isConsentValid ? '✓' : '(Authorization Required)'}
+            </span>
+          </div>
+        </div>
+
+        {!isFormValid && (
+          <p className="text-[11px] text-amber-800 font-medium mt-3 border-t border-amber-200/60 pt-2">
+            Please fill all missing details above and authorize consent. The Continue button below will remain disabled until all required items are valid.
+          </p>
+        )}
       </div>
     </div>
   );

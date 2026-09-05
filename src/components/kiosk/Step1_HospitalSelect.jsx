@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
 import { ApiService } from '../../services/api';
-import { AudioPrompt } from '../common/AudioPrompt';
 import { getRouteUrl } from '../../utils/navigation';
 import { 
   POPULAR_LOCALITIES, 
@@ -144,8 +143,9 @@ export const Step1_HospitalSelect = () => {
       selectedHospitalName: hosp.name,
       hospital_id: hosp.id,
       hospital_name: hosp.name,
-      assignedDepartment: hosp.departments?.[0]?.name || 'General Medicine',
-      department_id: hosp.departments?.[0]?.id || `dept-${hosp.id.startsWith('hosp-') ? hosp.id.slice(5) : hosp.id}-genmed`
+      assignedDepartment: 'General Medicine',
+      department_id: `dept-${hosp.id.startsWith('hosp-') ? hosp.id.slice(5) : hosp.id}-genmed`,
+      isAyushCase: false
     }));
 
     // Automatically direct to next page (Step 2: Reason for Visit)
@@ -233,7 +233,6 @@ export const Step1_HospitalSelect = () => {
             Auto-detect your current area (e.g. Balapur, Gachibowli, Kukatpally, Santosh Nagar) or select any neighborhood across India.
           </p>
         </div>
-        <AudioPrompt promptText="Please search and select your healthcare facility from the directory below." />
       </div>
 
       {/* Patient Proximity Bar: Auto-Detect GPS & Area Selector */}

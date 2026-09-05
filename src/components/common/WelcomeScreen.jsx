@@ -23,37 +23,37 @@ export const WelcomeScreen = ({ onSelectPatient, onSelectDoctor }) => {
   const clinicalPipelineSteps = [
     {
       step: '1',
-      badge: 'Patient Intake',
-      title: 'Share Reason for Visit',
-      desc: 'Patient shares symptoms and primary reason for visit.',
+      badge: 'Stage 1',
+      title: 'IDENTIFY & REGISTER',
+      desc: 'Patient identity, language and consent',
       icon: User
     },
     {
       step: '2',
-      badge: 'Clinical History',
-      title: 'Collect Health Details',
-      desc: 'MediMitra collects structured clinical information & history.',
+      badge: 'Stage 2',
+      title: 'CLINICAL HISTORY',
+      desc: 'Adaptive voice and touch-based health history',
       icon: Activity
     },
     {
       step: '3',
-      badge: 'Medical Records',
-      title: 'Organize Documents',
-      desc: 'Previous prescriptions, reports and documents are organized.',
+      badge: 'Stage 3',
+      title: 'MEDICAL RECORDS',
+      desc: 'Scan and organize previous medical records',
       icon: FileText
     },
     {
       step: '4',
-      badge: 'Structured Case',
-      title: 'Prepare Case File',
-      desc: 'MediMitra prepares the information for clinical review.',
+      badge: 'Stage 4',
+      title: 'STRUCTURED CASE',
+      desc: 'Prepare a structured case for clinical review',
       icon: ClipboardList
     },
     {
       step: '5',
-      badge: 'Doctor Review',
-      title: 'Verify & Consult',
-      desc: 'Authorized healthcare professionals review, edit and verify.',
+      badge: 'Stage 5',
+      title: 'DOCTOR REVIEW',
+      desc: 'Authorized clinicians review, verify and consult',
       icon: Stethoscope
     }
   ];
@@ -116,7 +116,7 @@ export const WelcomeScreen = ({ onSelectPatient, onSelectDoctor }) => {
                   Complete your health history before your consultation
                 </p>
                 <p className="text-xs text-slate-500 font-medium leading-relaxed pt-0.5">
-                  Select hospital → Share symptoms → Complete clinical history → Provide medical records → Review & submit
+                  Select hospital → Register → Share symptoms → Complete clinical history → Provide medical records → Review & submit
                 </p>
               </div>
             </div>
